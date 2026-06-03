@@ -25,6 +25,11 @@ class BookUploadSerializer(serializers.Serializer):
     translation_language = serializers.CharField(max_length=40, required=False, default="English")
     text = serializers.CharField(required=False, allow_blank=True, default="")
     file = serializers.FileField(required=False)
+    # Optional, for precise segmentation of messy/large books: the lesson label
+    # ("Unit", "Lesson", "Lektion"…) and the number range (from..to).
+    lesson_label = serializers.CharField(max_length=40, required=False, allow_blank=True, default="")
+    from_lesson = serializers.IntegerField(required=False, allow_null=True, default=None)
+    to_lesson = serializers.IntegerField(required=False, allow_null=True, default=None)
 
 
 class BookListView(APIView):
@@ -47,7 +52,12 @@ class BookListView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        lessons = processing.segment_lessons(text)
+        label = d.get("lesson_label") or ""
+        from_n, to_n = d.get("from_lesson"), d.get("to_lesson")
+        if label and from_n is not None and to_n is not None:
+            lessons = processing.segment_by_range(text, label, int(from_n), int(to_n))
+        else:
+            lessons = processing.segment_lessons(text)
         capped = len(lessons) > processing.MAX_LESSONS
         lessons = lessons[: processing.MAX_LESSONS]
 
