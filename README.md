@@ -58,5 +58,6 @@ docs/       Anki research, review-UX research, deploy plan, design notes
 - [docs/GRAMMAR_CARDS.md](docs/GRAMMAR_CARDS.md) — the grammar-card design (cloze + table)
 - [docs/BOOK_CONTENT.md](docs/BOOK_CONTENT.md) — Menschen & Oxford deck structure
 - [docs/DEPLOY.md](docs/DEPLOY.md) — Render + Vercel + shared Postgres deployment plan
+- [docs/FUTURE.md](docs/FUTURE.md) — deferred ideas / backlog (e.g. background book processing)
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — day-to-day workflow
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — services, endpoints, structure
