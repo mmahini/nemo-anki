@@ -16,6 +16,7 @@ urlpatterns = [
     path("api/", include("apps.decks.urls")),
     path("api/", include("apps.cards.urls")),
     path("api/", include("apps.imports.urls")),
+    path("api/", include("apps.books.urls")),
 ]
 
 if settings.DEBUG:

@@ -12,6 +12,7 @@ export default function AppShell() {
         <Link to="/app" className="shell__brand">Nemo&nbsp;Anki</Link>
         <nav className="shell__nav">
           <NavLink to="/app" end className="shell__link">Decks</NavLink>
+          <NavLink to="/app/books" className="shell__link">Books</NavLink>
           <NavLink to="/app/import" className="shell__link">Import</NavLink>
         </nav>
         <div className="shell__user">
