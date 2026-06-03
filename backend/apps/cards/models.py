@@ -39,6 +39,10 @@ class Card(models.Model):
     example = models.TextField(blank=True, default="")
     notes = models.TextField(blank=True, default="")            # rule explanation (grammar)
     table = models.JSONField(null=True, blank=True)             # declension/conjugation (grammar)
+    # Per-noun true genders for German sentences, in order of appearance:
+    # [{"noun": "Frau", "gender": "die"}]. Populated by the "Colour genders"
+    # button so sentence colouring is grammatically correct (case-independent).
+    genders = models.JSONField(default=list, blank=True)
     tags = models.JSONField(default=list, blank=True)
 
     # ---- Scheduling (Anki SM-2; see docs/ANKI_RESEARCH.md §5) ----

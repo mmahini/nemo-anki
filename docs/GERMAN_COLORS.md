@@ -27,9 +27,25 @@ home. The values are defined once in `styles.css` and reused everywhere.)
 - **Deck header legend**: a compact key (der/die/das) appears on German decks so
   the colour code is always self-explanatory.
 
+## Sentences: only articles + their nouns
+
+On German **sentence** (and grammar) cards we colour *only* the articles and the
+nouns they govern — verbs, prepositions, conjunctions and adjectives stay in the
+default ink. Two modes (see `frontend/src/components/GermanText.tsx`):
+
+- **Heuristic** (default): colour comes from the article's surface form. Fast,
+  but a dative/genitive like *der Frau* shows in the der-colour (wrong gender).
+- **Accurate** (the **🎨 Colour genders** button on the editor): calls
+  `POST /api/import/analyze-de/` (Gemini), which returns each noun's *true*
+  dictionary gender. The result is stored on `Card.genders`
+  (`[{noun, gender}]`) and used to colour the noun **and** its governing article
+  by the real gender — so *der Frau* becomes red. The editor shows the mapping
+  ("Frau (die), …") so the flow is transparent.
+
 ## Data model
 
 `Card.article` is an enum: `der | die | das | plural | none`. It is only meaningful
 for German (`language = "de"`) vocab cards that are nouns; everything else is
-`none` and renders in the default colour. The Gemini importer is instructed to
-fill `article` for German nouns automatically.
+`none` and renders in the default colour. The Gemini importer fills `article` for
+German nouns automatically. `Card.genders` stores per-noun true genders for
+sentence colouring (above).

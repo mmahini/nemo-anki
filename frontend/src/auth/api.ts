@@ -154,6 +154,9 @@ export type GrammarTable = {
   highlight?: [number, number];
 };
 
+/** A noun's true gender for accurate German sentence colouring. */
+export type NounGender = { noun: string; gender: "der" | "die" | "das" | "plural" };
+
 export type DeckCounts = { new: number; learning: number; due: number; total: number };
 
 export type Deck = {
@@ -181,6 +184,7 @@ export type Card = {
   example: string;
   notes: string;
   table: GrammarTable | null;
+  genders: NounGender[];
   tags: string[];
   state: CardState;
   due: string;
@@ -205,6 +209,7 @@ export type DraftCard = {
   example: string;
   notes: string;
   table: GrammarTable | null;
+  genders: NounGender[];
   tags: string[];
 };
 
@@ -326,5 +331,13 @@ export function enrichCard(payload: {
   return jsonRequest<EnrichResult>("/api/import/enrich/", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+/** Get each noun's true gender for a German sentence (Colour-genders button). */
+export function analyzeGerman(text: string): Promise<{ nouns: NounGender[]; source: string }> {
+  return jsonRequest("/api/import/analyze-de/", {
+    method: "POST",
+    body: JSON.stringify({ text }),
   });
 }

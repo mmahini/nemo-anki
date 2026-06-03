@@ -24,6 +24,7 @@ function toDraft(c: Card): DraftCard {
     example: c.example,
     notes: c.notes,
     table: c.table,
+    genders: c.genders,
     tags: c.tags,
   };
 }

@@ -1,6 +1,12 @@
 import { useState } from "react";
 
-import { enrichCard, type Article, type CardType, type DraftCard } from "../auth/api";
+import {
+  analyzeGerman,
+  enrichCard,
+  type Article,
+  type CardType,
+  type DraftCard,
+} from "../auth/api";
 import { detectArticle } from "../lib/article";
 import SpeakButton from "./SpeakButton";
 
@@ -18,6 +24,7 @@ export function emptyDraft(language: "de" | "en" | "" = "", card_type: CardType 
     example: "",
     notes: "",
     table: null,
+    genders: [],
     tags: [],
   };
 }
@@ -31,13 +38,22 @@ type Props = {
 export default function CardEditor({ value, onChange, compact }: Props) {
   const [translating, setTranslating] = useState(false);
   const [translateErr, setTranslateErr] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const set = <K extends keyof DraftCard>(key: K, v: DraftCard[K]) =>
     onChange({ ...value, [key]: v });
 
   const isGerman = value.language === "de";
-  const hasReading = value.card_type === "vocab" || value.card_type === "sentence";
+  const isSentence = value.card_type === "sentence";
+  const hasReading = value.card_type === "vocab" || isSentence;
   const showArticle = isGerman && value.card_type === "vocab";
+  // Accurate colouring only matters for multi-word German cards.
+  const showColourGenders = isGerman && value.card_type !== "vocab";
+
+  // Editing the front invalidates a previous gender analysis.
+  function onFrontChange(v: string) {
+    onChange({ ...value, front: v, genders: [] });
+  }
 
   // Strip a leading "der/die/das " off the typed word into the article field.
   function onFrontBlur() {
@@ -60,14 +76,28 @@ export default function CardEditor({ value, onChange, compact }: Props) {
         ...value,
         back: r.back || value.back,
         reading: r.reading || value.reading,
-        // Only override the article when the server is confident (non-"none").
         article: r.article && r.article !== "none" ? r.article : value.article,
-        example: r.example || value.example,
+        // A sentence card is its own example — don't add a separate one.
+        example: isSentence ? "" : r.example || value.example,
       });
     } catch (err) {
       setTranslateErr(err instanceof Error ? err.message : "Translate failed.");
     } finally {
       setTranslating(false);
+    }
+  }
+
+  async function colourGenders() {
+    if (!value.front.trim()) return;
+    setAnalyzing(true);
+    setTranslateErr(null);
+    try {
+      const r = await analyzeGerman(value.front.trim());
+      onChange({ ...value, genders: r.nouns });
+    } catch (err) {
+      setTranslateErr(err instanceof Error ? err.message : "Analysis failed.");
+    } finally {
+      setAnalyzing(false);
     }
   }
 
@@ -95,15 +125,32 @@ export default function CardEditor({ value, onChange, compact }: Props) {
             ))}
           </select>
         )}
-        <button
-          type="button"
-          className="btn btn--ghost btn--sm cardeditor__translate"
-          onClick={translate}
-          disabled={translating || !value.front.trim()}
-          title="Auto-translate + fill reading/article"
-        >
-          {translating ? "Translating…" : "🌐 Translate"}
-        </button>
+        <div className="cardeditor__tools">
+          {showColourGenders && (
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={colourGenders}
+              disabled={analyzing || !value.front.trim()}
+              title="Detect each noun's true gender and colour the sentence accurately"
+            >
+              {analyzing
+                ? "Analysing…"
+                : value.genders.length
+                  ? `🎨 ${value.genders.length} coloured`
+                  : "🎨 Colour genders"}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={translate}
+            disabled={translating || !value.front.trim()}
+            title="Auto-translate + fill reading/article"
+          >
+            {translating ? "Translating…" : "🌐 Translate"}
+          </button>
+        </div>
       </div>
 
       <label className="cardeditor__field">
@@ -112,12 +159,17 @@ export default function CardEditor({ value, onChange, compact }: Props) {
           <input
             className="input"
             value={value.front}
-            onChange={(e) => set("front", e.target.value)}
+            onChange={(e) => onFrontChange(e.target.value)}
             onBlur={onFrontBlur}
             placeholder={showArticle ? "e.g. der Tisch — article is detected" : ""}
           />
           <SpeakButton text={value.front} lang={value.language} title="Hear the front" />
         </div>
+        {showColourGenders && value.genders.length > 0 && (
+          <span className="cardeditor__note">
+            Coloured by true gender: {value.genders.map((g) => `${g.noun} (${g.gender})`).join(", ")}
+          </span>
+        )}
       </label>
 
       <label className="cardeditor__field">
@@ -144,10 +196,13 @@ export default function CardEditor({ value, onChange, compact }: Props) {
 
       {!compact && (
         <>
-          <label className="cardeditor__field">
-            <span>Example</span>
-            <input className="input" value={value.example} onChange={(e) => set("example", e.target.value)} />
-          </label>
+          {/* A sentence card is itself the example — no separate Example field. */}
+          {!isSentence && (
+            <label className="cardeditor__field">
+              <span>Example</span>
+              <input className="input" value={value.example} onChange={(e) => set("example", e.target.value)} />
+            </label>
+          )}
           {value.card_type === "grammar" && (
             <label className="cardeditor__field">
               <span>Rule / notes</span>
