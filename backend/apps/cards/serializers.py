@@ -22,6 +22,7 @@ class CardSerializer(serializers.ModelSerializer):
             "back",
             "reading",
             "article",
+            "plural",
             "example",
             "notes",
             "table",

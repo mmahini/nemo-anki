@@ -36,6 +36,7 @@ class Card(models.Model):
     back = models.TextField(blank=True, default="")
     reading = models.TextField(blank=True, default="")          # phonetic (vocab/sentence)
     article = models.CharField(max_length=8, choices=Article.choices, default=Article.NONE)
+    plural = models.CharField(max_length=120, blank=True, default="")  # e.g. "die Tische"
     example = models.TextField(blank=True, default="")
     notes = models.TextField(blank=True, default="")            # rule explanation (grammar)
     table = models.JSONField(null=True, blank=True)             # declension/conjugation (grammar)

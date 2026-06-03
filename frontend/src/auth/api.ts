@@ -154,8 +154,17 @@ export type GrammarTable = {
   highlight?: [number, number];
 };
 
-/** A noun's true gender for accurate German sentence colouring. */
-export type NounGender = { noun: string; gender: "der" | "die" | "das" | "plural" };
+/**
+ * A noun's analysis for a German sentence: its true gender (for colouring)
+ * plus the article as used, its grammatical case, and why — for the case table.
+ */
+export type NounGender = {
+  noun: string;
+  gender: "der" | "die" | "das" | "plural";
+  article?: string;
+  case?: string; // Nominativ | Akkusativ | Dativ | Genitiv
+  reason?: string;
+};
 
 export type DeckCounts = { new: number; learning: number; due: number; total: number };
 
@@ -181,6 +190,7 @@ export type Card = {
   back: string;
   reading: string;
   article: Article;
+  plural: string;
   example: string;
   notes: string;
   table: GrammarTable | null;
@@ -206,6 +216,7 @@ export type DraftCard = {
   back: string;
   reading: string;
   article: Article;
+  plural: string;
   example: string;
   notes: string;
   table: GrammarTable | null;
@@ -319,6 +330,7 @@ export type EnrichResult = {
   back: string;
   reading: string;
   article: Article;
+  plural: string;
   example: string;
 };
 
