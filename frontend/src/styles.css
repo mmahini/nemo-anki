@@ -389,10 +389,9 @@ kbd {
 .cardrow__del:hover { color: var(--again); }
 .cardrow__edit { padding: 12px; }
 .cardrow__editactions { display: flex; gap: 8px; margin-top: 10px; }
+/* Type tag is intentionally neutral so it never clashes with the
+   der/die/das gender colours on the word itself. */
 .badge { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; background: var(--line-soft); color: var(--ink-soft); }
-.badge--vocab { background: rgba(76, 110, 245, 0.12); color: var(--brand-dark); }
-.badge--sentence { background: rgba(31, 157, 87, 0.12); color: var(--good); }
-.badge--grammar { background: rgba(138, 99, 210, 0.14); color: var(--art-plural); }
 .state { font-size: 0.7rem; font-weight: 600; color: var(--ink-faint); }
 .state--review { color: var(--good); }
 .state--new { color: var(--brand); }
