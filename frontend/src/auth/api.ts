@@ -347,6 +347,64 @@ export function enrichCard(payload: {
   });
 }
 
+// ====== Books ======
+
+export type BookLesson = {
+  id: number;
+  title: string;
+  position: number;
+  card_count: number;
+};
+
+export type Book = {
+  id: number;
+  title: string;
+  source_language: "de" | "en" | "";
+  translation_language: string;
+  status: "processing" | "ready" | "failed";
+  color: string;
+  note: string;
+  lessons: BookLesson[];
+  lesson_count: number;
+  card_count: number;
+  created_at: string;
+};
+
+export function fetchBooks(): Promise<Book[]> {
+  return jsonRequest<Book[]>("/api/books/", { method: "GET" });
+}
+
+export function uploadBook(payload: {
+  title: string;
+  source_language: "de" | "en" | "";
+  translation_language: string;
+  text?: string;
+  file?: File | null;
+}): Promise<Book> {
+  const fd = new FormData();
+  fd.append("title", payload.title);
+  fd.append("source_language", payload.source_language);
+  fd.append("translation_language", payload.translation_language);
+  if (payload.text) fd.append("text", payload.text);
+  if (payload.file) fd.append("file", payload.file);
+  return jsonRequest<Book>("/api/books/", { method: "POST", body: fd });
+}
+
+export function deleteBook(id: number): Promise<void> {
+  return jsonRequest<void>(`/api/books/${id}/`, { method: "DELETE" });
+}
+
+export function importBookLesson(
+  bookId: number,
+  lessonId: number,
+  parentDeck: number | null,
+): Promise<{ book_deck: number; lesson_deck: number; cards: number }> {
+  return jsonRequest(`/api/books/${bookId}/lessons/${lessonId}/import/`, {
+    method: "POST",
+    body: JSON.stringify({ parent_deck: parentDeck }),
+  });
+}
+
 /** Get each noun's true gender for a German sentence (Colour-genders button). */
 export function analyzeGerman(text: string): Promise<{ nouns: NounGender[]; source: string }> {
   return jsonRequest("/api/import/analyze-de/", {

@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "apps.decks",
     "apps.cards",
     "apps.imports",
+    "apps.books",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
