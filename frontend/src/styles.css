@@ -370,7 +370,10 @@ kbd {
 .cardeditor { display: flex; flex-direction: column; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
 .cardeditor--compact { padding: 12px; gap: 8px; }
 .cardeditor__row { display: flex; gap: 8px; align-items: center; }
-.cardeditor__tools { margin-left: auto; display: flex; gap: 6px; }
+.cardeditor__tools { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.translate-group { display: inline-flex; align-items: stretch; }
+.translate-group__lang { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; max-width: 8.5rem; }
+.translate-group__btn { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .cardeditor__field { display: flex; flex-direction: column; gap: 5px; font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); }
 .cardeditor__inline { display: flex; gap: 8px; align-items: center; }
 .cardeditor__inline .input { flex: 1; }

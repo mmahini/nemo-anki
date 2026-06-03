@@ -20,6 +20,8 @@ class EnrichRequestSerializer(serializers.Serializer):
     card_type = serializers.ChoiceField(
         choices=["vocab", "sentence", "grammar"], required=False, default="vocab"
     )
+    # Language the translation ("back") should be written in.
+    back_language = serializers.CharField(max_length=40, required=False, default="English")
 
 
 class AnalyzeGermanSerializer(serializers.Serializer):
@@ -56,6 +58,7 @@ class EnrichView(APIView):
             serializer.validated_data["front"],
             serializer.validated_data["language"],
             serializer.validated_data["card_type"],
+            serializer.validated_data["back_language"],
         )
         return Response(result, status=status.HTTP_200_OK)
 
