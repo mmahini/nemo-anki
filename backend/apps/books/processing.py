@@ -15,19 +15,33 @@ from django.conf import settings
 
 from apps.imports.gemini import _extract_json_array  # reuse robust JSON parsing
 
-MAX_LESSONS = 24
+# Segmenting is cheap (no LLM), so allow large books (Oxford Word Skills has
+# 100 units). Vocab is still extracted per lesson, on demand.
+MAX_LESSONS = 200
 MAX_CHARS_PER_LESSON = 8000
 MAX_ITEMS_PER_LESSON = 60
 
 _LANG_NAMES = {"de": "German", "en": "English", "": "the source language"}
 ALLOWED_ARTICLES = {"none", "der", "die", "das", "plural"}
 
-# A lesson heading like "Lektion 1", "Unit 12 – Food", "Kapitel 3", "درس ۵".
+# A lesson heading at the START of a line: "Unit 12", "Unit12", "Lektion 1",
+# "Kapitel 3". The keyword must begin the line (so in-sentence cross-references
+# like "see Unit 33" are ignored). "lesson" is intentionally excluded — it's a
+# common English word and produces false matches in book bodies.
 _HEADING = re.compile(
-    r"^\s*(lektion|lesson|unit|kapitel|chapter|modul|module|درس|leçon|lezione|lección|leccion)"
-    r"\s*\.?\s*([0-9۰-۹]+)\b.*$",
+    r"^[ \t>·•\-]*(unit|lektion|kapitel|chapter|modul|module|درس|leçon|lezione|lección|leccion)"
+    r"[ \t]*\.?[ \t]*(\d{1,3})\b([^\n]*)",
     re.IGNORECASE | re.MULTILINE,
 )
+
+_HEADING_LABEL = {
+    "unit": "Unit", "lektion": "Lektion", "kapitel": "Kapitel", "chapter": "Chapter",
+    "modul": "Modul", "module": "Module", "leçon": "Leçon", "lezione": "Lezione",
+    "lección": "Lección", "leccion": "Lección", "درس": "درس",
+}
+# Trailing text longer than this means the line is prose (a sentence /
+# answer-key fragment), not a clean unit heading.
+_MAX_HEADING_TRAILING = 60
 
 
 def read_upload(uploaded_file, pasted_text: str) -> str:
@@ -58,17 +72,45 @@ def _read_pdf(data: bytes) -> str:
 
 
 def segment_lessons(text: str) -> list[dict]:
-    """Split text into [{title, raw_text}] by lesson headings."""
-    matches = list(_HEADING.finditer(text))
-    if not matches:
+    """Split text into [{title, raw_text}] by lesson headings.
+
+    Robust against messy PDF extraction: only accepts clean heading lines,
+    de-duplicates repeated headings (PDF page headers / cross-references),
+    and orders lessons by their number. Titles are normalised to
+    "<Label> N" so junk after the number never leaks into the title.
+    """
+    candidates = []
+    for m in _HEADING.finditer(text):
+        trailing = (m.group(3) or "").strip()
+        # Reject sentence-like lines (prose / answer-key fragments).
+        if len(trailing) > _MAX_HEADING_TRAILING:
+            continue
+        candidates.append({"start": m.start(), "kw": m.group(1).lower(), "num": int(m.group(2))})
+
+    if not candidates:
         return [{"title": "Lesson 1", "raw_text": text[: MAX_CHARS_PER_LESSON * 4]}]
+
+    # De-duplicate by (keyword, number) — keep the first occurrence in the text.
+    seen: set[tuple[str, int]] = set()
+    uniq = []
+    for c in candidates:
+        key = (c["kw"], c["num"])
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(c)
+
+    # Slice the text on heading boundaries in document order, then present the
+    # lessons ordered by their unit number.
+    uniq.sort(key=lambda c: c["start"])
     lessons = []
-    for i, m in enumerate(matches):
-        start = m.start()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        title = m.group(0).strip()[:120] or f"Lesson {i + 1}"
-        lessons.append({"title": title, "raw_text": text[start:end]})
-    return lessons
+    for i, c in enumerate(uniq):
+        end = uniq[i + 1]["start"] if i + 1 < len(uniq) else len(text)
+        label = _HEADING_LABEL.get(c["kw"], c["kw"].title())
+        lessons.append({"num": c["num"], "title": f"{label} {c['num']}", "raw_text": text[c["start"]:end]})
+
+    lessons.sort(key=lambda l: l["num"])
+    return [{"title": l["title"], "raw_text": l["raw_text"]} for l in lessons]
 
 
 _VOCAB_PROMPT = """You are building flashcards from a {src_name} coursebook \
