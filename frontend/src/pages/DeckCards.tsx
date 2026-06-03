@@ -11,7 +11,19 @@ import {
   type DraftCard,
 } from "../auth/api";
 import CardEditor from "../components/CardEditor";
-import { articlePillClass, articleLabel } from "../lib/article";
+import GermanText from "../components/GermanText";
+import { articleClass } from "../lib/article";
+
+/** The card's front, coloured by gender where it makes sense, on one line. */
+function FrontText({ card }: { card: Card }) {
+  if (card.card_type === "vocab") {
+    return <span className={articleClass(card.article)}>{card.front}</span>;
+  }
+  if (card.card_type === "sentence") {
+    return <GermanText text={card.front} lang={card.language} genders={card.genders} />;
+  }
+  return <>{card.front}</>;
+}
 
 function toDraft(c: Card): DraftCard {
   return {
@@ -111,11 +123,8 @@ export default function DeckCards() {
                 </div>
               ) : (
                 <div className="cardrow__view" onClick={() => startEdit(c)}>
-                  <span className={`badge badge--${c.card_type}`}>{c.card_type}</span>
-                  {c.article !== "none" && (
-                    <span className={articlePillClass(c.article)}>{articleLabel(c.article)}</span>
-                  )}
-                  <span className="cardrow__front">{c.front}</span>
+                  <span className="badge">{c.card_type}</span>
+                  <span className="cardrow__front"><FrontText card={c} /></span>
                   <span className="cardrow__back">{c.back}</span>
                   <span className={`state state--${c.state}`}>{c.state}</span>
                   <button
