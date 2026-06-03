@@ -45,7 +45,7 @@ _LANG_NAMES = {"de": "German", "en": "English", "": "the target language"}
 
 _ENRICH_PROMPT = """For the {language_name} {card_type} below, return ONLY a JSON \
 object (no markdown, no commentary) with these keys:
-- "back": a concise English translation / meaning.
+- "back": a concise translation / meaning written in {back_language}.
 - "reading": phonetic transcription (IPA) of the {language_name} text, or "".
 - "article": for a {language_name} noun one of "der","die","das","plural"; \
 otherwise "none".
@@ -57,22 +57,28 @@ TEXT: {front}
 """
 
 
-def enrich_card(front: str, language: str = "", card_type: str = "vocab") -> dict:
-    """Translate + add reading/article/example for a single term (Translate button)."""
+def enrich_card(
+    front: str, language: str = "", card_type: str = "vocab", back_language: str = "English"
+) -> dict:
+    """Translate + add reading/article/example for a single term (Translate button).
+
+    `back_language` is the language the translation ("back") is written in.
+    """
     front = (front or "").strip()
     if not front:
         return {}
     if settings.GEMINI_API_KEY:
         try:
-            return _enrich_with_gemini(front, language, card_type)
+            return _enrich_with_gemini(front, language, card_type, back_language)
         except Exception:  # noqa: BLE001 — degrade to local detection
             return _enrich_fallback(front)
     return _enrich_fallback(front)
 
 
-def _enrich_with_gemini(front: str, language: str, card_type: str) -> dict:
+def _enrich_with_gemini(front: str, language: str, card_type: str, back_language: str) -> dict:
     prompt = _ENRICH_PROMPT.format(
         language_name=_LANG_NAMES.get(language, "the target language"),
+        back_language=(back_language or "English").strip(),
         card_type=card_type if card_type in ALLOWED_TYPES else "vocab",
         front=front[:500],
     )

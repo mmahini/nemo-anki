@@ -8,6 +8,7 @@ import {
   type DraftCard,
 } from "../auth/api";
 import { detectArticle } from "../lib/article";
+import { getTranslateLang, setTranslateLang, TRANSLATE_LANGS } from "../lib/translateLang";
 import CaseTable from "./CaseTable";
 import SpeakButton from "./SpeakButton";
 
@@ -41,6 +42,8 @@ export default function CardEditor({ value, onChange, compact }: Props) {
   const [translating, setTranslating] = useState(false);
   const [translateErr, setTranslateErr] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  // Language the translation (back) is written in — defaults to the last used.
+  const [backLang, setBackLang] = useState(getTranslateLang);
 
   const set = <K extends keyof DraftCard>(key: K, v: DraftCard[K]) =>
     onChange({ ...value, [key]: v });
@@ -73,6 +76,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
         front: value.front.trim(),
         language: (value.language as any) || undefined,
         card_type: value.card_type,
+        back_language: backLang,
       });
       onChange({
         ...value,
@@ -145,15 +149,29 @@ export default function CardEditor({ value, onChange, compact }: Props) {
                   : "🎨 Colour genders"}
             </button>
           )}
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm"
-            onClick={translate}
-            disabled={translating || !value.front.trim()}
-            title="Auto-translate + fill reading/article"
-          >
-            {translating ? "Translating…" : "🌐 Translate"}
-          </button>
+          <div className="translate-group" title="Translate the back into this language">
+            <select
+              className="input input--sm translate-group__lang"
+              value={backLang}
+              onChange={(e) => {
+                setBackLang(e.target.value);
+                setTranslateLang(e.target.value);
+              }}
+            >
+              {TRANSLATE_LANGS.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm translate-group__btn"
+              onClick={translate}
+              disabled={translating || !value.front.trim()}
+              title="Auto-translate + fill reading/article"
+            >
+              {translating ? "Translating…" : "🌐 Translate"}
+            </button>
+          </div>
         </div>
       </div>
 

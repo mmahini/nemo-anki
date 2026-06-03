@@ -339,6 +339,7 @@ export function enrichCard(payload: {
   front: string;
   language?: "de" | "en" | "";
   card_type?: CardType;
+  back_language?: string;
 }): Promise<EnrichResult> {
   return jsonRequest<EnrichResult>("/api/import/enrich/", {
     method: "POST",
