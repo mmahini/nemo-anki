@@ -7,7 +7,9 @@ import {
   fetchDecks,
   importBookLesson,
   parseImport,
+  processBookLesson,
   type Book,
+  type BookLesson,
   type CardType,
   type Deck,
   type DraftCard,
@@ -38,6 +40,7 @@ export default function ImportPage() {
   const [bookParent, setBookParent] = useState<number | "">("");
   const [added, setAdded] = useState<Record<number, string>>({}); // lessonId -> message
   const [importingLesson, setImportingLesson] = useState<number | null>(null);
+  const [processingLesson, setProcessingLesson] = useState<number | null>(null);
 
   useEffect(() => {
     fetchDecks().then(setDecks);
@@ -85,6 +88,26 @@ export default function ImportPage() {
       setError(err instanceof Error ? err.message : "Could not create cards.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  function patchLesson(bookId: number, updated: BookLesson) {
+    setBooks((bs) =>
+      bs.map((b) =>
+        b.id !== bookId ? b : { ...b, lessons: b.lessons.map((l) => (l.id === updated.id ? updated : l)) },
+      ),
+    );
+  }
+
+  async function processLesson(book: Book, lessonId: number) {
+    setProcessingLesson(lessonId);
+    setError(null);
+    try {
+      patchLesson(book.id, await processBookLesson(book.id, lessonId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not process the lesson.");
+    } finally {
+      setProcessingLesson(null);
     }
   }
 
@@ -211,16 +234,28 @@ export default function ImportPage() {
                   {b.lessons.map((l) => (
                     <li key={l.id} className="bookblock__lesson">
                       <span className="bookblock__ltitle">{l.title}</span>
-                      <span className="bookblock__count">{l.card_count} vocab</span>
+                      {l.processed ? (
+                        <span className="bookblock__count">{l.card_count} vocab</span>
+                      ) : (
+                        <span className="bookblock__count bookblock__count--todo">not processed</span>
+                      )}
                       {added[l.id] ? (
                         <span className="bookblock__added">{added[l.id]}</span>
-                      ) : (
+                      ) : l.processed ? (
                         <button
                           className="btn btn--primary btn--sm"
                           disabled={importingLesson === l.id || l.card_count === 0}
                           onClick={() => addLesson(b, l.id)}
                         >
                           {importingLesson === l.id ? "Adding…" : "+ Add"}
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          disabled={processingLesson === l.id}
+                          onClick={() => processLesson(b, l.id)}
+                        >
+                          {processingLesson === l.id ? "Processing…" : "Process"}
                         </button>
                       )}
                     </li>

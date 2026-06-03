@@ -31,6 +31,8 @@ class BookLesson(models.Model):
     title = models.CharField(max_length=160)
     position = models.PositiveIntegerField(default=0)
     raw_text = models.TextField(blank=True, default="")
+    # Vocab is extracted per lesson, on demand (the lesson's Process button).
+    processed = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["position", "id"]

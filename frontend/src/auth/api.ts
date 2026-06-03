@@ -354,6 +354,7 @@ export type BookLesson = {
   title: string;
   position: number;
   card_count: number;
+  processed: boolean;
 };
 
 export type Book = {
@@ -392,6 +393,13 @@ export function uploadBook(payload: {
 
 export function deleteBook(id: number): Promise<void> {
   return jsonRequest<void>(`/api/books/${id}/`, { method: "DELETE" });
+}
+
+/** Extract one lesson's vocabulary (the per-lesson Process button). */
+export function processBookLesson(bookId: number, lessonId: number): Promise<BookLesson> {
+  return jsonRequest<BookLesson>(`/api/books/${bookId}/lessons/${lessonId}/process/`, {
+    method: "POST",
+  });
 }
 
 export function importBookLesson(

@@ -11,7 +11,7 @@ from apps.decks.models import Deck, DeckConfig
 
 from . import processing
 from .models import BANNER_COLORS, Book, BookCard, BookLesson
-from .serializers import BookSerializer
+from .serializers import BookLessonSerializer, BookSerializer
 
 
 def _color_for(title: str) -> str:
@@ -47,38 +47,57 @@ class BookListView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        lessons = processing.segment_lessons(text)
+        capped = len(lessons) > processing.MAX_LESSONS
+        lessons = lessons[: processing.MAX_LESSONS]
+
         book = Book.objects.create(
             user=request.user,
             title=d["title"],
             source_language=d["source_language"],
             translation_language=d["translation_language"],
-            status="processing",
+            status="ready",
             color=_color_for(d["title"]),
+            note=(f"Only the first {processing.MAX_LESSONS} lessons were kept." if capped else ""),
         )
-
-        lessons = processing.segment_lessons(text)
-        capped = len(lessons) > processing.MAX_LESSONS
-        lessons = lessons[: processing.MAX_LESSONS]
-
-        for i, lesson in enumerate(lessons):
-            bl = BookLesson.objects.create(
-                book=book, title=lesson["title"], position=i, raw_text=lesson["raw_text"]
-            )
-            try:
-                items = processing.extract_vocab(
-                    lesson["raw_text"], book.source_language, book.translation_language
-                )
-            except Exception:  # noqa: BLE001 — one lesson failing shouldn't kill the book
-                items = []
-            BookCard.objects.bulk_create(
-                [BookCard(lesson=bl, position=j, **it) for j, it in enumerate(items)]
-            )
-
-        book.status = "ready"
-        if capped:
-            book.note = f"Only the first {processing.MAX_LESSONS} lessons were processed."
-        book.save(update_fields=["status", "note"])
+        # Upload only segments into lessons (fast). Vocab is extracted per
+        # lesson via the Process button so we never block on the whole book.
+        BookLesson.objects.bulk_create(
+            [
+                BookLesson(book=book, title=l["title"], position=i, raw_text=l["raw_text"])
+                for i, l in enumerate(lessons)
+            ]
+        )
         return Response(BookSerializer(book).data, status=status.HTTP_201_CREATED)
+
+
+class BookLessonProcessView(APIView):
+    """Extract (or re-extract) one lesson's vocabulary with the LLM."""
+
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, pk, lid):
+        book = Book.objects.filter(id=pk, user=request.user).first()
+        lesson = BookLesson.objects.filter(id=lid, book=book).first() if book else None
+        if not lesson:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        try:
+            items = processing.extract_vocab(
+                lesson.raw_text, book.source_language, book.translation_language
+            )
+        except Exception as exc:  # noqa: BLE001
+            return Response(
+                {"detail": f"Processing failed ({exc.__class__.__name__})."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        lesson.cards.all().delete()
+        BookCard.objects.bulk_create(
+            [BookCard(lesson=lesson, position=j, **it) for j, it in enumerate(items)]
+        )
+        lesson.processed = True
+        lesson.save(update_fields=["processed"])
+        return Response(BookLessonSerializer(lesson).data, status=status.HTTP_200_OK)
 
 
 class BookDetailView(APIView):
