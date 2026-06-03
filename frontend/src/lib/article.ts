@@ -34,3 +34,13 @@ export function articlePillClass(article: Article): string {
 export function articleLabel(article: Article): string {
   return article === "plural" ? "die (pl)" : article;
 }
+
+/**
+ * Pull a leading German article off a typed term, e.g. "der Tisch" ->
+ * { article: "der", rest: "Tisch" }. Returns null when there's no article.
+ */
+export function detectArticle(front: string): { article: Article; rest: string } | null {
+  const m = /^\s*(der|die|das)\s+(.+)$/i.exec(front);
+  if (!m) return null;
+  return { article: m[1].toLowerCase() as Article, rest: m[2].trim() };
+}

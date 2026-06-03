@@ -43,6 +43,77 @@ TEXT:
 
 _LANG_NAMES = {"de": "German", "en": "English", "": "the target language"}
 
+_ENRICH_PROMPT = """For the {language_name} {card_type} below, return ONLY a JSON \
+object (no markdown, no commentary) with these keys:
+- "back": a concise English translation / meaning.
+- "reading": phonetic transcription (IPA) of the {language_name} text, or "".
+- "article": for a {language_name} noun one of "der","die","das","plural"; \
+otherwise "none".
+- "example": one short, natural example sentence in {language_name}, or "".
+
+TEXT: {front}
+"""
+
+
+def enrich_card(front: str, language: str = "", card_type: str = "vocab") -> dict:
+    """Translate + add reading/article/example for a single term (Translate button)."""
+    front = (front or "").strip()
+    if not front:
+        return {}
+    if settings.GEMINI_API_KEY:
+        try:
+            return _enrich_with_gemini(front, language, card_type)
+        except Exception:  # noqa: BLE001 — degrade to local detection
+            return _enrich_fallback(front)
+    return _enrich_fallback(front)
+
+
+def _enrich_with_gemini(front: str, language: str, card_type: str) -> dict:
+    prompt = _ENRICH_PROMPT.format(
+        language_name=_LANG_NAMES.get(language, "the target language"),
+        card_type=card_type if card_type in ALLOWED_TYPES else "vocab",
+        front=front[:500],
+    )
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
+    }
+    res = requests.post(url, json=payload, timeout=30)
+    res.raise_for_status()
+    raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+    obj = _extract_json_object(raw)
+    article = obj.get("article") if obj.get("article") in ALLOWED_ARTICLES else _detect_article(front)
+    return {
+        "back": str(obj.get("back", "")).strip(),
+        "reading": str(obj.get("reading", "")).strip(),
+        "article": article,
+        "example": str(obj.get("example", "")).strip(),
+    }
+
+
+def _extract_json_object(raw: str) -> dict:
+    raw = re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.MULTILINE).strip()
+    try:
+        val = json.loads(raw)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+        val = json.loads(match.group(0)) if match else {}
+    return val if isinstance(val, dict) else {}
+
+
+def _detect_article(front: str) -> str:
+    m = re.match(r"\s*(der|die|das)\s+\S", front, flags=re.IGNORECASE)
+    return m.group(1).lower() if m else "none"
+
+
+def _enrich_fallback(front: str) -> dict:
+    """No LLM: at least pull a leading der/die/das so the colour works."""
+    return {"back": "", "reading": "", "article": _detect_article(front), "example": ""}
+
 
 def parse_text(text: str, language: str = "", default_type: str = "vocab") -> dict:
     text = (text or "").strip()

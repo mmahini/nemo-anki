@@ -284,10 +284,26 @@ kbd {
 .reviewcard--static { box-shadow: var(--shadow-sm); min-height: 0; }
 .reviewcard__rule { width: 100%; border: none; border-top: 1px solid var(--line-soft); margin: 22px 0; }
 .face { display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; }
+.face__termrow { display: flex; align-items: center; gap: 10px; justify-content: center; }
 .face__term { font-size: 2.2rem; font-weight: 700; line-height: 1.1; }
 .face__hint { font-size: 0.8rem; color: var(--ink-faint); }
 .face__answer { font-size: 1.5rem; font-weight: 600; }
+.face__readingrow { display: flex; align-items: center; gap: 6px; justify-content: center; }
 .face__reading { font-family: var(--mono); color: var(--ink-soft); font-size: 1rem; }
+
+/* 🔊 listen button */
+.speak {
+  background: var(--line-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 1rem; line-height: 1; padding: 0;
+  transition: background 0.12s, transform 0.04s;
+}
+.speak:hover { background: rgba(76, 110, 245, 0.12); }
+.speak:active { transform: translateY(1px); }
+.speak--sm { width: 26px; height: 26px; font-size: 0.85rem; }
 .face__notes { color: var(--ink-soft); font-size: 0.95rem; max-width: 44ch; }
 .face__example { color: var(--ink-soft); font-style: italic; max-width: 44ch; }
 .face__tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
@@ -337,8 +353,11 @@ kbd {
 
 .cardeditor { display: flex; flex-direction: column; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
 .cardeditor--compact { padding: 12px; gap: 8px; }
-.cardeditor__row { display: flex; gap: 8px; }
+.cardeditor__row { display: flex; gap: 8px; align-items: center; }
+.cardeditor__translate { margin-left: auto; }
 .cardeditor__field { display: flex; flex-direction: column; gap: 5px; font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); }
+.cardeditor__inline { display: flex; gap: 8px; align-items: center; }
+.cardeditor__inline .input { flex: 1; }
 
 .browse__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .browse__sub { color: var(--ink-faint); margin: 0; }

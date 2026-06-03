@@ -309,3 +309,22 @@ export function parseImport(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export type EnrichResult = {
+  back: string;
+  reading: string;
+  article: Article;
+  example: string;
+};
+
+/** Translate one term + fill reading/article/example (the Translate button). */
+export function enrichCard(payload: {
+  front: string;
+  language?: "de" | "en" | "";
+  card_type?: CardType;
+}): Promise<EnrichResult> {
+  return jsonRequest<EnrichResult>("/api/import/enrich/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
