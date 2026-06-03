@@ -68,8 +68,9 @@ Using the Render and Vercel APIs with the existing credentials:
 ## Phase 3 — Smoke test
 
 1. Open the Vercel URL, sign in (the dev OTP is shown on the verify screen).
-2. Confirm the Menschen + Oxford deck trees auto-provision on first load.
-3. Study a few sample cards in `German::Menschen::A1.1::Lektion 01`; confirm the
+2. Confirm the deck list starts empty and you can create a deck. (Optionally run
+   `seed_decks` on the service to load the Menschen + Oxford trees.)
+3. Study a few sample cards in a seeded `Lektion`; confirm the
    grade buttons show next-intervals and scheduling persists across reloads.
 4. Open **Import**, paste a small German word list, confirm Gemini returns draft
    cards, edit one, pick a deck, **Proceed**, and verify the cards land.

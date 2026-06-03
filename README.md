@@ -26,8 +26,9 @@ Then open:
 - Django admin: <http://localhost:8004/admin/> (`make createsuperuser` first)
 
 Sign in with any email — the 5-digit code is shown on the verify screen (email
-delivery isn't wired yet). On first sign-in your account is auto-seeded with the
-full Menschen + Oxford Word Skills deck trees and a few sample cards.
+delivery isn't wired yet). New accounts start with an empty deck list; create
+your own decks (and nest them) from the Decks page, or run
+`make seed-decks` to load the ready-made Menschen + Oxford Word Skills trees.
 
 ## Repo layout
 
