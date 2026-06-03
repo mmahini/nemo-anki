@@ -25,6 +25,7 @@ class CardSerializer(serializers.ModelSerializer):
             "example",
             "notes",
             "table",
+            "genders",
             "tags",
             "state",
             "due",

@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .gemini import enrich_card, parse_text
+from .gemini import analyze_german, enrich_card, parse_text
 
 
 class ParseRequestSerializer(serializers.Serializer):
@@ -20,6 +20,10 @@ class EnrichRequestSerializer(serializers.Serializer):
     card_type = serializers.ChoiceField(
         choices=["vocab", "sentence", "grammar"], required=False, default="vocab"
     )
+
+
+class AnalyzeGermanSerializer(serializers.Serializer):
+    text = serializers.CharField(max_length=1000)
 
 
 class ImportParseView(APIView):
@@ -54,3 +58,15 @@ class EnrichView(APIView):
             serializer.validated_data["card_type"],
         )
         return Response(result, status=status.HTTP_200_OK)
+
+
+class AnalyzeGermanView(APIView):
+    """Return each noun's true gender for a German sentence so it can be
+    coloured grammatically (the "Colour genders" button)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = AnalyzeGermanSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(analyze_german(serializer.validated_data["text"]), status=status.HTTP_200_OK)

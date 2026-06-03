@@ -19,7 +19,11 @@ export function CardFront({ card }: { card: AnyCard }) {
       )}
       <div className="face__termrow">
         <div className={`face__term ${vocabTint}`}>
-          {isVocab ? card.front : <GermanText text={card.front} lang={card.language} />}
+          {isVocab ? (
+            card.front
+          ) : (
+            <GermanText text={card.front} lang={card.language} genders={card.genders} />
+          )}
         </div>
         <SpeakButton text={card.front} lang={card.language} title="Hear the word" />
       </div>

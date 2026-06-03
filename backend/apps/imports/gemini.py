@@ -115,6 +115,54 @@ def _enrich_fallback(front: str) -> dict:
     return {"back": "", "reading": "", "article": _detect_article(front), "example": ""}
 
 
+_ANALYZE_PROMPT = """List every noun in the German sentence below, in order of \
+appearance. Return ONLY a JSON array; each element is an object \
+{{"noun": "<the noun exactly as written in the sentence>", "gender": one of \
+"der","die","das","plural"}}. Use each noun's true grammatical gender (its \
+dictionary article), NOT the case-inflected article in the sentence — e.g. in \
+"Ich gebe der Frau das Buch", Frau is "die" and Buch is "das". Include only \
+nouns. No markdown, no commentary.
+
+SENTENCE: {text}
+"""
+
+_ANALYZE_ARTICLES = {"der", "die", "das", "plural"}
+
+
+def analyze_german(text: str) -> dict:
+    """Return each noun's true gender so a sentence can be coloured correctly,
+    independent of grammatical case. {"nouns": [{"noun","gender"}], "source"}."""
+    text = (text or "").strip()
+    if not text:
+        return {"nouns": [], "source": "empty"}
+    if not settings.GEMINI_API_KEY:
+        return {"nouns": [], "source": "no-key"}
+    try:
+        prompt = _ANALYZE_PROMPT.format(text=text[:1000])
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+        )
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.0, "responseMimeType": "application/json"},
+        }
+        res = requests.post(url, json=payload, timeout=30)
+        res.raise_for_status()
+        raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+        parsed = _extract_json_array(raw)
+        nouns = [
+            {"noun": str(it.get("noun", "")).strip(), "gender": it.get("gender")}
+            for it in parsed
+            if isinstance(it, dict)
+            and str(it.get("noun", "")).strip()
+            and it.get("gender") in _ANALYZE_ARTICLES
+        ]
+        return {"nouns": nouns, "source": "gemini"}
+    except Exception as exc:  # noqa: BLE001
+        return {"nouns": [], "source": f"error:{exc.__class__.__name__}"}
+
+
 def parse_text(text: str, language: str = "", default_type: str = "vocab") -> dict:
     text = (text or "").strip()
     if not text:

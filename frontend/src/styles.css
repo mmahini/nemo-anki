@@ -354,10 +354,11 @@ kbd {
 .cardeditor { display: flex; flex-direction: column; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
 .cardeditor--compact { padding: 12px; gap: 8px; }
 .cardeditor__row { display: flex; gap: 8px; align-items: center; }
-.cardeditor__translate { margin-left: auto; }
+.cardeditor__tools { margin-left: auto; display: flex; gap: 6px; }
 .cardeditor__field { display: flex; flex-direction: column; gap: 5px; font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); }
 .cardeditor__inline { display: flex; gap: 8px; align-items: center; }
 .cardeditor__inline .input { flex: 1; }
+.cardeditor__note { font-weight: 500; font-size: 0.78rem; color: var(--ink-faint); }
 
 .browse__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .browse__sub { color: var(--ink-faint); margin: 0; }
