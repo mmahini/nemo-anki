@@ -196,7 +196,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
 
       <label className="cardeditor__field">
         <span>{value.card_type === "grammar" ? "Answer (fills the gap)" : "Back / translation"}</span>
-        <input className="input" value={value.back} onChange={(e) => set("back", e.target.value)} />
+        <input className="input" dir="auto" value={value.back} onChange={(e) => set("back", e.target.value)} />
       </label>
 
       {hasReading && (

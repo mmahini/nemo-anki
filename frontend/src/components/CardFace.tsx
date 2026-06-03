@@ -39,7 +39,7 @@ export function CardFront({ card }: { card: AnyCard }) {
 export function CardBack({ card }: { card: AnyCard }) {
   return (
     <div className="face face--back">
-      {card.back && <div className="face__answer">{card.back}</div>}
+      {card.back && <div className="face__answer" dir="auto">{card.back}</div>}
       {card.reading && (
         <div className="face__readingrow">
           <span className="face__reading">/{card.reading}/</span>

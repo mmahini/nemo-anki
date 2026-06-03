@@ -3,6 +3,39 @@
    Palette is calm/neutral; the colour budget is spent on the
    German article cues (der/die/das) and the grade buttons.
    ============================================================ */
+
+/* IRANSans (IRANSansWeb — free for web use), self-hosted. Added to the font
+   stack so Persian/Arabic glyphs render in IRANSans via per-character
+   fallback while Latin stays General Sans. */
+@font-face {
+  font-family: "IRANSans";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("/fonts/iransans/IRANSansWeb_Light.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IRANSans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/iransans/IRANSansWeb.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IRANSans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/iransans/IRANSansWeb_Medium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IRANSans";
+  font-style: normal;
+  font-weight: 600 900;
+  font-display: swap;
+  src: url("/fonts/iransans/IRANSansWeb_Bold.woff2") format("woff2");
+}
+
 :root {
   --ink: #1c2230;
   --ink-soft: #5b6478;
@@ -33,7 +66,9 @@
   --shadow-sm: 0 1px 2px rgba(20, 28, 46, 0.06), 0 1px 3px rgba(20, 28, 46, 0.05);
   --shadow-md: 0 6px 24px rgba(20, 28, 46, 0.10);
 
-  --font: "General Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* "IRANSans" sits after the Latin face: browsers fall through to it for
+     Persian/Arabic glyphs that General Sans doesn't cover. */
+  --font: "General Sans", "IRANSans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 }
 
