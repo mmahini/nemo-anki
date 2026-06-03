@@ -381,6 +381,9 @@ export function uploadBook(payload: {
   translation_language: string;
   text?: string;
   file?: File | null;
+  lesson_label?: string;
+  from_lesson?: number | null;
+  to_lesson?: number | null;
 }): Promise<Book> {
   const fd = new FormData();
   fd.append("title", payload.title);
@@ -388,6 +391,9 @@ export function uploadBook(payload: {
   fd.append("translation_language", payload.translation_language);
   if (payload.text) fd.append("text", payload.text);
   if (payload.file) fd.append("file", payload.file);
+  if (payload.lesson_label) fd.append("lesson_label", payload.lesson_label);
+  if (payload.from_lesson != null) fd.append("from_lesson", String(payload.from_lesson));
+  if (payload.to_lesson != null) fd.append("to_lesson", String(payload.to_lesson));
   return jsonRequest<Book>("/api/books/", { method: "POST", body: fd });
 }
 

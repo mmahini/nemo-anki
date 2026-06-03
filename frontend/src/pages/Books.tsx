@@ -17,8 +17,10 @@ export default function Books() {
   const [title, setTitle] = useState("");
   const [sourceLang, setSourceLang] = useState<"de" | "en" | "">("de");
   const [transLang, setTransLang] = useState("English");
-  const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [label, setLabel] = useState("Unit");
+  const [fromLesson, setFromLesson] = useState("");
+  const [toLesson, setToLesson] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState<Set<number>>(new Set()); // lesson ids being processed
@@ -38,16 +40,23 @@ export default function Books() {
 
   async function onUpload(e: FormEvent) {
     e.preventDefault();
-    if (!title.trim() || (!text.trim() && !file)) {
-      setError("Add a title and either paste text or choose a file.");
+    if (!title.trim() || !file) {
+      setError("Add a title and choose a file (.txt / .pdf).");
       return;
     }
     setUploading(true);
     setError(null);
     try {
-      await uploadBook({ title: title.trim(), source_language: sourceLang, translation_language: transLang, text, file });
+      await uploadBook({
+        title: title.trim(),
+        source_language: sourceLang,
+        translation_language: transLang,
+        file,
+        lesson_label: label.trim() || undefined,
+        from_lesson: fromLesson ? Number(fromLesson) : null,
+        to_lesson: toLesson ? Number(toLesson) : null,
+      });
       setTitle("");
-      setText("");
       setFile(null);
       await load();
     } catch (err) {
@@ -128,20 +137,47 @@ export default function Books() {
           </label>
         </div>
 
-        <label className="cardeditor__field">
-          <span>Paste the book text</span>
-          <textarea
-            className="import__textarea"
-            rows={7}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={"Lektion 1 — …\nWortschatz: der Tisch, die Lampe …\n\nLektion 2 — …"}
-          />
-        </label>
         <div className="books__row books__row--file">
-          <span className="books__or">or upload a file (.txt / .pdf)</span>
+          <span className="books__or">Book file (.txt / .pdf)</span>
           <input type="file" accept=".txt,.pdf,text/plain,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         </div>
+
+        <fieldset className="books__range">
+          <legend>Lesson detection (recommended for big / PDF books)</legend>
+          <div className="books__row">
+            <label className="cardeditor__field">
+              <span>Lesson label</span>
+              <input
+                className="input"
+                list="lesson-labels"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="Unit"
+              />
+              <datalist id="lesson-labels">
+                <option value="Unit" />
+                <option value="Lesson" />
+                <option value="Lektion" />
+                <option value="Kapitel" />
+                <option value="Chapter" />
+                <option value="Modul" />
+              </datalist>
+            </label>
+            <label className="cardeditor__field">
+              <span>From</span>
+              <input className="input" type="number" min={1} value={fromLesson} onChange={(e) => setFromLesson(e.target.value)} placeholder="1" />
+            </label>
+            <label className="cardeditor__field">
+              <span>To</span>
+              <input className="input" type="number" min={1} value={toLesson} onChange={(e) => setToLesson(e.target.value)} placeholder="100" />
+            </label>
+          </div>
+          <span className="books__hint">
+            Tell me the heading word and the number range (e.g. Unit, 1–100). I'll
+            look for each one in order — far more reliable than auto-detection on
+            messy PDFs. Leave blank to auto-detect.
+          </span>
+        </fieldset>
 
         {error && <p className="auth__error">{error}</p>}
         <button className="btn btn--primary btn--lg" disabled={uploading}>

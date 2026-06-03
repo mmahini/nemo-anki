@@ -71,6 +71,56 @@ def _read_pdf(data: bytes) -> str:
         return ""
 
 
+def _find_unit(text: str, kw_escaped: str, n: int, cursor: int):
+    """Find lesson `n`'s heading at or after `cursor`. Prefers a clean
+    line-start heading; falls back to any occurrence so mangled PDF headings
+    can still be located. `0*` allows leading zeros; `\\b` after the number
+    keeps "1" from matching inside "10"."""
+    line_start = re.compile(
+        rf"^[ \t>·•\-]*{kw_escaped}[ \t]*\.?[ \t]*0*{n}\b",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    m = line_start.search(text, cursor)
+    if m:
+        return m
+    anywhere = re.compile(rf"\b{kw_escaped}[ \t]*\.?[ \t]*0*{n}\b", re.IGNORECASE)
+    return anywhere.search(text, cursor)
+
+
+def segment_by_range(text: str, keyword: str, from_n: int, to_n: int) -> list[dict]:
+    """Segment using a known label + number range (e.g. Unit 1..100).
+
+    Because lessons are sequential and don't overlap, we scan forward looking
+    for each expected number in turn — so cross-references and noise are
+    ignored, and missing headings just leave their content with the previous
+    lesson instead of breaking detection.
+    """
+    keyword = (keyword or "").strip()
+    if not keyword or to_n < from_n:
+        return segment_lessons(text)
+    # Bound the range so a typo can't create a runaway loop.
+    to_n = min(to_n, from_n + MAX_LESSONS - 1)
+    kw_escaped = re.escape(keyword)
+
+    found = []  # (num, start)
+    cursor = 0
+    for n in range(from_n, to_n + 1):
+        m = _find_unit(text, kw_escaped, n, cursor)
+        if m:
+            found.append((n, m.start()))
+            cursor = m.end()  # next search continues after this heading (no overlap)
+
+    if not found:
+        return segment_lessons(text)
+
+    label = keyword[:1].upper() + keyword[1:]
+    lessons = []
+    for i, (n, start) in enumerate(found):
+        end = found[i + 1][1] if i + 1 < len(found) else len(text)
+        lessons.append({"title": f"{label} {n}", "raw_text": text[start:end]})
+    return lessons
+
+
 def segment_lessons(text: str) -> list[dict]:
     """Split text into [{title, raw_text}] by lesson headings.
 

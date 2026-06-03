@@ -457,6 +457,10 @@ kbd {
 .books__row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
 .books__row--file { align-items: center; gap: 10px; }
 .books__or { color: var(--ink-faint); font-size: 0.85rem; }
+.books__range { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.books__range legend { font-size: 0.78rem; font-weight: 700; color: var(--ink-soft); padding: 0 6px; }
+.books__range .books__row { align-items: flex-end; }
+.books__hint { font-size: 0.78rem; color: var(--ink-faint); }
 .books__h2 { margin-top: 28px; }
 .books__list { list-style: none; padding: 0; margin: 14px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .bookcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
