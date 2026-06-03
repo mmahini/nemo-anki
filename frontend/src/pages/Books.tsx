@@ -1,7 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
-import { deleteBook, fetchBooks, uploadBook, type Book } from "../auth/api";
+import {
+  deleteBook,
+  fetchBooks,
+  processBookLesson,
+  uploadBook,
+  type Book,
+  type BookLesson,
+} from "../auth/api";
 import { TRANSLATE_LANGS } from "../lib/translateLang";
 
 export default function Books() {
@@ -12,8 +19,9 @@ export default function Books() {
   const [transLang, setTransLang] = useState("English");
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState<Set<number>>(new Set()); // lesson ids being processed
 
   async function load() {
     setLoading(true);
@@ -28,35 +36,61 @@ export default function Books() {
     load();
   }, []);
 
-  async function onProcess(e: FormEvent) {
+  async function onUpload(e: FormEvent) {
     e.preventDefault();
     if (!title.trim() || (!text.trim() && !file)) {
       setError("Add a title and either paste text or choose a file.");
       return;
     }
-    setProcessing(true);
+    setUploading(true);
     setError(null);
     try {
-      await uploadBook({
-        title: title.trim(),
-        source_language: sourceLang,
-        translation_language: transLang,
-        text,
-        file,
-      });
+      await uploadBook({ title: title.trim(), source_language: sourceLang, translation_language: transLang, text, file });
       setTitle("");
       setText("");
       setFile(null);
       await load();
     } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function patchLesson(bookId: number, updated: BookLesson) {
+    setBooks((bs) =>
+      bs.map((b) =>
+        b.id !== bookId
+          ? b
+          : { ...b, lessons: b.lessons.map((l) => (l.id === updated.id ? updated : l)) },
+      ),
+    );
+  }
+
+  async function process(book: Book, lesson: BookLesson) {
+    setWorking((w) => new Set(w).add(lesson.id));
+    setError(null);
+    try {
+      patchLesson(book.id, await processBookLesson(book.id, lesson.id));
+    } catch (err) {
       setError(err instanceof Error ? err.message : "Processing failed.");
     } finally {
-      setProcessing(false);
+      setWorking((w) => {
+        const n = new Set(w);
+        n.delete(lesson.id);
+        return n;
+      });
+    }
+  }
+
+  async function processAll(book: Book) {
+    for (const l of book.lessons) {
+      if (!l.processed) await process(book, l);
     }
   }
 
   async function onDelete(b: Book) {
-    if (!window.confirm(`Delete the processed book "${b.title}"? (Decks you already imported stay.)`)) return;
+    if (!window.confirm(`Delete the book "${b.title}"? (Decks you already imported stay.)`)) return;
     await deleteBook(b.id);
     load();
   }
@@ -65,12 +99,12 @@ export default function Books() {
     <div className="books">
       <h1>Books</h1>
       <p className="books__sub">
-        Upload a coursebook — the whole book becomes one deck, each lesson a
-        sub-deck, and every lesson's vocabulary is extracted for you. Then add
-        the lessons you want from the <Link to="/app/import">Import</Link> page.
+        Upload a coursebook — it's split into lessons instantly. Then process the
+        lessons you want (vocabulary is extracted per lesson), and add them to
+        your decks from the <Link to="/app/import">Import</Link> page.
       </p>
 
-      <form className="books__upload panel" onSubmit={onProcess}>
+      <form className="books__upload panel" onSubmit={onUpload}>
         <div className="books__row">
           <label className="cardeditor__field" style={{ flex: 2 }}>
             <span>Book title</span>
@@ -98,7 +132,7 @@ export default function Books() {
           <span>Paste the book text</span>
           <textarea
             className="import__textarea"
-            rows={8}
+            rows={7}
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={"Lektion 1 — …\nWortschatz: der Tisch, die Lampe …\n\nLektion 2 — …"}
@@ -110,39 +144,69 @@ export default function Books() {
         </div>
 
         {error && <p className="auth__error">{error}</p>}
-        <button className="btn btn--primary btn--lg" disabled={processing}>
-          {processing ? "Processing book… (this can take a moment)" : "Process book"}
+        <button className="btn btn--primary btn--lg" disabled={uploading}>
+          {uploading ? "Uploading…" : "Upload & split into lessons"}
         </button>
       </form>
 
-      <h2 className="books__h2">Your processed books</h2>
+      <h2 className="books__h2">Your books</h2>
       {loading ? (
         <div className="panel">Loading…</div>
       ) : books.length === 0 ? (
-        <div className="panel">No books yet — process one above.</div>
+        <div className="panel">No books yet — upload one above.</div>
       ) : (
-        <ul className="books__list">
-          {books.map((b) => (
-            <li key={b.id} className="bookcard">
-              <div className="bookcard__banner" style={{ background: b.color }}>
-                <span className="bookcard__title">{b.title}</span>
-                <span className="bookcard__langs">
-                  {(b.source_language || "?").toUpperCase()} → {b.translation_language}
-                </span>
-              </div>
-              <div className="bookcard__body">
-                <span className="bookcard__meta">
-                  {b.status === "ready" ? `${b.lesson_count} lessons · ${b.card_count} cards` : b.status}
-                </span>
-                {b.note && <span className="bookcard__note">{b.note}</span>}
-                <div className="bookcard__actions">
-                  <Link to="/app/import" className="btn btn--primary btn--sm">Add lessons →</Link>
+        books.map((b) => {
+          const pending = b.lessons.filter((l) => !l.processed).length;
+          return (
+            <div key={b.id} className="bookblock">
+              <div className="bookblock__banner" style={{ background: b.color }}>
+                <div>
+                  <span className="bookcard__title">{b.title}</span>
+                  <span className="bookcard__langs">
+                    {(b.source_language || "?").toUpperCase()} → {b.translation_language} · {b.lesson_count} lessons
+                  </span>
+                </div>
+                <div className="bookblock__banneractions">
+                  {pending > 0 && (
+                    <button className="btn btn--ghost btn--sm" onClick={() => processAll(b)}>
+                      Process all ({pending})
+                    </button>
+                  )}
                   <button className="btn btn--ghost btn--sm" onClick={() => onDelete(b)}>Delete</button>
                 </div>
               </div>
-            </li>
-          ))}
-        </ul>
+              {b.note && <div className="bookblock__note">{b.note}</div>}
+              <ul className="bookblock__lessons">
+                {b.lessons.map((l) => (
+                  <li key={l.id} className="bookblock__lesson">
+                    <span className="bookblock__ltitle">{l.title}</span>
+                    {l.processed ? (
+                      <>
+                        <span className="bookblock__count">{l.card_count} vocab</span>
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          disabled={working.has(l.id)}
+                          onClick={() => process(b, l)}
+                          title="Re-extract vocabulary"
+                        >
+                          {working.has(l.id) ? "…" : "↻"}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="btn btn--primary btn--sm"
+                        disabled={working.has(l.id)}
+                        onClick={() => process(b, l)}
+                      >
+                        {working.has(l.id) ? "Processing…" : "Process"}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })
       )}
     </div>
   );
