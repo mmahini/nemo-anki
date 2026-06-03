@@ -49,6 +49,8 @@ object (no markdown, no commentary) with these keys:
 - "reading": phonetic transcription (IPA) of the {language_name} text, or "".
 - "article": for a {language_name} noun one of "der","die","das","plural"; \
 otherwise "none".
+- "plural": for a noun, its plural form WITH the plural article (e.g. \
+"die Tische"); "" if not a noun or it has no plural.
 - "example": one short, natural example sentence in {language_name}, or "".
 
 TEXT: {front}
@@ -91,6 +93,7 @@ def _enrich_with_gemini(front: str, language: str, card_type: str) -> dict:
         "back": str(obj.get("back", "")).strip(),
         "reading": str(obj.get("reading", "")).strip(),
         "article": article,
+        "plural": str(obj.get("plural", "")).strip(),
         "example": str(obj.get("example", "")).strip(),
     }
 
@@ -112,21 +115,30 @@ def _detect_article(front: str) -> str:
 
 def _enrich_fallback(front: str) -> dict:
     """No LLM: at least pull a leading der/die/das so the colour works."""
-    return {"back": "", "reading": "", "article": _detect_article(front), "example": ""}
+    return {"back": "", "reading": "", "article": _detect_article(front), "plural": "", "example": ""}
 
 
-_ANALYZE_PROMPT = """List every noun in the German sentence below, in order of \
-appearance. Return ONLY a JSON array; each element is an object \
-{{"noun": "<the noun exactly as written in the sentence>", "gender": one of \
-"der","die","das","plural"}}. Use each noun's true grammatical gender (its \
-dictionary article), NOT the case-inflected article in the sentence — e.g. in \
-"Ich gebe der Frau das Buch", Frau is "die" and Buch is "das". Include only \
-nouns. No markdown, no commentary.
+_ANALYZE_PROMPT = """Analyse the German sentence below. For every noun, in order \
+of appearance, return ONLY a JSON array; each element is an object with:
+- "noun": the noun exactly as written in the sentence.
+- "gender": the noun's TRUE dictionary gender — one of "der","die","das",\
+"plural" — NOT the case-inflected article (e.g. in "Ich gebe der Frau das Buch", \
+Frau is "die").
+- "article": the article/determiner exactly as it appears before the noun \
+(e.g. "der","den","dem","einen","das"), or "" if there is none.
+- "case": the grammatical case of the noun phrase — one of "Nominativ",\
+"Akkusativ","Dativ","Genitiv".
+- "reason": a short, beginner-friendly English explanation of WHY that case is \
+used (e.g. "subject of the sentence", "direct object of geben", "indirect \
+object (to whom)", "after the preposition mit, which always takes Dativ").
+
+Include only nouns. No markdown, no commentary.
 
 SENTENCE: {text}
 """
 
 _ANALYZE_ARTICLES = {"der", "die", "das", "plural"}
+_ANALYZE_CASES = {"Nominativ", "Akkusativ", "Dativ", "Genitiv"}
 
 
 def analyze_german(text: str) -> dict:
@@ -151,13 +163,23 @@ def analyze_german(text: str) -> dict:
         res.raise_for_status()
         raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
         parsed = _extract_json_array(raw)
-        nouns = [
-            {"noun": str(it.get("noun", "")).strip(), "gender": it.get("gender")}
-            for it in parsed
-            if isinstance(it, dict)
-            and str(it.get("noun", "")).strip()
-            and it.get("gender") in _ANALYZE_ARTICLES
-        ]
+        nouns = []
+        for it in parsed:
+            if not isinstance(it, dict):
+                continue
+            noun = str(it.get("noun", "")).strip()
+            if not noun or it.get("gender") not in _ANALYZE_ARTICLES:
+                continue
+            case = it.get("case") if it.get("case") in _ANALYZE_CASES else ""
+            nouns.append(
+                {
+                    "noun": noun,
+                    "gender": it.get("gender"),
+                    "article": str(it.get("article", "")).strip(),
+                    "case": case,
+                    "reason": str(it.get("reason", "")).strip(),
+                }
+            )
         return {"nouns": nouns, "source": "gemini"}
     except Exception as exc:  # noqa: BLE001
         return {"nouns": [], "source": f"error:{exc.__class__.__name__}"}

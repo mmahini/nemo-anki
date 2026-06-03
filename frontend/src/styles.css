@@ -314,6 +314,22 @@ kbd {
 .gtable th { background: var(--line-soft); font-weight: 700; }
 .gtable__hl { background: rgba(76, 110, 245, 0.16); font-weight: 700; }
 
+.face__plural { color: var(--ink-soft); font-size: 0.95rem; display: inline-flex; align-items: center; gap: 6px; }
+.face__plural .art-plural { font-weight: 700; }
+
+/* Case-analysis table for German sentences */
+.casetable { border-collapse: collapse; margin: 6px auto 0; font-size: 0.86rem; max-width: 100%; }
+.casetable th, .casetable td { border: 1px solid var(--line); padding: 5px 10px; text-align: left; vertical-align: top; }
+.casetable th { background: var(--line-soft); font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); }
+.casetable__word { font-weight: 700; }
+.casetable__why { color: var(--ink-soft); max-width: 28ch; }
+.casebadge { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.casebadge--Nominativ { background: rgba(76, 110, 245, 0.12); color: var(--brand-dark); }
+.casebadge--Akkusativ { background: rgba(226, 59, 84, 0.12); color: var(--again); }
+.casebadge--Dativ { background: rgba(31, 157, 87, 0.12); color: var(--good); }
+.casebadge--Genitiv { background: rgba(138, 99, 210, 0.14); color: var(--art-plural); }
+.cardeditor__cases { overflow-x: auto; }
+
 .grades { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 560px; }
 .grade {
   flex: 1;

@@ -8,6 +8,7 @@ import {
   type DraftCard,
 } from "../auth/api";
 import { detectArticle } from "../lib/article";
+import CaseTable from "./CaseTable";
 import SpeakButton from "./SpeakButton";
 
 const CARD_TYPES: CardType[] = ["vocab", "sentence", "grammar"];
@@ -21,6 +22,7 @@ export function emptyDraft(language: "de" | "en" | "" = "", card_type: CardType 
     back: "",
     reading: "",
     article: "none",
+    plural: "",
     example: "",
     notes: "",
     table: null,
@@ -77,6 +79,8 @@ export default function CardEditor({ value, onChange, compact }: Props) {
         back: r.back || value.back,
         reading: r.reading || value.reading,
         article: r.article && r.article !== "none" ? r.article : value.article,
+        // Plural form is only meaningful for vocab nouns.
+        plural: value.card_type === "vocab" ? r.plural || value.plural : value.plural,
         // A sentence card is its own example — don't add a separate one.
         example: isSentence ? "" : r.example || value.example,
       });
@@ -166,9 +170,9 @@ export default function CardEditor({ value, onChange, compact }: Props) {
           <SpeakButton text={value.front} lang={value.language} title="Hear the front" />
         </div>
         {showColourGenders && value.genders.length > 0 && (
-          <span className="cardeditor__note">
-            Coloured by true gender: {value.genders.map((g) => `${g.noun} (${g.gender})`).join(", ")}
-          </span>
+          <div className="cardeditor__cases">
+            <CaseTable items={value.genders} />
+          </div>
         )}
       </label>
 
@@ -188,6 +192,21 @@ export default function CardEditor({ value, onChange, compact }: Props) {
               placeholder="/ˈtɪʃ/"
             />
             <SpeakButton text={value.front} lang={value.language} title="Hear pronunciation" />
+          </div>
+        </label>
+      )}
+
+      {value.card_type === "vocab" && (
+        <label className="cardeditor__field">
+          <span>Plural</span>
+          <div className="cardeditor__inline">
+            <input
+              className="input"
+              value={value.plural}
+              onChange={(e) => set("plural", e.target.value)}
+              placeholder="e.g. die Tische"
+            />
+            <SpeakButton text={value.plural} lang={value.language} title="Hear the plural" />
           </div>
         </label>
       )}

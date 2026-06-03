@@ -1,5 +1,6 @@
 import type { Card, DraftCard } from "../auth/api";
 import { articleClass, articlePillClass, articleLabel } from "../lib/article";
+import CaseTable from "./CaseTable";
 import GermanText from "./GermanText";
 import GrammarTable from "./GrammarTable";
 import SpeakButton from "./SpeakButton";
@@ -45,8 +46,17 @@ export function CardBack({ card }: { card: AnyCard }) {
           <SpeakButton text={card.front} lang={card.language} small title="Hear pronunciation" />
         </div>
       )}
+      {card.card_type === "vocab" && card.plural && (
+        <div className="face__plural">
+          plural: <span className="art-plural">{card.plural}</span>
+          <SpeakButton text={card.plural} lang={card.language} small title="Hear the plural" />
+        </div>
+      )}
       {card.notes && <div className="face__notes">{card.notes}</div>}
       {card.table && <GrammarTable table={card.table} />}
+      {card.card_type === "sentence" && card.genders.length > 0 && (
+        <CaseTable items={card.genders} />
+      )}
       {card.example && (
         <div className="face__example">
           “<GermanText text={card.example} lang={card.language} />”

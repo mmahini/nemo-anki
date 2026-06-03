@@ -21,6 +21,7 @@ function toDraft(c: Card): DraftCard {
     back: c.back,
     reading: c.reading,
     article: c.article,
+    plural: c.plural,
     example: c.example,
     notes: c.notes,
     table: c.table,
