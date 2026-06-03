@@ -1,0 +1,70 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: nemo-anki-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nemo_anki}
+      POSTGRES_USER: ${POSTGRES_USER:-nemo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nemo}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Host 5436 -> container 5432 (avoids clash with nemo-gardening 5433,
+      # soroush-mehr 5434, nemo-map 5435).
+      - "5436:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nemo} -d ${POSTGRES_DB:-nemo_anki}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: nemo-anki-backend
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py makemigrations accounts decks cards imports &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-secret-change-me}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-1}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
+      POSTGRES_DB: ${POSTGRES_DB:-nemo_anki}
+      POSTGRES_USER: ${POSTGRES_USER:-nemo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nemo}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      CORS_ALLOWED_ORIGINS: http://localhost:5176,http://127.0.0.1:5176
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+    ports:
+      # Host 8004 -> container 8000 (avoids clash with the sibling backends).
+      - "8004:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: nemo-anki-frontend
+    restart: unless-stopped
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      # Host 5176 -> container 5173.
+      - "5176:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  backend_media:
+  frontend_node_modules:
