@@ -26,12 +26,8 @@ class DeckListView(APIView):
     def get(self, request):
         now = timezone.now()
         decks = list(Deck.objects.filter(user=request.user).select_related("parent", "config"))
-        # First visit: provision the Menschen + Oxford starter trees.
-        if not decks:
-            from apps.cards.seeding import seed_for_user
-
-            seed_for_user(request.user)
-            decks = list(Deck.objects.filter(user=request.user).select_related("parent", "config"))
+        # New accounts start empty — users build their own decks. The Menschen
+        # + Oxford trees remain available on demand via `manage.py seed_decks`.
         for d in decks:
             _with_counts(d, now)
         data = DeckSerializer(decks, many=True).data

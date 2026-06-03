@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { createDeck, fetchDecks, type Deck } from "../auth/api";
+import { createDeck, deleteDeck, fetchDecks, type Deck } from "../auth/api";
 
 /** Indentation depth from the `::` chain in full_name. */
 function depth(d: Deck): number {
@@ -15,6 +15,7 @@ export default function Decks() {
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [newLang, setNewLang] = useState<"de" | "en" | "">("");
+  const [newParent, setNewParent] = useState<number | "">("");
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
 
   async function load() {
@@ -34,8 +35,21 @@ export default function Decks() {
 
   async function onCreate() {
     if (!newName.trim()) return;
-    await createDeck({ name: newName.trim(), language: newLang });
+    // A sub-deck inherits its parent's language unless one is chosen.
+    const parent = newParent === "" ? null : newParent;
+    const parentLang = decks.find((d) => d.id === parent)?.language ?? "";
+    await createDeck({ name: newName.trim(), parent, language: newLang || parentLang });
     setNewName("");
+    load();
+  }
+
+  async function onDelete(d: Deck) {
+    const childCount = decks.filter((x) => x.full_name.startsWith(d.full_name + "::")).length;
+    const extra = childCount ? ` and its ${childCount} sub-deck(s)` : "";
+    if (!window.confirm(`Delete "${d.full_name}"${extra} and all its cards? This can't be undone.`)) {
+      return;
+    }
+    await deleteDeck(d.id);
     load();
   }
 
@@ -114,22 +128,49 @@ export default function Decks() {
                 >
                   Study
                 </button>
+                <button
+                  className="decklist__del"
+                  title="Delete deck"
+                  onClick={() => onDelete(d)}
+                >
+                  ✕
+                </button>
               </div>
             </li>
           );
         })}
       </ul>
 
+      {decks.length === 0 && (
+        <div className="panel decks__empty">
+          <h2>No decks yet</h2>
+          <p>Create your first deck below, then add cards or use Import. You can
+            nest decks (e.g. <code>German :: A1 :: Lektion 1</code>) by picking a parent.</p>
+        </div>
+      )}
+
       <div className="decks__new">
         <input
           className="input"
-          placeholder="New top-level deck name"
+          placeholder="New deck name"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onCreate()}
         />
+        <select
+          className="input"
+          value={newParent}
+          onChange={(e) => setNewParent(e.target.value ? Number(e.target.value) : "")}
+        >
+          <option value="">Top level (no parent)</option>
+          {[...decks]
+            .sort((a, b) => a.full_name.localeCompare(b.full_name))
+            .map((d) => (
+              <option key={d.id} value={d.id}>under {d.full_name}</option>
+            ))}
+        </select>
         <select className="input" value={newLang} onChange={(e) => setNewLang(e.target.value as any)}>
-          <option value="">No language</option>
+          <option value="">Language…</option>
           <option value="de">German</option>
           <option value="en">English</option>
         </select>

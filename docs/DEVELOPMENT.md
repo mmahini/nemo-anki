@@ -13,8 +13,9 @@ make up                # build + start db, backend, frontend
 - API: <http://localhost:8004/api/>
 - Admin: <http://localhost:8004/admin/> (`make createsuperuser` first)
 
-Sign in with any email; the OTP is shown on the verify screen. First sign-in
-auto-seeds the Menschen + Oxford deck trees and sample cards.
+Sign in with any email; the OTP is shown on the verify screen. New accounts
+start empty — create decks from the Decks page, or run `make seed-decks` to load
+the ready-made Menschen + Oxford deck trees and sample cards.
 
 ## Common commands
 

@@ -250,7 +250,11 @@ kbd {
 .count--new { color: var(--brand); background: rgba(76, 110, 245, 0.1); }
 .count--learn { color: var(--hard); background: rgba(232, 151, 58, 0.12); }
 .count--due { color: var(--good); background: rgba(31, 157, 87, 0.1); }
-.decklist__actions { display: flex; gap: 6px; }
+.decklist__actions { display: flex; gap: 6px; align-items: center; }
+.decklist__del { background: none; border: none; color: var(--ink-faint); cursor: pointer; font-size: 0.9rem; padding: 4px 6px; border-radius: 6px; }
+.decklist__del:hover { color: var(--again); background: rgba(226, 59, 84, 0.1); }
+.decks__empty { text-align: center; }
+.decks__empty code { font-family: var(--mono); background: var(--line-soft); padding: 1px 6px; border-radius: 5px; }
 .decks__new { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
 
 /* ============================================================

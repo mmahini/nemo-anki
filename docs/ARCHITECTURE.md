@@ -48,9 +48,9 @@ undo and stats.
 
 ## Data scoping
 
-Everything is per-user. Decks/cards are filtered by `request.user`; a new user's
-first `GET /api/decks/` auto-provisions the Menschen + Oxford trees via
-`apps.cards.seeding.seed_for_user`.
+Everything is per-user. Decks/cards are filtered by `request.user`. New accounts
+start empty; the Menschen + Oxford trees can be loaded on demand with
+`manage.py seed_decks` (`apps.cards.seeding.seed_for_user`).
 
 ## Production
 
