@@ -111,6 +111,94 @@ def _lesson(label: str, n: int, pages: list[str], s: int, e: int) -> dict:
     }
 
 
+def _pdf_reader(data: bytes):
+    import io
+
+    from pypdf import PdfReader
+
+    reader = PdfReader(io.BytesIO(data))
+    if reader.is_encrypted:
+        try:
+            reader.decrypt("")
+        except Exception:  # noqa: BLE001
+            pass
+    return reader
+
+
+def _make_lesson_pdf(reader, s0: int, e0: int) -> bytes:
+    """Write pages [s0, e0) (0-based) into a new single PDF -> bytes."""
+    import io
+
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    for i in range(max(0, s0), min(e0, len(reader.pages))):
+        writer.add_page(reader.pages[i])
+    buf = io.BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
+def _ranges(n_pages, from_n, to_n, start_page, pages_per_unit, page_map):
+    """Return [(num, s0, e0)] 0-based half-open page ranges for each lesson."""
+    to_n = min(to_n, from_n + MAX_LESSONS - 1)
+    if page_map:
+        items = sorted(
+            ({"num": int(p["num"]), "s": max(0, int(p["start_page"]) - 1)} for p in page_map),
+            key=lambda x: (x["s"], x["num"]),
+        )
+        return [
+            (it["num"], it["s"], items[i + 1]["s"] if i + 1 < len(items) else n_pages)
+            for i, it in enumerate(items)
+        ]
+    start_idx = max(0, int(start_page or 1) - 1)
+    n_units = to_n - from_n + 1
+    if pages_per_unit:
+        ppu = max(1, int(pages_per_unit))
+        return [
+            (k, start_idx + (k - from_n) * ppu, start_idx + (k - from_n + 1) * ppu)
+            for k in range(from_n, to_n + 1)
+        ]
+    # even split
+    avail = max(0, n_pages - start_idx)
+    base, extra = divmod(avail, n_units) if n_units else (0, 0)
+    out, cur = [], start_idx
+    for i, k in enumerate(range(from_n, to_n + 1)):
+        size = base + (1 if i < extra else 0)
+        out.append((k, cur, cur + size))
+        cur += size
+    return out
+
+
+def segment_pdf(
+    data: bytes, label: str, from_n: int, to_n: int,
+    start_page: int = 1, pages_per_unit=None, page_map=None,
+) -> list[dict]:
+    """Split a PDF into one sub-PDF per lesson (+ that lesson's page text).
+    Always yields one lesson per range — the count is guaranteed."""
+    label = _label_cap(label)
+    pages_text = read_pdf_pages(data)
+    reader = _pdf_reader(data)
+    n_pages = len(reader.pages)
+    ranges = _ranges(n_pages, from_n, to_n, start_page, pages_per_unit, page_map)
+
+    lessons = []
+    for num, s0, e0 in ranges:
+        s0 = max(0, min(s0, n_pages))
+        e0 = max(s0, min(e0, n_pages))
+        raw = "\n".join(pages_text[s0:e0]).strip() if pages_text else ""
+        lessons.append({
+            "num": num,
+            "title": f"{label} {num}",
+            "raw_text": raw,
+            "pdf_bytes": _make_lesson_pdf(reader, s0, e0),
+            "page_start": s0 + 1,
+            "page_end": max(s0 + 1, e0),
+        })
+    lessons.sort(key=lambda x: x["num"])
+    return lessons
+
+
 def segment_by_even_pages(
     pages: list[str], label: str, from_n: int, to_n: int, start_page: int = 1
 ) -> list[dict]:

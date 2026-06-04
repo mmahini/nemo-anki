@@ -364,14 +364,26 @@ export default function Books() {
                         pp. {l.page_start}{l.page_end && l.page_end !== l.page_start ? `–${l.page_end}` : ""}
                       </span>
                     )}
-                    <button
-                      className="btn btn--ghost btn--sm"
-                      disabled={loadingView === l.id}
-                      onClick={() => viewLesson(b, l.id)}
-                      title="View this lesson's pages"
-                    >
-                      {loadingView === l.id ? "…" : "View"}
-                    </button>
+                    {l.pdf_url ? (
+                      <a
+                        className="btn btn--ghost btn--sm"
+                        href={l.pdf_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Open this lesson's PDF"
+                      >
+                        View
+                      </a>
+                    ) : (
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        disabled={loadingView === l.id}
+                        onClick={() => viewLesson(b, l.id)}
+                        title="View this lesson's pages"
+                      >
+                        {loadingView === l.id ? "…" : "View"}
+                      </button>
+                    )}
                     {l.processed ? (
                       <>
                         <span className="bookblock__count">{l.card_count} vocab</span>
