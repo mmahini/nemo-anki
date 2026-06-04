@@ -18,6 +18,7 @@ export default function Decks() {
   const [newParent, setNewParent] = useState<number | "">("");
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [movingDeck, setMovingDeck] = useState<number | null>(null);
+  const [langDeck, setLangDeck] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -51,6 +52,17 @@ export default function Decks() {
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't move the deck.");
+    }
+  }
+
+  async function onSetLang(d: Deck, language: "de" | "en" | "") {
+    setLangDeck(null);
+    if (language === (d.language ?? "")) return;
+    try {
+      await updateDeck(d.id, { language });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't update the language.");
     }
   }
 
@@ -135,6 +147,27 @@ export default function Decks() {
                 <span className="count count--due">{d.counts.due}</span>
               </div>
               <div className="decklist__actions">
+                {langDeck === d.id ? (
+                  <select
+                    className="input input--sm"
+                    autoFocus
+                    defaultValue={d.language || ""}
+                    onChange={(e) => onSetLang(d, e.target.value as "de" | "en" | "")}
+                    onBlur={() => setLangDeck(null)}
+                  >
+                    <option value="">No language</option>
+                    <option value="de">German</option>
+                    <option value="en">English</option>
+                  </select>
+                ) : (
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    title="Set the deck's language"
+                    onClick={() => setLangDeck(d.id)}
+                  >
+                    {d.language ? `🌐 ${d.language.toUpperCase()}` : "🌐 Lang"}
+                  </button>
+                )}
                 {movingDeck === d.id ? (
                   <select
                     className="input input--sm"
