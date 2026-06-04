@@ -17,7 +17,7 @@ class BookLessonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BookLesson
-        fields = ["id", "title", "position", "card_count", "processed"]
+        fields = ["id", "title", "position", "card_count", "processed", "page_start", "page_end"]
 
     def get_card_count(self, obj) -> int:
         return obj.cards.count()
@@ -27,7 +27,7 @@ class BookLessonDetailSerializer(BookLessonSerializer):
     cards = BookCardSerializer(many=True, read_only=True)
 
     class Meta(BookLessonSerializer.Meta):
-        fields = BookLessonSerializer.Meta.fields + ["cards"]
+        fields = BookLessonSerializer.Meta.fields + ["raw_text", "cards"]
 
 
 class BookSerializer(serializers.ModelSerializer):
