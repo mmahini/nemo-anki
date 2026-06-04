@@ -500,8 +500,10 @@ kbd {
 .import__parentbar label { display: flex; flex-direction: column; gap: 5px; font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); max-width: 360px; }
 .bookblock { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-bottom: 18px; background: var(--surface); }
 .bookblock__lessons { list-style: none; margin: 0; padding: 0; }
-.bookblock__lesson { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line-soft); }
+.bookblock__lesson { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line-soft); }
 .bookblock__lesson:last-child { border-bottom: none; }
+.bookblock__lessonrow { display: flex; align-items: center; gap: 12px; }
+.bookblock__lessonregen { background: var(--line-soft); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .bookblock__ltitle { font-weight: 600; flex: 1; min-width: 0; }
 .bookblock__count { color: var(--ink-faint); font-size: 0.82rem; }
 .bookblock__pages { color: var(--ink-faint); font-size: 0.78rem; font-family: var(--mono); }
