@@ -277,6 +277,24 @@ class BookDetailView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(BookSerializer(book).data)
 
+    def patch(self, request, pk):
+        book = Book.objects.filter(id=pk, user=request.user).first()
+        if not book:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        fields = []
+        if "source_language" in request.data:
+            book.source_language = request.data["source_language"]
+            fields.append("source_language")
+        if "translation_language" in request.data:
+            book.translation_language = (request.data["translation_language"] or "English").strip()
+            fields.append("translation_language")
+        if "title" in request.data and str(request.data["title"]).strip():
+            book.title = str(request.data["title"]).strip()
+            fields.append("title")
+        if fields:
+            book.save(update_fields=fields)
+        return Response(BookSerializer(book).data)
+
     def delete(self, request, pk):
         book = Book.objects.filter(id=pk, user=request.user).first()
         if not book:
