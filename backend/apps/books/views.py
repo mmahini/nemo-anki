@@ -96,7 +96,9 @@ class BookListView(APIView):
         # Read the upload once.
         data = file.read() if file else b""
         fname = getattr(file, "name", "") or ""
-        is_pdf = bool(data) and (fname.lower().endswith(".pdf") or data[:5] == b"%PDF-")
+        # Robust PDF detection: if we can read pages out of it, treat it as a PDF.
+        pages_probe = processing.read_pdf_pages(data) if data else []
+        is_pdf = bool(pages_probe) or (bool(data) and (fname.lower().endswith(".pdf") or data[:5] == b"%PDF-"))
         has_range = from_n is not None and to_n is not None
         page_map_raw = (d.get("page_map") or "").strip()
 
