@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   bulkCreateCards,
   fetchBooks,
+  fetchSharedBooks,
   fetchDecks,
   importBookLesson,
   parseImport,
@@ -44,7 +45,14 @@ export default function ImportPage() {
 
   useEffect(() => {
     fetchDecks().then(setDecks);
-    fetchBooks().then(setBooks).catch(() => {});
+    // Owner's books + books shared with the user — same as the Books page,
+    // so a shared book is usable in Import just like one you own.
+    Promise.all([fetchBooks(), fetchSharedBooks().catch(() => [] as Book[])])
+      .then(([mine, shared]) => {
+        const seen = new Set(mine.map((b) => b.id));
+        setBooks([...mine, ...shared.filter((b) => !seen.has(b.id))]);
+      })
+      .catch(() => {});
   }, []);
 
   const leafDecks = useMemo(() => {
@@ -228,6 +236,7 @@ export default function ImportPage() {
                   <span className="bookcard__title">{b.title}</span>
                   <span className="bookcard__langs">
                     {(b.source_language || "?").toUpperCase()} → {b.translation_language} · {b.lesson_count} lessons
+                    {!b.is_owner && ` · shared by ${b.owner_email}`}
                   </span>
                 </div>
                 <ul className="bookblock__lessons">

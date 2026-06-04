@@ -306,7 +306,7 @@ class BookLessonProcessView(APIView):
 
     @transaction.atomic
     def post(self, request, pk, lid):
-        book = Book.objects.filter(id=pk, user=request.user).first()
+        book = _book_for(request, pk)  # owner or shared can extract vocab
         lesson = BookLesson.objects.filter(id=lid, book=book).first() if book else None
         if not lesson:
             return Response(status=status.HTTP_404_NOT_FOUND)
