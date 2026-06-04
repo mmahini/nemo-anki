@@ -452,18 +452,22 @@ def segment_lessons(text: str) -> list[dict]:
     return [{"title": l["title"], "raw_text": l["raw_text"]} for l in lessons]
 
 
-_VOCAB_PROMPT = """You are building flashcards from a {src_name} coursebook \
-lesson. Extract the key VOCABULARY as a JSON array (no markdown, no commentary). \
-Each item:
-- "front": the {src_name} word/phrase to memorise. For {src_name} nouns put NO \
-article here (it goes in "article").
-- "back": the translation written in {translation_language}.
-- "article": for a German noun one of "der","die","das","plural"; else "none".
+# Language-agnostic: works whether the lesson text is English, German, etc.,
+# regardless of the (possibly wrong) source_language set on the book.
+_VOCAB_PROMPT = """From this language-coursebook lesson text, extract the key \
+VOCABULARY a learner should study — single words and useful phrases. Return ONLY \
+a JSON array (no markdown, no commentary). Each item:
+- "front": the word/phrase exactly as it appears in the text (its base form if \
+obvious). For a German noun, put NO article here.
+- "back": its meaning/translation written in {translation_language}.
+- "article": if the word is a German noun, one of "der","die","das","plural"; \
+otherwise "none".
 - "reading": IPA pronunciation of the front, or "".
-- "plural": noun plural with its article (e.g. "die Tische"), or "".
-- "example": one short example sentence in {src_name}, or "".
-Only include real vocabulary that appears in the text; do not invent words. \
-Return at most {max_items} of the most useful items.
+- "plural": for a German noun, its plural with article (e.g. "die Tische"); else "".
+- "example": one short example sentence using the word (from or based on the \
+text), or "".
+Skip headers, instructions and exercise rubrics; focus on target vocabulary. Use \
+only words present in the text; do not invent. Return at most {max_items} items.
 
 LESSON TEXT:
 {text}
@@ -474,7 +478,6 @@ def extract_vocab(lesson_text: str, source_language: str, translation_language: 
     if not settings.GEMINI_API_KEY or not lesson_text.strip():
         return []
     prompt = _VOCAB_PROMPT.format(
-        src_name=_LANG_NAMES.get(source_language, "the source language"),
         translation_language=(translation_language or "English").strip(),
         max_items=MAX_ITEMS_PER_LESSON,
         text=lesson_text[:MAX_CHARS_PER_LESSON],
@@ -485,9 +488,14 @@ def extract_vocab(lesson_text: str, source_language: str, translation_language: 
     )
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"},
+        "generationConfig": {
+            "temperature": 0.1,
+            "responseMimeType": "application/json",
+            # Disable "thinking" so flash responds quickly (avoids timeouts).
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
     }
-    res = requests.post(url, json=payload, timeout=60)
+    res = requests.post(url, json=payload, timeout=120)
     res.raise_for_status()
     raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
     items = _extract_json_array(raw)
