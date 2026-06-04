@@ -61,15 +61,35 @@ def _looks_like_pdf(data: bytes) -> bool:
 
 
 def read_pdf_pages(data: bytes) -> list[str]:
-    """Return the text of each PDF page (PyMuPDF). Empty list if `data` isn't a
-    readable PDF. Used for page-based segmentation."""
+    """Return the text of each PDF page. Tries PyMuPDF first (best quality),
+    then falls back to pypdf per page so page-based splitting works for any
+    readable PDF — even ones PyMuPDF can't open. Empty list only if neither
+    library can read it."""
     if not data:
         return []
     try:
         import fitz
 
         with fitz.open(stream=data, filetype="pdf") as doc:
-            return [page.get_text("text") for page in doc]
+            if doc.needs_pass:
+                doc.authenticate("")
+            pages = [page.get_text("text") for page in doc]
+        if pages:
+            return pages
+    except Exception:  # noqa: BLE001 — fall back to pypdf
+        pass
+    try:
+        import io
+
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(data))
+        if reader.is_encrypted:
+            try:
+                reader.decrypt("")
+            except Exception:  # noqa: BLE001
+                pass
+        return [(page.extract_text() or "") for page in reader.pages]
     except Exception:  # noqa: BLE001
         return []
 
