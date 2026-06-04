@@ -8,6 +8,7 @@ import {
   fetchBooks,
   processBookLesson,
   regenerateBook,
+  updateBook,
   uploadBook,
   type Book,
   type BookLesson,
@@ -184,6 +185,15 @@ export default function Books() {
       setViewing(await fetchBookLesson(b.id, lesson.id));
     } finally {
       setLoadingView(null);
+    }
+  }
+
+  async function setBookLang(b: Book, patch: Partial<{ source_language: "de" | "en" | ""; translation_language: string }>) {
+    try {
+      const updated = await updateBook(b.id, patch);
+      setBooks((bs) => bs.map((x) => (x.id === b.id ? updated : x)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't update the book.");
     }
   }
 
@@ -390,8 +400,27 @@ export default function Books() {
               <div className="bookblock__banner" style={{ background: b.color }}>
                 <div>
                   <span className="bookcard__title">{b.title}</span>
-                  <span className="bookcard__langs">
-                    {(b.source_language || "?").toUpperCase()} → {b.translation_language} · {b.lesson_count} lessons
+                  <span className="bookcard__langs bookblock__langedit">
+                    <select
+                      value={b.source_language}
+                      onChange={(e) => setBookLang(b, { source_language: e.target.value as any })}
+                      title="Book language"
+                    >
+                      <option value="en">English</option>
+                      <option value="de">German</option>
+                      <option value="">Other</option>
+                    </select>
+                    →
+                    <select
+                      value={b.translation_language}
+                      onChange={(e) => setBookLang(b, { translation_language: e.target.value })}
+                      title="Translate into"
+                    >
+                      {TRANSLATE_LANGS.map((l) => (
+                        <option key={l} value={l}>{l}</option>
+                      ))}
+                    </select>
+                    · {b.lesson_count} lessons
                   </span>
                 </div>
                 <div className="bookblock__banneractions">

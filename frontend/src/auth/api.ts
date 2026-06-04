@@ -432,6 +432,14 @@ export function deleteBook(id: number): Promise<void> {
   return jsonRequest<void>(`/api/books/${id}/`, { method: "DELETE" });
 }
 
+/** Edit a book's language / translation / title. */
+export function updateBook(
+  id: number,
+  payload: Partial<{ source_language: "de" | "en" | ""; translation_language: string; title: string }>,
+): Promise<Book> {
+  return jsonRequest<Book>(`/api/books/${id}/`, { method: "PATCH", body: JSON.stringify(payload) });
+}
+
 /** Re-split the book's stored PDF with new page settings (replaces lessons). */
 export function regenerateBook(
   bookId: number,

@@ -480,6 +480,9 @@ kbd {
 .bookblock__banner .btn--ghost { background: rgba(255,255,255,0.18); border-color: transparent; color: #fff; }
 .bookblock__banner .btn--ghost:hover:not(:disabled) { background: rgba(255,255,255,0.28); }
 .bookblock__note { padding: 8px 16px; font-size: 0.8rem; color: var(--ink-faint); background: var(--line-soft); }
+.bookblock__langedit { display: inline-flex; align-items: center; gap: 6px; }
+.bookblock__langedit select { background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.35); border-radius: 6px; padding: 1px 4px; font: inherit; font-size: 0.78rem; font-weight: 600; }
+.bookblock__langedit select option { color: var(--ink); }
 .bookblock__regen { padding: 12px 16px; background: var(--line-soft); display: flex; flex-direction: column; gap: 8px; }
 .bookblock__regenrow { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 .bookblock__regenrow label { display: flex; flex-direction: column; gap: 4px; font-size: 0.74rem; font-weight: 600; color: var(--ink-soft); }
