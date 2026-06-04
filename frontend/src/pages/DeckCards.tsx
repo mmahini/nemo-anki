@@ -3,15 +3,19 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
   addCardImage,
+  colourizeDeck,
   deleteCard,
   deleteCardImage,
   fetchCards,
   fetchDecks,
   updateCard,
   type Card,
+  type CardType,
   type Deck,
   type DraftCard,
 } from "../auth/api";
+
+const CARD_TYPES: CardType[] = ["vocab", "sentence", "grammar"];
 import CardEditor from "../components/CardEditor";
 import GermanText from "../components/GermanText";
 import { articleClass } from "../lib/article";
@@ -105,6 +109,9 @@ export default function DeckCards() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState<DraftCard | null>(null);
+  const [typePanel, setTypePanel] = useState(false);
+  const [colourBusy, setColourBusy] = useState(false);
+  const [colourMsg, setColourMsg] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -136,6 +143,39 @@ export default function DeckCards() {
     load();
   }
 
+  async function changeType(cardId: number, type: CardType) {
+    setCards((cs) => cs.map((c) => (c.id === cardId ? { ...c, card_type: type } : c)));
+    await updateCard(cardId, { card_type: type });
+  }
+
+  async function setAllTypes(type: CardType) {
+    const targets = cards.filter((c) => c.card_type !== type);
+    if (!targets.length || !window.confirm(`Set all ${targets.length} card(s) to "${type}"?`)) return;
+    setCards((cs) => cs.map((c) => ({ ...c, card_type: type })));
+    for (const c of targets) await updateCard(c.id, { card_type: type });
+  }
+
+  async function colourise() {
+    setColourBusy(true);
+    setColourMsg("Colourising…");
+    try {
+      let total = 0;
+      // Process batch after batch until nothing colourable remains.
+      for (let i = 0; i < 50; i++) {
+        const res = await colourizeDeck(id);
+        total += res.colourized;
+        setColourMsg(`Colourising… ${total} done${res.remaining ? `, ${res.remaining} left` : ""}`);
+        if (res.remaining === 0 || res.colourized === 0) break;
+      }
+      setColourMsg(total ? `🎨 Coloured ${total} card(s).` : "Nothing to colour (German sentence/grammar cards only).");
+      await load();
+    } catch (e) {
+      setColourMsg(e instanceof Error ? e.message : "Colourise failed.");
+    } finally {
+      setColourBusy(false);
+    }
+  }
+
   if (loading) return <div className="panel">Loading…</div>;
 
   return (
@@ -148,6 +188,12 @@ export default function DeckCards() {
         </div>
         <div className="browse__actions">
           <Link to={`/app/decks/${id}/add`} className="btn btn--ghost">+ Add card</Link>
+          <button className={`btn btn--ghost ${typePanel ? "btn--on" : ""}`} onClick={() => setTypePanel((v) => !v)}>
+            Card types
+          </button>
+          <button className="btn btn--ghost" onClick={colourise} disabled={colourBusy} title="Run German gender colouring on every sentence/grammar card in this deck">
+            {colourBusy ? "🎨 Colourising…" : "🎨 Colourise German"}
+          </button>
           <button
             className="btn btn--primary"
             disabled={!deck || deck.counts.new + deck.counts.learning + deck.counts.due === 0}
@@ -157,6 +203,37 @@ export default function DeckCards() {
           </button>
         </div>
       </div>
+
+      {colourMsg && <div className="panel browse__note">{colourMsg}</div>}
+
+      {typePanel && cards.length > 0 && (
+        <div className="panel typepanel">
+          <div className="typepanel__bar">
+            <strong>Card types</strong>
+            <label className="typepanel__all">
+              Set all to
+              <select className="input input--sm" defaultValue="" onChange={(e) => { if (e.target.value) { setAllTypes(e.target.value as CardType); e.target.value = ""; } }}>
+                <option value="">…</option>
+                {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+          </div>
+          <ul className="typepanel__list">
+            {cards.map((c) => (
+              <li key={c.id} className="typepanel__row">
+                <span className="typepanel__front"><FrontText card={c} /></span>
+                <select
+                  className={`input input--sm cardtype cardtype--${c.card_type}`}
+                  value={c.card_type}
+                  onChange={(e) => changeType(c.id, e.target.value as CardType)}
+                >
+                  {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {cards.length === 0 ? (
         <div className="panel">

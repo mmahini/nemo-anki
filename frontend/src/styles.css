@@ -355,6 +355,16 @@ kbd {
 .cardimages__add { display: inline-flex; align-items: center; justify-content: center; height: 64px; width: 64px; border: 1px dashed var(--line); border-radius: 6px; color: var(--ink-soft); font-size: 0.78rem; font-weight: 600; cursor: pointer; }
 .cardimages__add.is-busy { opacity: 0.6; cursor: default; }
 .cardrow__thumb { height: 26px; width: 26px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); flex: none; }
+.browse__note { margin-bottom: 14px; font-size: 0.9rem; }
+.typepanel { margin-bottom: 16px; }
+.typepanel__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.typepanel__all { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--ink-soft); }
+.typepanel__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow: auto; }
+.typepanel__row { display: flex; align-items: center; gap: 10px; }
+.typepanel__front { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cardtype--vocab { border-color: var(--art-der, #3b82f6); }
+.cardtype--sentence { border-color: var(--art-die, #ef4444); }
+.cardtype--grammar { border-color: var(--art-das, #22c55e); }
 .face__tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 .tag { font-size: 0.72rem; background: var(--line-soft); color: var(--ink-soft); padding: 2px 8px; border-radius: 999px; }
 

@@ -102,6 +102,57 @@ class DeckStatsView(APIView):
         return Response(deck_counts(deck, timezone.now()))
 
 
+class DeckColourizeView(APIView):
+    """Bulk-run the German gender analysis over a deck's multi-word cards
+    (sentence + grammar) so they colour correctly. Processes a capped batch per
+    call (Gemini is per-card) and reports how many remain, so the client can
+    re-run until done."""
+
+    permission_classes = [IsAuthenticated]
+    BATCH = 30
+
+    def post(self, request, pk):
+        from django.db.models import Q
+
+        from apps.cards.models import Card, sync_card_group
+        from apps.imports.gemini import analyze_german
+
+        deck = Deck.objects.filter(id=pk, user=request.user).first()
+        if not deck:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        eligible = Card.objects.filter(
+            deck_id__in=deck.descendant_ids(),
+            language="de",
+            reverse_of__isnull=True,
+            card_type__in=["sentence", "grammar"],
+        ).filter(Q(genders=[]) | Q(genders__isnull=True))
+
+        colourized = 0
+        for card in list(eligible[: self.BATCH]):
+            try:
+                nouns = (analyze_german(card.front) or {}).get("nouns") or []
+            except Exception:  # noqa: BLE001 - one bad card shouldn't abort the batch
+                continue
+            if nouns:
+                card.genders = nouns
+                card.save(update_fields=["genders"])
+                sync_card_group(card)
+                colourized += 1
+
+        remaining = (
+            Card.objects.filter(
+                deck_id__in=deck.descendant_ids(),
+                language="de",
+                reverse_of__isnull=True,
+                card_type__in=["sentence", "grammar"],
+            )
+            .filter(Q(genders=[]) | Q(genders__isnull=True))
+            .count()
+        )
+        return Response({"colourized": colourized, "remaining": remaining})
+
+
 class DeckConfigDetailView(APIView):
     permission_classes = [IsAuthenticated]
 

@@ -277,6 +277,12 @@ export function deleteDeck(id: number): Promise<void> {
   return jsonRequest<void>(`/api/decks/${id}/`, { method: "DELETE" });
 }
 
+/** Bulk-run German gender colouring over a deck's sentence/grammar cards.
+ * Processes a capped batch per call; re-run while `remaining > 0`. */
+export function colourizeDeck(id: number): Promise<{ colourized: number; remaining: number }> {
+  return jsonRequest(`/api/decks/${id}/colourize/`, { method: "POST" });
+}
+
 // ====== Cards ======
 
 export function fetchCards(deckId: number): Promise<Card[]> {
