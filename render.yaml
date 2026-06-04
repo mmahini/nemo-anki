@@ -43,6 +43,21 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
+      # Cloudflare R2 (media: book + per-lesson PDFs). When all are set,
+      # settings.py serves uploads from R2 and file .url is the public R2 URL —
+      # required in prod so lesson PDFs load from the Vercel frontend.
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY
+        sync: false
+      - key: R2_SECRET_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_PUBLIC_DOMAIN
+        sync: false
+      - key: R2_LOCATION_PREFIX
+        value: ""
       - key: DJANGO_SUPERUSER_USERNAME
         sync: false
       - key: DJANGO_SUPERUSER_EMAIL
