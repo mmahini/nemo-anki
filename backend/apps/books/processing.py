@@ -60,6 +60,18 @@ def read_upload(uploaded_file, pasted_text: str) -> str:
 
 
 def _read_pdf(data: bytes) -> str:
+    # PyMuPDF (fitz) extracts far cleaner text than pypdf — it preserves digits
+    # and reading order, which matters for detecting "Unit 50" (pypdf often
+    # mangles these into "Unit SO" or drops the header entirely).
+    try:
+        import fitz  # PyMuPDF
+
+        with fitz.open(stream=data, filetype="pdf") as doc:
+            text = "\n".join(page.get_text("text") for page in doc)
+        if text.strip():
+            return text
+    except Exception:  # noqa: BLE001 — fall back to pypdf
+        pass
     try:
         import io
 
@@ -71,19 +83,34 @@ def _read_pdf(data: bytes) -> str:
         return ""
 
 
+# Digits frequently extracted from PDFs as look-alike letters. Used to build a
+# tolerant pattern so "Unit SO" still matches Unit 50, "Unit l2" matches 12, etc.
+_DIGIT_LOOKALIKE = {
+    "0": "0OoQD", "1": "1lIi", "2": "2Zz", "3": "3", "4": "4",
+    "5": "5Ss", "6": "6G", "7": "7", "8": "8B", "9": "9gq",
+}
+
+
+def _num_pattern(n: int) -> str:
+    return "".join(f"[{_DIGIT_LOOKALIKE[d]}]" for d in str(n))
+
+
 def _find_unit(text: str, kw_escaped: str, n: int, cursor: int):
     """Find lesson `n`'s heading at or after `cursor`. Prefers a clean
     line-start heading; falls back to any occurrence so mangled PDF headings
-    can still be located. `0*` allows leading zeros; `\\b` after the number
-    keeps "1" from matching inside "10"."""
+    can still be located. The number is matched OCR-tolerantly (digits may be
+    extracted as look-alike letters); `0*` allows leading zeros; the trailing
+    `(?![0-9...])` keeps "5" from matching inside "50"."""
+    num = _num_pattern(n)
+    tail = r"(?![0-9OoSsIlZBGgqQD])"
     line_start = re.compile(
-        rf"^[ \t>·•\-]*{kw_escaped}[ \t]*\.?[ \t]*0*{n}\b",
+        rf"^[ \t>·•\-]*{kw_escaped}[ \t]*\.?[ \t]*0*{num}{tail}",
         re.IGNORECASE | re.MULTILINE,
     )
     m = line_start.search(text, cursor)
     if m:
         return m
-    anywhere = re.compile(rf"\b{kw_escaped}[ \t]*\.?[ \t]*0*{n}\b", re.IGNORECASE)
+    anywhere = re.compile(rf"\b{kw_escaped}[ \t]*\.?[ \t]*0*{num}{tail}", re.IGNORECASE)
     return anywhere.search(text, cursor)
 
 
