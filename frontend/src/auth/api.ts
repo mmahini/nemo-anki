@@ -355,7 +355,11 @@ export type BookLesson = {
   position: number;
   card_count: number;
   processed: boolean;
+  page_start: number | null;
+  page_end: number | null;
 };
+
+export type BookLessonDetail = BookLesson & { raw_text: string; cards: DraftCard[] };
 
 export type Book = {
   id: number;
@@ -424,6 +428,11 @@ export function uploadBook(payload: {
 
 export function deleteBook(id: number): Promise<void> {
   return jsonRequest<void>(`/api/books/${id}/`, { method: "DELETE" });
+}
+
+/** A lesson's content — the page text assigned to it, plus any cards. */
+export function fetchBookLesson(bookId: number, lessonId: number): Promise<BookLessonDetail> {
+  return jsonRequest<BookLessonDetail>(`/api/books/${bookId}/lessons/${lessonId}/`, { method: "GET" });
 }
 
 /** Extract one lesson's vocabulary (the per-lesson Process button). */

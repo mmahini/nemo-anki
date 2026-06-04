@@ -4,11 +4,13 @@ import { Link } from "react-router-dom";
 import {
   analyzeBook,
   deleteBook,
+  fetchBookLesson,
   fetchBooks,
   processBookLesson,
   uploadBook,
   type Book,
   type BookLesson,
+  type BookLessonDetail,
   type PageMapItem,
 } from "../auth/api";
 import { TRANSLATE_LANGS } from "../lib/translateLang";
@@ -33,6 +35,9 @@ export default function Books() {
   const [creating, setCreating] = useState(false);
   const [preview, setPreview] = useState<{ page_count: number; detected_count: number } | null>(null);
   const [pageMap, setPageMap] = useState<PageMapItem[]>([]);
+  // Lesson page-content viewer.
+  const [viewing, setViewing] = useState<BookLessonDetail | null>(null);
+  const [loadingView, setLoadingView] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -159,6 +164,15 @@ export default function Books() {
   async function processAll(book: Book) {
     for (const l of book.lessons) {
       if (!l.processed) await process(book, l);
+    }
+  }
+
+  async function viewLesson(b: Book, lessonId: number) {
+    setLoadingView(lessonId);
+    try {
+      setViewing(await fetchBookLesson(b.id, lessonId));
+    } finally {
+      setLoadingView(null);
     }
   }
 
@@ -340,6 +354,19 @@ export default function Books() {
                 {b.lessons.map((l) => (
                   <li key={l.id} className="bookblock__lesson">
                     <span className="bookblock__ltitle">{l.title}</span>
+                    {l.page_start && (
+                      <span className="bookblock__pages">
+                        pp. {l.page_start}{l.page_end && l.page_end !== l.page_start ? `–${l.page_end}` : ""}
+                      </span>
+                    )}
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      disabled={loadingView === l.id}
+                      onClick={() => viewLesson(b, l.id)}
+                      title="View this lesson's pages"
+                    >
+                      {loadingView === l.id ? "…" : "View"}
+                    </button>
                     {l.processed ? (
                       <>
                         <span className="bookblock__count">{l.card_count} vocab</span>
@@ -367,6 +394,23 @@ export default function Books() {
             </div>
           );
         })
+      )}
+
+      {viewing && (
+        <div className="lessonview" onClick={() => setViewing(null)}>
+          <div className="lessonview__card" onClick={(e) => e.stopPropagation()}>
+            <div className="lessonview__head">
+              <strong>{viewing.title}</strong>
+              {viewing.page_start && (
+                <span className="bookblock__pages">
+                  pp. {viewing.page_start}{viewing.page_end && viewing.page_end !== viewing.page_start ? `–${viewing.page_end}` : ""}
+                </span>
+              )}
+              <button className="btn btn--ghost btn--sm" onClick={() => setViewing(null)}>Close</button>
+            </div>
+            <pre className="lessonview__text">{viewing.raw_text || "(no text on these pages)"}</pre>
+          </div>
+        </div>
       )}
     </div>
   );

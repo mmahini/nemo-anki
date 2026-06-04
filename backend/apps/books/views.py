@@ -12,7 +12,7 @@ from apps.decks.models import Deck, DeckConfig
 
 from . import processing
 from .models import BANNER_COLORS, Book, BookCard, BookLesson
-from .serializers import BookLessonSerializer, BookSerializer
+from .serializers import BookLessonDetailSerializer, BookLessonSerializer, BookSerializer
 
 
 def _color_for(title: str) -> str:
@@ -58,7 +58,7 @@ class BookAnalyzeView(APIView):
         serializer = BookAnalyzeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         d = serializer.validated_data
-        pages = processing.read_pdf_pages(d["file"])
+        pages = processing.read_pdf_pages(d["file"].read())
         if not pages:
             return Response({"detail": "Couldn't read pages from the PDF."}, status=status.HTTP_400_BAD_REQUEST)
         label = d.get("lesson_label") or "Unit"
@@ -92,36 +92,39 @@ class BookListView(APIView):
         ppu = d.get("pages_per_unit")
         start_page = d.get("start_page") or 1
 
+        # Read the upload once.
+        data = file.read() if file else b""
+        fname = getattr(file, "name", "") or ""
+        pages = processing.read_pdf_pages(data) if data else []
+        has_range = from_n is not None and to_n is not None
+
         page_map_raw = (d.get("page_map") or "").strip()
-        if page_map_raw and file is not None:
+        if page_map_raw and pages:
             # Approved unit->page map from the preview step.
             try:
                 page_map = json.loads(page_map_raw)
             except json.JSONDecodeError:
                 return Response({"detail": "Invalid page map."}, status=status.HTTP_400_BAD_REQUEST)
-            pages = processing.read_pdf_pages(file)
-            if not pages:
-                return Response({"detail": "Couldn't read pages from the PDF."}, status=status.HTTP_400_BAD_REQUEST)
             lessons = processing.segment_by_page_map(pages, label or "Unit", page_map)
-        elif ppu and from_n is not None and to_n is not None and file is not None:
-            # Page-based split (most reliable for messy PDFs).
-            pages = processing.read_pdf_pages(file)
-            if not pages:
-                return Response(
-                    {"detail": "Couldn't read pages from the PDF."},
-                    status=status.HTTP_400_BAD_REQUEST,
+        elif pages and has_range:
+            # PDF + a unit range → split by PAGES (guarantees all units): a fixed
+            # block size if given, else divide the pages evenly.
+            if ppu:
+                lessons = processing.segment_by_pages(
+                    pages, label or "Unit", int(from_n), int(to_n), int(start_page), int(ppu)
                 )
-            lessons = processing.segment_by_pages(
-                pages, label or "Unit", int(from_n), int(to_n), int(start_page), int(ppu)
-            )
+            else:
+                lessons = processing.segment_by_even_pages(
+                    pages, label or "Unit", int(from_n), int(to_n), int(start_page)
+                )
         else:
-            text = processing.read_upload(file, d.get("text", ""))
+            text = processing.bytes_to_text(data, fname) or d.get("text", "")
             if not text.strip():
                 return Response(
                     {"detail": "Couldn't read any text from the upload."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            if label and from_n is not None and to_n is not None:
+            if label and has_range:
                 lessons = processing.segment_by_range(text, label, int(from_n), int(to_n))
             else:
                 lessons = processing.segment_lessons(text)
@@ -142,11 +145,27 @@ class BookListView(APIView):
         # lesson via the Process button so we never block on the whole book.
         BookLesson.objects.bulk_create(
             [
-                BookLesson(book=book, title=l["title"], position=i, raw_text=l["raw_text"])
+                BookLesson(
+                    book=book, title=l["title"], position=i, raw_text=l["raw_text"],
+                    page_start=l.get("page_start"), page_end=l.get("page_end"),
+                )
                 for i, l in enumerate(lessons)
             ]
         )
         return Response(BookSerializer(book).data, status=status.HTTP_201_CREATED)
+
+
+class BookLessonDetailView(APIView):
+    """A single lesson's content (raw page text + any extracted cards) so the
+    user can view exactly the pages assigned to it."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk, lid):
+        lesson = BookLesson.objects.filter(id=lid, book__id=pk, book__user=request.user).first()
+        if not lesson:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(BookLessonDetailSerializer(lesson).data)
 
 
 class BookLessonProcessView(APIView):

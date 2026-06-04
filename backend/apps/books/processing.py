@@ -44,14 +44,11 @@ _HEADING_LABEL = {
 _MAX_HEADING_TRAILING = 60
 
 
-def read_upload(uploaded_file, pasted_text: str) -> str:
-    if pasted_text and pasted_text.strip():
-        return pasted_text
-    if not uploaded_file:
+def bytes_to_text(data: bytes, filename: str = "") -> str:
+    """Extract text from uploaded bytes (.pdf via PyMuPDF, else decode)."""
+    if not data:
         return ""
-    name = (getattr(uploaded_file, "name", "") or "").lower()
-    data = uploaded_file.read()
-    if name.endswith(".pdf"):
+    if (filename or "").lower().endswith(".pdf") or _looks_like_pdf(data):
         return _read_pdf(data)
     try:
         return data.decode("utf-8", errors="ignore")
@@ -59,12 +56,15 @@ def read_upload(uploaded_file, pasted_text: str) -> str:
         return ""
 
 
-def read_pdf_pages(uploaded_file) -> list[str]:
-    """Return the text of each PDF page (PyMuPDF). Empty list if not a readable
-    PDF. Used for page-range segmentation."""
-    if not uploaded_file:
+def _looks_like_pdf(data: bytes) -> bool:
+    return data[:5] == b"%PDF-"
+
+
+def read_pdf_pages(data: bytes) -> list[str]:
+    """Return the text of each PDF page (PyMuPDF). Empty list if `data` isn't a
+    readable PDF. Used for page-based segmentation."""
+    if not data:
         return []
-    data = uploaded_file.read()
     try:
         import fitz
 
@@ -74,29 +74,58 @@ def read_pdf_pages(uploaded_file) -> list[str]:
         return []
 
 
+def _label_cap(label: str) -> str:
+    label = (label or "Unit").strip() or "Unit"
+    return label[:1].upper() + label[1:]
+
+
+def _lesson(label: str, n: int, pages: list[str], s: int, e: int) -> dict:
+    """Build one lesson dict for pages[s:e] (0-based, clamped)."""
+    s = max(0, min(s, len(pages)))
+    e = max(s, min(e, len(pages)))
+    return {
+        "title": f"{label} {n}",
+        "raw_text": "\n".join(pages[s:e]).strip(),
+        "page_start": s + 1,
+        "page_end": max(s + 1, e),
+    }
+
+
+def segment_by_even_pages(
+    pages: list[str], label: str, from_n: int, to_n: int, start_page: int = 1
+) -> list[dict]:
+    """Divide the pages evenly across ALL units from..to — guarantees exactly
+    that many lessons even when no headings can be found. Boundaries are
+    approximate (the user can refine via the preview), but every unit gets a
+    contiguous block of pages."""
+    label = _label_cap(label)
+    to_n = min(to_n, from_n + MAX_LESSONS - 1)
+    n_units = to_n - from_n + 1
+    start_idx = max(0, int(start_page) - 1)
+    avail = max(0, len(pages) - start_idx)
+    base, extra = divmod(avail, n_units) if n_units else (0, 0)
+
+    lessons, cursor = [], start_idx
+    for i, k in enumerate(range(from_n, to_n + 1)):
+        size = base + (1 if i < extra else 0)
+        lessons.append(_lesson(label, k, pages, cursor, cursor + size))
+        cursor += size
+    return lessons
+
+
 def segment_by_pages(
     pages: list[str], label: str, from_n: int, to_n: int, start_page: int, pages_per_unit: int
 ) -> list[dict]:
-    """Split a PDF into lessons by PAGE — the most reliable option for messy
-    books: unit k = a fixed block of pages. Ignores headings entirely.
-
-    `start_page` is 1-based (the page where lesson `from_n` begins);
-    `pages_per_unit` is how many pages each lesson spans.
-    """
-    label = (label or "Unit").strip() or "Unit"
-    label = label[:1].upper() + label[1:]
+    """Fixed-size page blocks: unit k = `pages_per_unit` pages. Guarantees all
+    units from..to (units past the last page get empty content)."""
+    label = _label_cap(label)
     ppu = max(1, int(pages_per_unit))
     start_idx = max(0, int(start_page) - 1)
     to_n = min(to_n, from_n + MAX_LESSONS - 1)
-
-    lessons = []
-    for k in range(from_n, to_n + 1):
-        s = start_idx + (k - from_n) * ppu
-        if s >= len(pages):
-            break
-        raw = "\n".join(pages[s : s + ppu]).strip()
-        lessons.append({"title": f"{label} {k}", "raw_text": raw})
-    return lessons
+    return [
+        _lesson(label, k, pages, start_idx + (k - from_n) * ppu, start_idx + (k - from_n + 1) * ppu)
+        for k in range(from_n, to_n + 1)
+    ]
 
 
 def _read_pdf(data: bytes) -> str:
@@ -223,23 +252,20 @@ def build_page_map(
 
 
 def segment_by_page_map(pages: list[str], label: str, page_map: list[dict]) -> list[dict]:
-    """Build lessons from an (approved) unit->start-page map."""
-    label = (label or "Unit").strip() or "Unit"
-    label = label[:1].upper() + label[1:]
+    """Build lessons from an (approved) unit->start-page map. Produces exactly
+    one lesson per entry (never drops), so the requested count is guaranteed."""
+    label = _label_cap(label)
     items = sorted(
         ({"num": int(p["num"]), "start": max(1, int(p["start_page"]))} for p in page_map),
-        key=lambda x: x["start"],
+        key=lambda x: (x["start"], x["num"]),
     )
-    lessons = []
+    out = []
     for i, it in enumerate(items):
         s = it["start"] - 1
         end = (items[i + 1]["start"] - 1) if i + 1 < len(items) else len(pages)
-        if s >= len(pages):
-            continue
-        raw = "\n".join(pages[s:max(s + 1, end)]).strip()
-        lessons.append({"num": it["num"], "title": f"{label} {it['num']}", "raw_text": raw})
-    lessons.sort(key=lambda l: l["num"])
-    return [{"title": l["title"], "raw_text": l["raw_text"]} for l in lessons]
+        out.append((it["num"], _lesson(label, it["num"], pages, s, end)))
+    out.sort(key=lambda x: x[0])
+    return [l for _, l in out]
 
 
 def segment_by_range(text: str, keyword: str, from_n: int, to_n: int) -> list[dict]:
