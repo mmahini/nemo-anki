@@ -211,6 +211,24 @@ class CardColourizeView(APIView):
         return Response(CardSerializer(card).data)
 
 
+class CardReviewView(APIView):
+    """Return one card (with grade-interval previews) so it can be studied on
+    its own from the card list."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        card = (
+            Card.objects.filter(id=pk, deck__user=request.user)
+            .select_related("deck", "deck__config")
+            .first()
+        )
+        if not card:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        card._intervals = scheduler.preview_intervals(card, card.deck.config, timezone.now())
+        return Response(CardSerializer(card).data)
+
+
 class StudyView(APIView):
     """Return the next batch of due cards for a deck (with interval previews)."""
 

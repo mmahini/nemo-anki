@@ -449,7 +449,9 @@ kbd {
 .cardrow__front { font-weight: 600; }
 .cardrow__back { color: var(--ink-soft); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cardrow__del { margin-left: auto; background: none; border: none; color: var(--ink-faint); cursor: pointer; font-size: 0.9rem; }
-.cardrow__colour { margin-left: auto; background: none; border: none; cursor: pointer; font-size: 0.95rem; opacity: 0.7; padding: 0 2px; }
+.cardrow__review { margin-left: auto; background: none; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600; color: var(--ink-soft); white-space: nowrap; }
+.cardrow__review:hover { border-color: var(--accent, var(--ink-soft)); color: var(--accent, var(--ink)); }
+.cardrow__colour { background: none; border: none; cursor: pointer; font-size: 0.95rem; opacity: 0.7; padding: 0 2px; }
 .cardrow__colour:hover { opacity: 1; }
 .cardrow__colour:disabled { cursor: default; opacity: 0.5; }
 .cardrow__view .cardrow__del { margin-left: 4px; }

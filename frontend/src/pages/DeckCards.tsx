@@ -301,6 +301,16 @@ export default function DeckCards() {
                   <span className="cardrow__back" dir="auto">{c.back}</span>
                   <span className={`state state--${c.state}`}>{c.state}</span>
                   <button
+                    className="cardrow__review"
+                    title="Review just this card"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/app/study/card/${c.id}`);
+                    }}
+                  >
+                    ▶ Review
+                  </button>
+                  <button
                     className="cardrow__colour"
                     title="Colourise this card (German article / noun genders)"
                     disabled={colourCard === c.id}

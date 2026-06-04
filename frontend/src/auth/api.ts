@@ -319,6 +319,11 @@ export function colourizeCard(id: number): Promise<Card> {
   return jsonRequest<Card>(`/api/cards/${id}/colourize/`, { method: "POST" });
 }
 
+/** Fetch one card (with grade-interval previews) to study it on its own. */
+export function fetchCardForReview(id: number): Promise<Card> {
+  return jsonRequest<Card>(`/api/cards/${id}/review/`, { method: "GET" });
+}
+
 export function addCardImage(cardId: number, file: File): Promise<CardImage> {
   const fd = new FormData();
   fd.append("image", file);
