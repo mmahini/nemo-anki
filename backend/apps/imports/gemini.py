@@ -191,6 +191,72 @@ def analyze_german(text: str) -> dict:
         return {"nouns": [], "source": f"error:{exc.__class__.__name__}"}
 
 
+_BATCH_PROMPT = """You are a German teacher. For each item in the INPUT JSON array \
+decide the noun gender(s). Return ONLY a JSON array with exactly one object per \
+input item, keeping the same "i" index:
+- item "kind":"vocab" (a single word/term) -> {"i": <i>, "gender": its TRUE \
+dictionary gender if it is a noun, one of "der","die","das","plural"; otherwise \
+"none"}.
+- item "kind":"phrase" (a sentence/clause) -> {"i": <i>, "nouns": [{"noun": the \
+noun as written, "gender": its TRUE dictionary gender one of "der","die","das",\
+"plural"}]} for every noun in order; [] if none.
+Use the dictionary gender, NOT the case-inflected article. No markdown, no \
+commentary — just the JSON array.
+
+INPUT:
+{items}
+"""
+
+
+def analyze_german_batch(items: list[dict]) -> dict[int, dict]:
+    """Resolve genders for many cards in ONE Gemini call.
+
+    `items`: ``[{"i": int, "kind": "vocab"|"phrase", "text": str}]``.
+    Returns ``{i: {"gender": "der"|...}}`` for vocab and
+    ``{i: {"nouns": [{"noun","gender"}]}}`` for phrases. Missing items are simply
+    absent from the result (the caller retries them next round)."""
+    if not items or not settings.GEMINI_API_KEY:
+        return {}
+    compact = [
+        {"i": int(it["i"]), "kind": it["kind"], "text": (it["text"] or "")[:300]}
+        for it in items
+    ]
+    # str.replace (not .format) — the prompt contains literal JSON braces.
+    prompt = _BATCH_PROMPT.replace("{items}", json.dumps(compact, ensure_ascii=False))
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.0, "responseMimeType": "application/json"},
+    }
+    res = requests.post(url, json=payload, timeout=90)
+    res.raise_for_status()
+    raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+    out: dict[int, dict] = {}
+    for el in _extract_json_array(raw):
+        if not isinstance(el, dict) or "i" not in el:
+            continue
+        try:
+            i = int(el["i"])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(el.get("nouns"), list):
+            nouns = [
+                {"noun": str(n.get("noun", "")).strip(), "gender": n.get("gender")}
+                for n in el["nouns"]
+                if isinstance(n, dict)
+                and str(n.get("noun", "")).strip()
+                and n.get("gender") in _ANALYZE_ARTICLES
+            ]
+            out[i] = {"nouns": nouns}
+        else:
+            g = el.get("gender")
+            out[i] = {"gender": g if g in _ANALYZE_ARTICLES else "none"}
+    return out
+
+
 def parse_text(text: str, language: str = "", default_type: str = "vocab") -> dict:
     text = (text or "").strip()
     if not text:

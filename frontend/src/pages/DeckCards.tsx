@@ -177,13 +177,17 @@ export default function DeckCards() {
     try {
       let total = 0;
       // Process batch after batch until nothing colourable remains.
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 400; i++) {
         const res = await colourizeDeck(id);
         total += res.colourized;
-        setColourMsg(`Colourising… ${total} done${res.remaining ? `, ${res.remaining} left` : ""}`);
+        setColourMsg(`Colourising… ${total} done${res.remaining ? `, ~${res.remaining} left` : ""}`);
         if (res.remaining === 0 || res.colourized === 0) break;
       }
-      setColourMsg(total ? `🎨 Coloured ${total} card(s).` : "Nothing to colour (German sentence/grammar cards only).");
+      setColourMsg(
+        total
+          ? `🎨 Coloured ${total} card(s) — articles for vocab, noun genders for sentences.`
+          : "Nothing to colour — cards already coloured, or no German nouns detected.",
+      );
       await load();
     } catch (e) {
       setColourMsg(e instanceof Error ? e.message : "Colourise failed.");

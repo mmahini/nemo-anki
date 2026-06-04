@@ -109,15 +109,18 @@ class DeckColourizeView(APIView):
     remain, so the client can re-run until done."""
 
     permission_classes = [IsAuthenticated]
-    BATCH = 30
+    BATCH = 40  # cards per Gemini call (one call per request)
 
     def _eligible(self, deck):
         from django.db.models import Q
 
         from apps.cards.models import Card
 
+        # No language filter — the action is explicitly "Colourise German", and
+        # many decks (e.g. Anki imports) store no per-card language. We colour by
+        # content and stamp language='de' as we go.
         return Card.objects.filter(
-            deck_id__in=deck.descendant_ids(), language="de", reverse_of__isnull=True
+            deck_id__in=deck.descendant_ids(), reverse_of__isnull=True
         ).filter(
             Q(card_type="vocab", article="none")
             | Q(card_type__in=["sentence", "grammar"], genders=[])
@@ -126,27 +129,48 @@ class DeckColourizeView(APIView):
 
     def post(self, request, pk):
         from apps.cards.models import sync_card_group
-        from apps.imports.gemini import analyze_german
+        from apps.imports.gemini import analyze_german_batch
 
         deck = Deck.objects.filter(id=pk, user=request.user).first()
         if not deck:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
+        batch = list(self._eligible(deck)[: self.BATCH])
+        if not batch:
+            return Response({"colourized": 0, "remaining": 0})
+
+        # One Gemini call for the whole batch.
+        items = [
+            {"i": c.id, "kind": "vocab" if c.card_type == "vocab" else "phrase", "text": c.front}
+            for c in batch
+        ]
+        try:
+            results = analyze_german_batch(items)
+        except Exception:  # noqa: BLE001
+            results = {}
+
         colourized = 0
-        for card in list(self._eligible(deck)[: self.BATCH]):
-            try:
-                nouns = (analyze_german(card.front) or {}).get("nouns") or []
-            except Exception:  # noqa: BLE001 - one bad card shouldn't abort the batch
+        for card in batch:
+            r = results.get(card.id)
+            if not r:
                 continue
-            if not nouns:
-                continue
+            fields = []
             if card.card_type == "vocab":
-                # A vocab term is one word — colour it by its (first) noun gender.
-                card.article = nouns[0]["gender"]
-                card.save(update_fields=["article"])
+                gender = r.get("gender")
+                if gender in {"der", "die", "das", "plural"}:
+                    card.article = gender
+                    fields.append("article")
             else:
-                card.genders = nouns
-                card.save(update_fields=["genders"])
+                nouns = r.get("nouns") or []
+                if nouns:
+                    card.genders = nouns
+                    fields.append("genders")
+            if not fields:
+                continue
+            if card.language != "de":
+                card.language = "de"
+                fields.append("language")
+            card.save(update_fields=fields)
             sync_card_group(card)
             colourized += 1
 
