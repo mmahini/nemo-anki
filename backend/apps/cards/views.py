@@ -237,10 +237,15 @@ class CardFindImageView(APIView):
                 {"detail": "Couldn't find an image for this card."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        # Regenerate: drop the previous auto-found image (keep manual uploads).
+        primary.images.filter(auto=True).delete()
         last = primary.images.order_by("-position").first()
         pos = (last.position + 1) if last else 0
         img = CardImage.objects.create(
-            card=primary, image=ContentFile(data, name=f"auto_{primary.id}_{pos}.jpg"), position=pos
+            card=primary,
+            image=ContentFile(data, name=f"auto_{primary.id}_{pos}.jpg"),
+            position=pos,
+            auto=True,
         )
         return Response({"id": img.id, "url": img.image.url}, status=status.HTTP_201_CREATED)
 

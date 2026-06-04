@@ -84,7 +84,7 @@ function CardImages({ card, onChange }: { card: Card; onChange: () => void }) {
       <span className="cardimages__label">
         Photos (shown on the answer)
         <button type="button" className="btn btn--ghost btn--sm cardimages__find" disabled={busy} onClick={autoFind}>
-          🔍 Find image
+          {images.length ? "🔄 Regenerate image" : "🔍 Find image"}
         </button>
       </span>
       <div className="cardimages__grid">
@@ -180,8 +180,8 @@ export default function DeckCards() {
   async function findImageOne(cardId: number) {
     setFindCard(cardId);
     try {
-      const img = await findCardImage(cardId);
-      setCards((cs) => cs.map((c) => (c.id === cardId ? { ...c, images: [...(c.images ?? []), img] } : c)));
+      await findCardImage(cardId);
+      await load(); // refresh — regenerate replaces the previous auto image
     } catch {
       window.alert("Couldn't find an image for this card.");
     } finally {
@@ -345,7 +345,7 @@ export default function DeckCards() {
                   {c.card_type === "vocab" && (
                     <button
                       className="cardrow__colour"
-                      title="Auto-find an image for this card"
+                      title={(c.images?.length ?? 0) > 0 ? "Find a different image (regenerate)" : "Auto-find an image for this card"}
                       disabled={findCard === c.id}
                       onClick={(e) => {
                         e.stopPropagation();

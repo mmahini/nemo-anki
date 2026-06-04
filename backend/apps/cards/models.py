@@ -207,6 +207,7 @@ class CardImage(models.Model):
     card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name="images")
     image = models.ImageField(upload_to="card_images/")
     position = models.PositiveIntegerField(default=0)
+    auto = models.BooleanField(default=False)  # auto-found (replaced on regenerate)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
