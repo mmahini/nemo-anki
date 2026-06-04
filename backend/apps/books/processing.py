@@ -59,6 +59,46 @@ def read_upload(uploaded_file, pasted_text: str) -> str:
         return ""
 
 
+def read_pdf_pages(uploaded_file) -> list[str]:
+    """Return the text of each PDF page (PyMuPDF). Empty list if not a readable
+    PDF. Used for page-range segmentation."""
+    if not uploaded_file:
+        return []
+    data = uploaded_file.read()
+    try:
+        import fitz
+
+        with fitz.open(stream=data, filetype="pdf") as doc:
+            return [page.get_text("text") for page in doc]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def segment_by_pages(
+    pages: list[str], label: str, from_n: int, to_n: int, start_page: int, pages_per_unit: int
+) -> list[dict]:
+    """Split a PDF into lessons by PAGE — the most reliable option for messy
+    books: unit k = a fixed block of pages. Ignores headings entirely.
+
+    `start_page` is 1-based (the page where lesson `from_n` begins);
+    `pages_per_unit` is how many pages each lesson spans.
+    """
+    label = (label or "Unit").strip() or "Unit"
+    label = label[:1].upper() + label[1:]
+    ppu = max(1, int(pages_per_unit))
+    start_idx = max(0, int(start_page) - 1)
+    to_n = min(to_n, from_n + MAX_LESSONS - 1)
+
+    lessons = []
+    for k in range(from_n, to_n + 1):
+        s = start_idx + (k - from_n) * ppu
+        if s >= len(pages):
+            break
+        raw = "\n".join(pages[s : s + ppu]).strip()
+        lessons.append({"title": f"{label} {k}", "raw_text": raw})
+    return lessons
+
+
 def _read_pdf(data: bytes) -> str:
     # PyMuPDF (fitz) extracts far cleaner text than pypdf — it preserves digits
     # and reading order, which matters for detecting "Unit 50" (pypdf often

@@ -30,6 +30,9 @@ class BookUploadSerializer(serializers.Serializer):
     lesson_label = serializers.CharField(max_length=40, required=False, allow_blank=True, default="")
     from_lesson = serializers.IntegerField(required=False, allow_null=True, default=None)
     to_lesson = serializers.IntegerField(required=False, allow_null=True, default=None)
+    # Page-based split (most reliable for messy PDFs).
+    pages_per_unit = serializers.IntegerField(required=False, allow_null=True, default=None)
+    start_page = serializers.IntegerField(required=False, allow_null=True, default=None)
 
 
 class BookListView(APIView):
@@ -45,19 +48,35 @@ class BookListView(APIView):
         serializer.is_valid(raise_exception=True)
         d = serializer.validated_data
 
-        text = processing.read_upload(d.get("file"), d.get("text", ""))
-        if not text.strip():
-            return Response(
-                {"detail": "Couldn't read any text from the upload."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        file = d.get("file")
         label = d.get("lesson_label") or ""
         from_n, to_n = d.get("from_lesson"), d.get("to_lesson")
-        if label and from_n is not None and to_n is not None:
-            lessons = processing.segment_by_range(text, label, int(from_n), int(to_n))
+        ppu = d.get("pages_per_unit")
+        start_page = d.get("start_page") or 1
+
+        if ppu and from_n is not None and to_n is not None and file is not None:
+            # Page-based split (most reliable for messy PDFs).
+            pages = processing.read_pdf_pages(file)
+            if not pages:
+                return Response(
+                    {"detail": "Couldn't read pages from the PDF."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            lessons = processing.segment_by_pages(
+                pages, label or "Unit", int(from_n), int(to_n), int(start_page), int(ppu)
+            )
         else:
-            lessons = processing.segment_lessons(text)
+            text = processing.read_upload(file, d.get("text", ""))
+            if not text.strip():
+                return Response(
+                    {"detail": "Couldn't read any text from the upload."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if label and from_n is not None and to_n is not None:
+                lessons = processing.segment_by_range(text, label, int(from_n), int(to_n))
+            else:
+                lessons = processing.segment_lessons(text)
+
         capped = len(lessons) > processing.MAX_LESSONS
         lessons = lessons[: processing.MAX_LESSONS]
 

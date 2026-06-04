@@ -21,6 +21,8 @@ export default function Books() {
   const [label, setLabel] = useState("Unit");
   const [fromLesson, setFromLesson] = useState("");
   const [toLesson, setToLesson] = useState("");
+  const [pagesPerUnit, setPagesPerUnit] = useState("");
+  const [startPage, setStartPage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState<Set<number>>(new Set()); // lesson ids being processed
@@ -55,6 +57,8 @@ export default function Books() {
         lesson_label: label.trim() || undefined,
         from_lesson: fromLesson ? Number(fromLesson) : null,
         to_lesson: toLesson ? Number(toLesson) : null,
+        pages_per_unit: pagesPerUnit ? Number(pagesPerUnit) : null,
+        start_page: startPage ? Number(startPage) : null,
       });
       setTitle("");
       setFile(null);
@@ -174,8 +178,24 @@ export default function Books() {
           </div>
           <span className="books__hint">
             Tell me the heading word and the number range (e.g. Unit, 1–100). I'll
-            look for each one in order — far more reliable than auto-detection on
-            messy PDFs. Leave blank to auto-detect.
+            look for each one in order. Leave blank to auto-detect.
+          </span>
+
+          <div className="books__row" style={{ marginTop: 4 }}>
+            <label className="cardeditor__field">
+              <span>Pages per unit</span>
+              <input className="input" type="number" min={1} value={pagesPerUnit} onChange={(e) => setPagesPerUnit(e.target.value)} placeholder="e.g. 2" />
+            </label>
+            <label className="cardeditor__field">
+              <span>First unit starts on page</span>
+              <input className="input" type="number" min={1} value={startPage} onChange={(e) => setStartPage(e.target.value)} placeholder="e.g. 6" />
+            </label>
+          </div>
+          <span className="books__hint">
+            <strong>Most reliable for PDFs:</strong> if each unit is a fixed number of
+            pages, set “pages per unit” + the page the first unit starts on, and I'll
+            split the PDF by page (ignoring messy headings) — this always yields the
+            full range.
           </span>
         </fieldset>
 
