@@ -47,6 +47,9 @@ export default function Books() {
   const [regenFor, setRegenFor] = useState<number | null>(null);
   const [regen, setRegen] = useState({ from: "1", to: "100", ppu: "", start: "", label: "Unit" });
   const [regenerating, setRegenerating] = useState(false);
+  // Per-lesson re-split (fix the first wrong lesson, optionally cascade to end).
+  const [regenLessonId, setRegenLessonId] = useState<number | null>(null);
+  const [regenL, setRegenL] = useState({ start: "", ppu: "" });
   const [reviewing, setReviewing] = useState(false);
 
   async function load() {
@@ -208,6 +211,46 @@ export default function Books() {
       setBooks((bs) => bs.map((x) => (x.id === b.id ? updated : x)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't update the book.");
+    }
+  }
+
+  function lessonNum(title: string): number {
+    const m = /(\d+)/.exec(title || "");
+    return m ? Number(m[1]) : 0;
+  }
+  function lessonLabel(title: string): string {
+    const m = /^(.*?)\s*\d+/.exec(title || "");
+    return (m && m[1].trim()) || "Unit";
+  }
+
+  function toggleLessonRegen(l: BookLesson) {
+    if (regenLessonId === l.id) {
+      setRegenLessonId(null);
+      return;
+    }
+    setRegenL({ start: l.page_start ? String(l.page_start) : "", ppu: "" });
+    setRegenLessonId(l.id);
+  }
+
+  async function doLessonRegen(b: Book, l: BookLesson, toEnd: boolean) {
+    setRegenerating(true);
+    setError(null);
+    try {
+      const num = lessonNum(l.title);
+      const maxNum = Math.max(...b.lessons.map((x) => lessonNum(x.title)));
+      const updated = await regenerateBook(b.id, {
+        from_lesson: num,
+        to_lesson: toEnd ? maxNum : num,
+        pages_per_unit: regenL.ppu ? Number(regenL.ppu) : null,
+        start_page: regenL.start ? Number(regenL.start) : null,
+        lesson_label: lessonLabel(l.title),
+      });
+      setBooks((bs) => bs.map((x) => (x.id === b.id ? updated : x)));
+      setRegenLessonId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Re-generate failed.");
+    } finally {
+      setRegenerating(false);
     }
   }
 
@@ -477,38 +520,69 @@ export default function Books() {
               <ul className="bookblock__lessons">
                 {b.lessons.map((l) => (
                   <li key={l.id} className="bookblock__lesson">
-                    <span className="bookblock__ltitle">{l.title}</span>
-                    {l.page_start && (
-                      <span className="bookblock__pages">
-                        pp. {l.page_start}{l.page_end && l.page_end !== l.page_start ? `–${l.page_end}` : ""}
-                      </span>
-                    )}
-                    {l.processed && (
+                    <div className="bookblock__lessonrow">
+                      <span className="bookblock__ltitle">{l.title}</span>
+                      {l.page_start && (
+                        <span className="bookblock__pages">
+                          pp. {l.page_start}{l.page_end && l.page_end !== l.page_start ? `–${l.page_end}` : ""}
+                        </span>
+                      )}
+                      {l.processed && (
+                        <button
+                          className="bookblock__count bookblock__count--link"
+                          disabled={loadingLesson === l.id}
+                          onClick={() => openLesson(b, l)}
+                          title="Open PDF + vocab for review"
+                        >
+                          {loadingLesson === l.id ? "…" : `${l.card_count} vocab ›`}
+                        </button>
+                      )}
+                      {b.has_pdf && (
+                        <button
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => toggleLessonRegen(l)}
+                          title="Fix this lesson's pages (and optionally the ones after it)"
+                        >
+                          Re-split
+                        </button>
+                      )}
                       <button
-                        className="bookblock__count bookblock__count--link"
+                        className="btn btn--ghost btn--sm"
                         disabled={loadingLesson === l.id}
                         onClick={() => openLesson(b, l)}
                         title="Open PDF + vocab for review"
                       >
-                        {loadingLesson === l.id ? "…" : `${l.card_count} vocab ›`}
+                        {loadingLesson === l.id ? "…" : "View"}
                       </button>
+                      <button
+                        className="btn btn--primary btn--sm"
+                        disabled={working.has(l.id)}
+                        onClick={() => process(b, l)}
+                        title={l.processed ? "Re-extract vocabulary" : "Extract vocabulary"}
+                      >
+                        {working.has(l.id) ? "…" : l.processed ? "↻" : "Process"}
+                      </button>
+                    </div>
+                    {regenLessonId === l.id && (
+                      <div className="bookblock__lessonregen">
+                        <span className="books__hint">
+                          Set where <strong>{l.title}</strong> really starts. “This lesson”
+                          fixes only it; “From here → end” re-splits this and every later
+                          lesson with the same page size.
+                        </span>
+                        <div className="bookblock__regenrow">
+                          <label>Start page<input className="input input--sm" type="number" min={1} value={regenL.start} onChange={(e) => setRegenL({ ...regenL, start: e.target.value })} /></label>
+                          <label>Pages/unit<input className="input input--sm" type="number" min={1} value={regenL.ppu} onChange={(e) => setRegenL({ ...regenL, ppu: e.target.value })} placeholder="even" /></label>
+                          <button className="btn btn--primary btn--sm" disabled={regenerating} onClick={() => doLessonRegen(b, l, false)}>
+                            {regenerating ? "…" : "This lesson"}
+                          </button>
+                          <button className="btn btn--primary btn--sm" disabled={regenerating} onClick={() => doLessonRegen(b, l, true)}>
+                            {regenerating ? "…" : "From here → end"}
+                          </button>
+                          <button className="btn btn--ghost btn--sm" onClick={() => setRegenLessonId(null)}>Cancel</button>
+                        </div>
+                      </div>
                     )}
-                    <button
-                      className="btn btn--ghost btn--sm"
-                      disabled={loadingLesson === l.id}
-                      onClick={() => openLesson(b, l)}
-                      title="Open PDF + vocab for review"
-                    >
-                      {loadingLesson === l.id ? "…" : "View"}
-                    </button>
-                    <button
-                      className="btn btn--primary btn--sm"
-                      disabled={working.has(l.id)}
-                      onClick={() => process(b, l)}
-                      title={l.processed ? "Re-extract vocabulary" : "Extract vocabulary"}
-                    >
-                      {working.has(l.id) ? "…" : l.processed ? "↻" : "Process"}
-                    </button>
                   </li>
                 ))}
               </ul>
