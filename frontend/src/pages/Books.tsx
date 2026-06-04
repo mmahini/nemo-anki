@@ -274,15 +274,20 @@ export default function Books() {
         </fieldset>
 
         {error && <p className="auth__error">{error}</p>}
-        {file && fromLesson && toLesson ? (
-          <button type="button" className="btn btn--primary btn--lg" disabled={analyzing} onClick={onPreview}>
-            {analyzing ? "Analysing pages…" : "Preview lesson pages →"}
-          </button>
-        ) : (
+        <div className="books__submit">
           <button className="btn btn--primary btn--lg" disabled={uploading}>
-            {uploading ? "Uploading…" : "Upload & split into lessons"}
+            {uploading
+              ? "Splitting…"
+              : file && fromLesson && toLesson
+                ? `Upload & split into ${Math.max(0, Number(toLesson) - Number(fromLesson) + 1)} lessons`
+                : "Upload & split into lessons"}
           </button>
-        )}
+          {file && fromLesson && toLesson && (
+            <button type="button" className="btn btn--ghost btn--lg" disabled={analyzing} onClick={onPreview}>
+              {analyzing ? "Analysing…" : "Preview & edit pages first"}
+            </button>
+          )}
+        </div>
       </form>
 
       {preview && (
