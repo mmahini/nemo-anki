@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone as dt_timezone
 
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers, status
@@ -7,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.cards.models import Card
+from apps.cards.models import Card, CardImage
 from apps.decks.models import Deck, DeckConfig
 
 from . import anki
@@ -210,17 +211,26 @@ class AnkiImportView(APIView):
                      **content, **_map_schedule(cards[0], crt_dt, now))
             )
             reverse_raw = cards[1] if (note["two_sided"] and len(cards) > 1) else None
-            meta.append({"deck": deck, "content": content, "reverse_raw": reverse_raw})
+            meta.append({"deck": deck, "content": content, "reverse_raw": reverse_raw,
+                         "images": note.get("images") or []})
 
         Card.objects.bulk_create(forwards)
 
         reverses: list[Card] = []
+        photos = 0
         for fwd, m in zip(forwards, meta):
             if m["reverse_raw"] is not None:
                 reverses.append(
                     Card(deck=m["deck"], position=fwd.position, direction="reverse",
                          reverse_of=fwd, **m["content"], **_map_schedule(m["reverse_raw"], crt_dt, now))
                 )
+            for j, img in enumerate(m["images"]):
+                ext = (img["name"].rsplit(".", 1)[-1] or "img")[:8]
+                CardImage.objects.create(
+                    card=fwd, position=j,
+                    image=ContentFile(img["data"], name=f"anki{fwd.id}_{j}.{ext}"),
+                )
+                photos += 1
         if reverses:
             Card.objects.bulk_create(reverses)
 
@@ -230,7 +240,9 @@ class AnkiImportView(APIView):
                 "notes": len(forwards),
                 "cards": len(forwards) + len(reverses),
                 "reversed": len(reverses),
+                "photos": photos,
                 "truncated": parsed["truncated"],
+                "img_truncated": parsed.get("img_truncated", False),
                 "max_notes": anki.MAX_NOTES,
             },
             status=status.HTTP_201_CREATED,

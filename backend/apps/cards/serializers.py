@@ -10,6 +10,7 @@ class CardSerializer(serializers.ModelSerializer):
     intervals = serializers.SerializerMethodField()
     deck_name = serializers.CharField(source="deck.full_name", read_only=True)
     has_reverse = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
 
     class Meta:
         model = Card
@@ -20,6 +21,7 @@ class CardSerializer(serializers.ModelSerializer):
             "card_type",
             "direction",
             "has_reverse",
+            "images",
             "language",
             "front",
             "back",
@@ -47,6 +49,7 @@ class CardSerializer(serializers.ModelSerializer):
             "deck_name",
             "direction",
             "has_reverse",
+            "images",
             "state",
             "due",
             "interval_days",
@@ -67,6 +70,11 @@ class CardSerializer(serializers.ModelSerializer):
         if obj.reverse_of_id is not None:
             return False
         return obj.reverses.exists()
+
+    def get_images(self, obj):
+        # Images live on the primary (forward) card; a reverse shows the same set.
+        src = obj.reverse_of or obj
+        return [{"id": im.id, "url": im.image.url} for im in src.images.all()]
 
     def validate_deck(self, deck: Deck) -> Deck:
         request = self.context.get("request")

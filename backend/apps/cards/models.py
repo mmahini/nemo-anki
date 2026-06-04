@@ -198,3 +198,16 @@ class ReviewLog(models.Model):
     class Meta:
         ordering = ["-reviewed_at"]
         indexes = [models.Index(fields=["user", "-reviewed_at"])]
+
+
+class CardImage(models.Model):
+    """A photo shown on a card's answer side. Always attached to the primary
+    (forward) card so both directions of a note share the same images."""
+
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name="images")
+    image = models.ImageField(upload_to="card_images/")
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["position", "id"]

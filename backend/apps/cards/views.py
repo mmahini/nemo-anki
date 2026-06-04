@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from apps.decks.models import Deck
 
 from . import scheduler
-from .models import Card, ReviewLog, add_reverse_cards, sync_card_group
+from .models import Card, CardImage, ReviewLog, add_reverse_cards, sync_card_group
 from .queue import study_queue
 from .serializers import AnswerSerializer, BulkCardSerializer, CardSerializer
 
@@ -107,6 +107,68 @@ class BulkCardView(APIView):
             {"created": len(created), "deck": deck.id},
             status=status.HTTP_201_CREATED,
         )
+
+
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
+_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml"}
+
+
+class CardImageView(APIView):
+    """Attach a photo to a card (stored on the primary/forward card so both
+    review directions share it)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _primary(self, request, pk):
+        card = (
+            Card.objects.filter(id=pk, deck__user=request.user)
+            .select_related("reverse_of")
+            .first()
+        )
+        if not card:
+            return None
+        return card.reverse_of or card
+
+    @transaction.atomic
+    def post(self, request, pk):
+        card = self._primary(request, pk)
+        if not card:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        upload = request.FILES.get("image")
+        if not upload:
+            return Response({"detail": "Attach an image."}, status=status.HTTP_400_BAD_REQUEST)
+        if upload.size and upload.size > MAX_IMAGE_BYTES:
+            return Response({"detail": "Image too large (8 MB max)."}, status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+        if upload.content_type and upload.content_type not in _IMAGE_TYPES:
+            return Response({"detail": "Unsupported image type."}, status=status.HTTP_400_BAD_REQUEST)
+        if upload.content_type != "image/svg+xml":  # SVGs aren't raster — skip Pillow
+            from PIL import Image
+
+            try:
+                Image.open(upload).verify()
+            except Exception:  # noqa: BLE001
+                return Response({"detail": "That file isn't a valid image."}, status=status.HTTP_400_BAD_REQUEST)
+            upload.seek(0)
+        last = card.images.order_by("-position").first()
+        img = CardImage.objects.create(
+            card=card, image=upload, position=(last.position + 1) if last else 0
+        )
+        return Response({"id": img.id, "url": img.image.url}, status=status.HTTP_201_CREATED)
+
+
+class CardImageDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk, img_id):
+        card = (
+            Card.objects.filter(id=pk, deck__user=request.user)
+            .select_related("reverse_of")
+            .first()
+        )
+        primary = (card.reverse_of or card) if card else None
+        if primary:
+            CardImage.objects.filter(id=img_id, card=primary).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class StudyView(APIView):

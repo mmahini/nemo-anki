@@ -180,6 +180,8 @@ export type Deck = {
   created_at: string;
 };
 
+export type CardImage = { id: number; url: string };
+
 export type Card = {
   id: number;
   deck: number;
@@ -187,6 +189,7 @@ export type Card = {
   card_type: CardType;
   direction: "forward" | "reverse";
   has_reverse?: boolean;
+  images?: CardImage[];
   language: string;
   front: string;
   back: string;
@@ -296,6 +299,16 @@ export function updateCard(id: number, payload: Partial<Card>): Promise<Card> {
 
 export function deleteCard(id: number): Promise<void> {
   return jsonRequest<void>(`/api/cards/${id}/`, { method: "DELETE" });
+}
+
+export function addCardImage(cardId: number, file: File): Promise<CardImage> {
+  const fd = new FormData();
+  fd.append("image", file);
+  return jsonRequest<CardImage>(`/api/cards/${cardId}/images/`, { method: "POST", body: fd });
+}
+
+export function deleteCardImage(cardId: number, imageId: number): Promise<void> {
+  return jsonRequest<void>(`/api/cards/${cardId}/images/${imageId}/`, { method: "DELETE" });
 }
 
 export function bulkCreateCards(deck: number, cards: DraftCard[]): Promise<{ created: number; deck: number }> {

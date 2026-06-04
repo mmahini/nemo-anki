@@ -22,11 +22,17 @@ import io
 import re
 import sqlite3
 import tempfile
+import urllib.parse
 import zipfile
 from pathlib import Path
 
 # Hard cap so a giant collection can't exhaust memory on the small instance.
 MAX_NOTES = 20000
+# Image import bounds (legacy media only — see _media_map).
+MAX_IMAGES_PER_NOTE = 6
+MAX_IMAGE_TOTAL_BYTES = 40 * 1024 * 1024
+_IMG_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"}
+_IMG_SRC = re.compile(r"""<img[^>]*\bsrc\s*=\s*["']([^"']+)["']""", re.I)
 
 FIELD_SEP = "\x1f"
 
@@ -77,14 +83,8 @@ def _cloze_front_back(raw: str) -> tuple[str, str]:
     return front, back
 
 
-def _extract_db(data: bytes) -> bytes:
+def _db_from_zip(zf: zipfile.ZipFile, names: set[str]) -> bytes:
     """Return the raw SQLite bytes for the collection inside the package."""
-    try:
-        zf = zipfile.ZipFile(io.BytesIO(data))
-    except zipfile.BadZipFile as exc:
-        raise AnkiImportError("Not a valid .apkg file (expected a zip archive).") from exc
-
-    names = set(zf.namelist())
     if "collection.anki21b" in names:
         raw = zf.read("collection.anki21b")
         try:
@@ -99,6 +99,50 @@ def _extract_db(data: bytes) -> bytes:
         if name in names:
             return zf.read(name)
     raise AnkiImportError("No Anki collection found inside the package.")
+
+
+def _media_map(zf: zipfile.ZipFile, names: set[str]) -> dict[str, str]:
+    """Map media filename → archive entry name, for the legacy media format
+    (a JSON object ``{"0": "cat.jpg", ...}``). The newest format stores this as
+    a zstd protobuf we don't parse, so images are skipped there (text imports
+    fine regardless)."""
+    if "media" not in names:
+        return {}
+    try:
+        import json
+
+        data = json.loads(zf.read("media").decode("utf-8"))
+        return {fn: str(key) for key, fn in data.items() if isinstance(fn, str)}
+    except Exception:  # noqa: BLE001 - new-format or unexpected media blob
+        return {}
+
+
+def _img_filenames(fields: list[str]) -> list[str]:
+    """Distinct <img src> filenames referenced across a note's fields."""
+    out: list[str] = []
+    for f in fields:
+        for m in _IMG_SRC.finditer(f or ""):
+            src = urllib.parse.unquote(_html.unescape(m.group(1)))
+            if src not in out:
+                out.append(src)
+    return out
+
+
+def _read_images(zf, names, fname_to_key, wanted, budget) -> list[dict]:
+    images: list[dict] = []
+    for fn in wanted[:MAX_IMAGES_PER_NOTE]:
+        if Path(fn).suffix.lower() not in _IMG_EXT:
+            continue
+        key = fname_to_key.get(fn) or fname_to_key.get(Path(fn).name)
+        if not key or key not in names:
+            continue
+        data = zf.read(key)
+        if budget["used"] + len(data) > MAX_IMAGE_TOTAL_BYTES:
+            budget["truncated"] = True
+            break
+        budget["used"] += len(data)
+        images.append({"name": Path(fn).name, "data": data})
+    return images
 
 
 def _deck_names(con: sqlite3.Connection) -> dict[int, str]:
@@ -125,7 +169,14 @@ def parse_apkg(data: bytes) -> dict:
     ``cards`` is an ordinal-sorted list of raw scheduling dicts (one per Anki
     card of the note); ``kind`` is ``"grammar"`` (cloze) or ``"vocab"``.
     """
-    db_bytes = _extract_db(data)
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile as exc:
+        raise AnkiImportError("Not a valid .apkg file (expected a zip archive).") from exc
+    names = set(zf.namelist())
+    db_bytes = _db_from_zip(zf, names)
+    fname_to_key = _media_map(zf, names)
+
     with tempfile.TemporaryDirectory() as tmp:
         db_path = Path(tmp) / "collection.db"
         db_path.write_bytes(db_bytes)
@@ -183,6 +234,7 @@ def parse_apkg(data: bytes) -> dict:
             con.close()
 
     notes = []
+    img_budget = {"used": 0, "truncated": False}
     for nid in order:
         g = grouped[nid]
         fields = g["fields"]
@@ -195,18 +247,31 @@ def parse_apkg(data: bytes) -> dict:
             back = clean(fields[1]) if len(fields) > 1 else ""
             kind = "vocab"
             two_sided = len(g["cards"]) >= 2
-        if not front:
-            continue  # skip empty / media-only notes
+        images = (
+            _read_images(zf, names, fname_to_key, _img_filenames(fields), img_budget)
+            if fname_to_key
+            else []
+        )
+        if not front and not images:
+            continue  # skip empty / media-only-without-image notes
         notes.append(
             {
                 "deck": deck_name,
                 "kind": kind,
                 "two_sided": two_sided,
-                "front": front,
+                "front": front or "(image)",
                 "back": back,
                 "tags": g["tags"],
                 "cards": g["cards"],
+                "images": images,
             }
         )
 
-    return {"crt": crt, "total_cards": total_cards, "truncated": truncated, "notes": notes}
+    zf.close()
+    return {
+        "crt": crt,
+        "total_cards": total_cards,
+        "truncated": truncated,
+        "img_truncated": img_budget["truncated"],
+        "notes": notes,
+    }

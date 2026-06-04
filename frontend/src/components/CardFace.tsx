@@ -87,6 +87,13 @@ export function CardBack({ card }: { card: AnyCard }) {
           <SpeakButton text={card.front} lang={card.language} small title="Hear pronunciation" />
         </div>
       )}
+      {"images" in card && card.images && card.images.length > 0 && (
+        <div className="face__images">
+          {card.images.map((im) => (
+            <img key={im.id} className="face__img" src={im.url} alt="" loading="lazy" />
+          ))}
+        </div>
+      )}
       {card.card_type === "vocab" && card.plural && (
         <div className="face__plural">
           plural: <span className="art-plural">{card.plural}</span>
