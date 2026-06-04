@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   addCardImage,
   autotypeDeck,
+  colourizeCard,
   colourizeDeck,
   deleteCard,
   deleteCardImage,
@@ -114,6 +115,7 @@ export default function DeckCards() {
   const [colourBusy, setColourBusy] = useState(false);
   const [colourMsg, setColourMsg] = useState<string | null>(null);
   const [autoBusy, setAutoBusy] = useState(false);
+  const [colourCard, setColourCard] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -143,6 +145,16 @@ export default function DeckCards() {
   async function remove(cardId: number) {
     await deleteCard(cardId);
     load();
+  }
+
+  async function colouriseOne(cardId: number) {
+    setColourCard(cardId);
+    try {
+      const updated = await colourizeCard(cardId);
+      setCards((cs) => cs.map((c) => (c.id === cardId ? updated : c)));
+    } finally {
+      setColourCard(null);
+    }
   }
 
   async function changeType(cardId: number, type: CardType) {
@@ -288,6 +300,17 @@ export default function DeckCards() {
                   <span className="cardrow__front"><FrontText card={c} /></span>
                   <span className="cardrow__back" dir="auto">{c.back}</span>
                   <span className={`state state--${c.state}`}>{c.state}</span>
+                  <button
+                    className="cardrow__colour"
+                    title="Colourise this card (German article / noun genders)"
+                    disabled={colourCard === c.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      colouriseOne(c.id);
+                    }}
+                  >
+                    {colourCard === c.id ? "…" : "🎨"}
+                  </button>
                   <button
                     className="cardrow__del"
                     onClick={(e) => {

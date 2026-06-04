@@ -314,6 +314,11 @@ export function deleteCard(id: number): Promise<void> {
   return jsonRequest<void>(`/api/cards/${id}/`, { method: "DELETE" });
 }
 
+/** Colour a single card (article for vocab, noun genders for sentence/grammar). */
+export function colourizeCard(id: number): Promise<Card> {
+  return jsonRequest<Card>(`/api/cards/${id}/colourize/`, { method: "POST" });
+}
+
 export function addCardImage(cardId: number, file: File): Promise<CardImage> {
   const fd = new FormData();
   fd.append("image", file);

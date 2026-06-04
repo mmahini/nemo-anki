@@ -171,6 +171,46 @@ class CardImageDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class CardColourizeView(APIView):
+    """Colour one card: detect the German article (vocab) or per-noun genders
+    (sentence/grammar) and save them. Targets the note's primary card so both
+    directions stay in sync."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from apps.imports.gemini import analyze_german
+
+        card = (
+            Card.objects.filter(id=pk, deck__user=request.user)
+            .select_related("reverse_of")
+            .first()
+        )
+        if not card:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        primary = card.reverse_of or card
+        nouns = (analyze_german(primary.front) or {}).get("nouns") or []
+
+        fields = []
+        if primary.card_type == "vocab":
+            if nouns:
+                primary.article = nouns[0]["gender"]
+                fields.append("article")
+        elif nouns:
+            primary.genders = nouns
+            fields.append("genders")
+
+        if fields:
+            if primary.language != "de":
+                primary.language = "de"
+                fields.append("language")
+            primary.save(update_fields=fields)
+            sync_card_group(primary)
+
+        card.refresh_from_db()
+        return Response(CardSerializer(card).data)
+
+
 class StudyView(APIView):
     """Return the next batch of due cards for a deck (with interval previews)."""
 
