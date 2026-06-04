@@ -40,16 +40,13 @@ export default function Books() {
   const [creating, setCreating] = useState(false);
   const [preview, setPreview] = useState<{ page_count: number; detected_count: number } | null>(null);
   const [pageMap, setPageMap] = useState<PageMapItem[]>([]);
-  // Lesson page-content viewer.
-  const [viewing, setViewing] = useState<BookLessonDetail | null>(null);
-  const [loadingView, setLoadingView] = useState<number | null>(null);
+  // Combined lesson review: PDF on one side, vocab on the other.
+  const [lessonView, setLessonView] = useState<{ book: Book; lesson: BookLessonDetail } | null>(null);
+  const [loadingLesson, setLoadingLesson] = useState<number | null>(null);
   // Per-book re-generate form.
   const [regenFor, setRegenFor] = useState<number | null>(null);
   const [regen, setRegen] = useState({ from: "1", to: "100", ppu: "", start: "", label: "Unit" });
   const [regenerating, setRegenerating] = useState(false);
-  // Vocab preview / review for a processed lesson.
-  const [vocab, setVocab] = useState<{ book: Book; lesson: BookLessonDetail } | null>(null);
-  const [loadingVocab, setLoadingVocab] = useState<number | null>(null);
   const [reviewing, setReviewing] = useState(false);
 
   async function load() {
@@ -180,39 +177,24 @@ export default function Books() {
     }
   }
 
-  async function viewLesson(b: Book, lesson: BookLesson) {
-    // If the lesson has its own PDF, show it embedded immediately; otherwise
-    // fetch the page text.
-    if (lesson.pdf_url) {
-      setViewing({ ...(lesson as any), raw_text: "", cards: [] });
-      return;
-    }
-    setLoadingView(lesson.id);
-    try {
-      setViewing(await fetchBookLesson(b.id, lesson.id));
-    } finally {
-      setLoadingView(null);
-    }
-  }
-
-  async function openVocab(b: Book, lesson: BookLesson) {
-    setLoadingVocab(lesson.id);
+  async function openLesson(b: Book, lesson: BookLesson) {
+    setLoadingLesson(lesson.id);
     setError(null);
     try {
-      setVocab({ book: b, lesson: await fetchBookLesson(b.id, lesson.id) });
+      setLessonView({ book: b, lesson: await fetchBookLesson(b.id, lesson.id) });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't load the vocab.");
+      setError(err instanceof Error ? err.message : "Couldn't open the lesson.");
     } finally {
-      setLoadingVocab(null);
+      setLoadingLesson(null);
     }
   }
 
-  async function reviewVocab() {
-    if (!vocab) return;
+  async function reviewLesson() {
+    if (!lessonView) return;
     setReviewing(true);
     setError(null);
     try {
-      const res = await importBookLesson(vocab.book.id, vocab.lesson.id, null);
+      const res = await importBookLesson(lessonView.book.id, lessonView.lesson.id, null);
       navigate(`/app/study/${res.lesson_deck}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't start review.");
@@ -501,42 +483,32 @@ export default function Books() {
                         pp. {l.page_start}{l.page_end && l.page_end !== l.page_start ? `–${l.page_end}` : ""}
                       </span>
                     )}
-                    <button
-                      className="btn btn--ghost btn--sm"
-                      disabled={loadingView === l.id}
-                      onClick={() => viewLesson(b, l)}
-                      title="View this lesson's pages"
-                    >
-                      {loadingView === l.id ? "…" : "View"}
-                    </button>
-                    {l.processed ? (
-                      <>
-                        <button
-                          className="bookblock__count bookblock__count--link"
-                          disabled={l.card_count === 0 || loadingVocab === l.id}
-                          onClick={() => openVocab(b, l)}
-                          title="See this lesson's vocab and review"
-                        >
-                          {loadingVocab === l.id ? "…" : `${l.card_count} vocab ›`}
-                        </button>
-                        <button
-                          className="btn btn--ghost btn--sm"
-                          disabled={working.has(l.id)}
-                          onClick={() => process(b, l)}
-                          title="Re-extract vocabulary"
-                        >
-                          {working.has(l.id) ? "…" : "↻"}
-                        </button>
-                      </>
-                    ) : (
+                    {l.processed && (
                       <button
-                        className="btn btn--primary btn--sm"
-                        disabled={working.has(l.id)}
-                        onClick={() => process(b, l)}
+                        className="bookblock__count bookblock__count--link"
+                        disabled={loadingLesson === l.id}
+                        onClick={() => openLesson(b, l)}
+                        title="Open PDF + vocab for review"
                       >
-                        {working.has(l.id) ? "Processing…" : "Process"}
+                        {loadingLesson === l.id ? "…" : `${l.card_count} vocab ›`}
                       </button>
                     )}
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      disabled={loadingLesson === l.id}
+                      onClick={() => openLesson(b, l)}
+                      title="Open PDF + vocab for review"
+                    >
+                      {loadingLesson === l.id ? "…" : "View"}
+                    </button>
+                    <button
+                      className="btn btn--primary btn--sm"
+                      disabled={working.has(l.id)}
+                      onClick={() => process(b, l)}
+                      title={l.processed ? "Re-extract vocabulary" : "Extract vocabulary"}
+                    >
+                      {working.has(l.id) ? "…" : l.processed ? "↻" : "Process"}
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -545,55 +517,61 @@ export default function Books() {
         })
       )}
 
-      {vocab && (
-        <div className="lessonview" onClick={() => setVocab(null)}>
-          <div className="lessonview__card" onClick={(e) => e.stopPropagation()}>
-            <div className="lessonview__head">
-              <strong>{vocab.lesson.title}</strong>
-              <span className="bookblock__count">{vocab.lesson.cards.length} vocab</span>
-              <button className="btn btn--primary btn--sm" disabled={reviewing || vocab.lesson.cards.length === 0} onClick={reviewVocab}>
-                {reviewing ? "Starting…" : "Review these cards →"}
-              </button>
-              <button className="btn btn--ghost btn--sm" onClick={() => setVocab(null)}>Close</button>
-            </div>
-            <ul className="vocablist">
-              {vocab.lesson.cards.map((c, i) => (
-                <li key={i} className="vocablist__row">
-                  <span className={`vocablist__front ${articleClass(c.article)}`}>
-                    {c.article !== "none" ? `${c.article} ` : ""}{c.front}
+      {lessonView && (() => {
+        const lv = lessonView.lesson;
+        return (
+          <div className="lessonview" onClick={() => setLessonView(null)}>
+            <div className="lessonview__card lessonview__card--split" onClick={(e) => e.stopPropagation()}>
+              <div className="lessonview__head">
+                <strong>{lv.title}</strong>
+                {lv.page_start && (
+                  <span className="bookblock__pages">
+                    pp. {lv.page_start}{lv.page_end && lv.page_end !== lv.page_start ? `–${lv.page_end}` : ""}
                   </span>
-                  {c.reading && <span className="vocablist__reading">/{c.reading}/</span>}
-                  <span className="vocablist__back" dir="auto">{c.back}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {viewing && (
-        <div className="lessonview" onClick={() => setViewing(null)}>
-          <div className="lessonview__card" onClick={(e) => e.stopPropagation()}>
-            <div className="lessonview__head">
-              <strong>{viewing.title}</strong>
-              {viewing.page_start && (
-                <span className="bookblock__pages">
-                  pp. {viewing.page_start}{viewing.page_end && viewing.page_end !== viewing.page_start ? `–${viewing.page_end}` : ""}
-                </span>
-              )}
-              {viewing.pdf_url && (
-                <a className="btn btn--ghost btn--sm" href={viewing.pdf_url} target="_blank" rel="noreferrer">Open in tab</a>
-              )}
-              <button className="btn btn--ghost btn--sm" onClick={() => setViewing(null)}>Close</button>
+                )}
+                {lv.pdf_url && (
+                  <a className="btn btn--ghost btn--sm" href={lv.pdf_url} target="_blank" rel="noreferrer">Open PDF in tab</a>
+                )}
+                <button
+                  className="btn btn--primary btn--sm"
+                  disabled={reviewing || lv.cards.length === 0}
+                  onClick={reviewLesson}
+                  title={lv.cards.length === 0 ? "Process this lesson first" : "Add to decks and review"}
+                >
+                  {reviewing ? "Starting…" : "Review these cards →"}
+                </button>
+                <button className="btn btn--ghost btn--sm" onClick={() => setLessonView(null)}>Close</button>
+              </div>
+              <div className="lessonsplit">
+                <div className="lessonsplit__pdf">
+                  {lv.pdf_url ? (
+                    <iframe className="lessonview__pdf" src={lv.pdf_url} title={lv.title} />
+                  ) : (
+                    <pre className="lessonview__text">{lv.raw_text || "(no text on these pages)"}</pre>
+                  )}
+                </div>
+                <div className="lessonsplit__vocab">
+                  {lv.cards.length === 0 ? (
+                    <div className="lessonsplit__empty">No vocab yet — click <strong>Process</strong> on this lesson to extract it.</div>
+                  ) : (
+                    <ul className="vocablist">
+                      {lv.cards.map((c, i) => (
+                        <li key={i} className="vocablist__row">
+                          <span className={`vocablist__front ${articleClass(c.article)}`}>
+                            {c.article !== "none" ? `${c.article} ` : ""}{c.front}
+                          </span>
+                          {c.reading && <span className="vocablist__reading">/{c.reading}/</span>}
+                          <span className="vocablist__back" dir="auto">{c.back}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
             </div>
-            {viewing.pdf_url ? (
-              <iframe className="lessonview__pdf" src={viewing.pdf_url} title={viewing.title} />
-            ) : (
-              <pre className="lessonview__text">{viewing.raw_text || "(no text on these pages)"}</pre>
-            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
