@@ -66,6 +66,18 @@ class DeckDetailView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = DeckSerializer(deck, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+        # Validate a parent change: must be the user's deck, not itself, and
+        # not one of its own descendants (which would create a cycle).
+        if "parent" in serializer.validated_data:
+            parent = serializer.validated_data["parent"]
+            if parent is not None:
+                if parent.user_id != request.user.id:
+                    return Response({"detail": "Invalid parent."}, status=status.HTTP_400_BAD_REQUEST)
+                if parent.id == deck.id or parent.id in deck.descendant_ids():
+                    return Response(
+                        {"detail": "A deck can't be moved under itself or its own sub-deck."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
         serializer.save()
         _with_counts(deck, timezone.now())
         return Response(DeckSerializer(deck).data)

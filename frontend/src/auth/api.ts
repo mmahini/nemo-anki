@@ -261,6 +261,13 @@ export function createDeck(payload: {
   });
 }
 
+export function updateDeck(
+  id: number,
+  payload: Partial<{ name: string; parent: number | null; language: "de" | "en" | "" }>,
+): Promise<Deck> {
+  return jsonRequest<Deck>(`/api/decks/${id}/`, { method: "PATCH", body: JSON.stringify(payload) });
+}
+
 export function deleteDeck(id: number): Promise<void> {
   return jsonRequest<void>(`/api/decks/${id}/`, { method: "DELETE" });
 }
