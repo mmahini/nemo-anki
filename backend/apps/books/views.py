@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 
 from django.core.files.base import ContentFile
 from django.db import transaction
@@ -19,6 +20,12 @@ from .serializers import BookLessonDetailSerializer, BookLessonSerializer, BookS
 def _color_for(title: str) -> str:
     h = int(hashlib.md5(title.encode("utf-8")).hexdigest(), 16)
     return BANNER_COLORS[h % len(BANNER_COLORS)]
+
+
+def _title_num(title: str):
+    """Parse the unit number out of a lesson title ("Unit 37" -> 37)."""
+    m = re.search(r"(\d+)", title or "")
+    return int(m.group(1)) if m else None
 
 
 class BookUploadSerializer(serializers.Serializer):
@@ -191,13 +198,31 @@ class BookRegenerateView(APIView):
         serializer = RegenerateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         v = serializer.validated_data
+        from_n, to_n = int(v["from_lesson"]), int(v["to_lesson"])
         data = book.pdf.read()
-        lessons = processing.segment_pdf(
+        new_lessons = processing.segment_pdf(
             data, v.get("lesson_label") or "Unit",
-            int(v["from_lesson"]), int(v["to_lesson"]),
-            int(v.get("start_page") or 1), v.get("pages_per_unit"), None,
+            from_n, to_n, int(v.get("start_page") or 1), v.get("pages_per_unit"), None,
         )
-        _create_lessons(book, lessons)
+
+        # Replace ONLY the units in [from..to]; keep every other lesson intact.
+        replace = set(range(from_n, to_n + 1))
+        for l in list(book.lessons.all()):
+            if _title_num(l.title) in replace:
+                l.delete()
+        for l in new_lessons:
+            bl = BookLesson(
+                book=book, title=l["title"], position=0, raw_text=l["raw_text"],
+                page_start=l.get("page_start"), page_end=l.get("page_end"),
+            )
+            if l.get("pdf_bytes"):
+                bl.pdf.save(f"book{book.id}_u{l['num']}.pdf", ContentFile(l["pdf_bytes"]), save=False)
+            bl.save()
+        # Re-order by unit number so the list stays sequential.
+        ordered = sorted(book.lessons.all(), key=lambda x: (_title_num(x.title) or 10**9, x.id))
+        for pos, l in enumerate(ordered):
+            if l.position != pos:
+                BookLesson.objects.filter(id=l.id).update(position=pos)
         return Response(BookSerializer(book).data, status=status.HTTP_200_OK)
 
 
