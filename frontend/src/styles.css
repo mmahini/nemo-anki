@@ -505,6 +505,17 @@ kbd {
 .bookblock__ltitle { font-weight: 600; flex: 1; min-width: 0; }
 .bookblock__count { color: var(--ink-faint); font-size: 0.82rem; }
 .bookblock__pages { color: var(--ink-faint); font-size: 0.78rem; font-family: var(--mono); }
+.bookblock__count--link { background: none; border: none; cursor: pointer; color: var(--brand-dark); font-weight: 600; font-size: 0.82rem; padding: 2px 4px; }
+.bookblock__count--link:hover:not(:disabled) { text-decoration: underline; }
+.bookblock__count--link:disabled { color: var(--ink-faint); cursor: default; }
+
+/* Vocab preview list */
+.vocablist { list-style: none; margin: 0; padding: 8px 0; overflow-y: auto; }
+.vocablist__row { display: flex; align-items: baseline; gap: 12px; padding: 7px 18px; border-bottom: 1px solid var(--line-soft); }
+.vocablist__row:last-child { border-bottom: none; }
+.vocablist__front { font-weight: 700; min-width: 9rem; }
+.vocablist__reading { font-family: var(--mono); color: var(--ink-faint); font-size: 0.82rem; }
+.vocablist__back { color: var(--ink-soft); margin-left: auto; text-align: right; }
 
 /* Lesson page-content viewer */
 .lessonview { position: fixed; inset: 0; background: rgba(20,28,46,0.45); display: grid; place-items: center; padding: 24px; z-index: 50; }
