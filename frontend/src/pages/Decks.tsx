@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { createDeck, deleteDeck, fetchDecks, type Deck } from "../auth/api";
+import { createDeck, deleteDeck, fetchDecks, updateDeck, type Deck } from "../auth/api";
 
 /** Indentation depth from the `::` chain in full_name. */
 function depth(d: Deck): number {
@@ -17,6 +17,7 @@ export default function Decks() {
   const [newLang, setNewLang] = useState<"de" | "en" | "">("");
   const [newParent, setNewParent] = useState<number | "">("");
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [movingDeck, setMovingDeck] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -41,6 +42,24 @@ export default function Decks() {
     await createDeck({ name: newName.trim(), parent, language: newLang || parentLang });
     setNewName("");
     load();
+  }
+
+  async function onMove(d: Deck, parent: number | null) {
+    setMovingDeck(null);
+    try {
+      await updateDeck(d.id, { parent });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't move the deck.");
+    }
+  }
+
+  // Decks that can be a parent for `d`: not itself, not its own descendants.
+  function parentOptions(d: Deck): Deck[] {
+    const banned = new Set(
+      decks.filter((x) => x.id === d.id || x.full_name.startsWith(d.full_name + "::")).map((x) => x.id),
+    );
+    return decks.filter((x) => !banned.has(x.id)).sort((a, b) => a.full_name.localeCompare(b.full_name));
   }
 
   async function onDelete(d: Deck) {
@@ -116,6 +135,28 @@ export default function Decks() {
                 <span className="count count--due">{d.counts.due}</span>
               </div>
               <div className="decklist__actions">
+                {movingDeck === d.id ? (
+                  <select
+                    className="input input--sm"
+                    autoFocus
+                    defaultValue={d.parent ?? ""}
+                    onChange={(e) => onMove(d, e.target.value ? Number(e.target.value) : null)}
+                    onBlur={() => setMovingDeck(null)}
+                  >
+                    <option value="">↪ Top level</option>
+                    {parentOptions(d).map((p) => (
+                      <option key={p.id} value={p.id}>under {p.full_name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    title="Move to another parent deck"
+                    onClick={() => setMovingDeck(d.id)}
+                  >
+                    Move
+                  </button>
+                )}
                 {isLeaf && (
                   <Link to={`/app/decks/${d.id}/add`} className="btn btn--ghost btn--sm">
                     + Card
