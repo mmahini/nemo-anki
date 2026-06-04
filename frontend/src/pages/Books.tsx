@@ -7,6 +7,7 @@ import {
   fetchBookLesson,
   fetchBooks,
   processBookLesson,
+  regenerateBook,
   uploadBook,
   type Book,
   type BookLesson,
@@ -38,6 +39,10 @@ export default function Books() {
   // Lesson page-content viewer.
   const [viewing, setViewing] = useState<BookLessonDetail | null>(null);
   const [loadingView, setLoadingView] = useState<number | null>(null);
+  // Per-book re-generate form.
+  const [regenFor, setRegenFor] = useState<number | null>(null);
+  const [regen, setRegen] = useState({ from: "1", to: "100", ppu: "", start: "", label: "Unit" });
+  const [regenerating, setRegenerating] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -179,6 +184,35 @@ export default function Books() {
       setViewing(await fetchBookLesson(b.id, lesson.id));
     } finally {
       setLoadingView(null);
+    }
+  }
+
+  function toggleRegen(b: Book) {
+    if (regenFor === b.id) {
+      setRegenFor(null);
+      return;
+    }
+    setRegen({ from: "1", to: String(b.lesson_count || 100), ppu: "", start: "", label: "Unit" });
+    setRegenFor(b.id);
+  }
+
+  async function doRegen(b: Book) {
+    setRegenerating(true);
+    setError(null);
+    try {
+      const updated = await regenerateBook(b.id, {
+        from_lesson: Number(regen.from),
+        to_lesson: Number(regen.to),
+        pages_per_unit: regen.ppu ? Number(regen.ppu) : null,
+        start_page: regen.start ? Number(regen.start) : null,
+        lesson_label: regen.label.trim() || "Unit",
+      });
+      setBooks((bs) => bs.map((x) => (x.id === b.id ? updated : x)));
+      setRegenFor(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Re-generate failed.");
+    } finally {
+      setRegenerating(false);
     }
   }
 
@@ -361,6 +395,11 @@ export default function Books() {
                   </span>
                 </div>
                 <div className="bookblock__banneractions">
+                  {b.has_pdf && (
+                    <button className="btn btn--ghost btn--sm" onClick={() => toggleRegen(b)}>
+                      Re-generate
+                    </button>
+                  )}
                   {pending > 0 && (
                     <button className="btn btn--ghost btn--sm" onClick={() => processAll(b)}>
                       Process all ({pending})
@@ -370,6 +409,25 @@ export default function Books() {
                 </div>
               </div>
               {b.note && <div className="bookblock__note">{b.note}</div>}
+              {regenFor === b.id && (
+                <div className="bookblock__regen">
+                  <span className="books__hint">
+                    Re-split the original PDF and replace all lessons. Leave “pages
+                    per unit” blank to divide the pages evenly.
+                  </span>
+                  <div className="bookblock__regenrow">
+                    <label>Label<input className="input input--sm" value={regen.label} onChange={(e) => setRegen({ ...regen, label: e.target.value })} /></label>
+                    <label>From<input className="input input--sm" type="number" min={1} value={regen.from} onChange={(e) => setRegen({ ...regen, from: e.target.value })} /></label>
+                    <label>To<input className="input input--sm" type="number" min={1} value={regen.to} onChange={(e) => setRegen({ ...regen, to: e.target.value })} /></label>
+                    <label>Pages/unit<input className="input input--sm" type="number" min={1} value={regen.ppu} onChange={(e) => setRegen({ ...regen, ppu: e.target.value })} placeholder="even" /></label>
+                    <label>Start page<input className="input input--sm" type="number" min={1} value={regen.start} onChange={(e) => setRegen({ ...regen, start: e.target.value })} placeholder="1" /></label>
+                    <button className="btn btn--primary btn--sm" disabled={regenerating || !regen.from || !regen.to} onClick={() => doRegen(b)}>
+                      {regenerating ? "Re-generating…" : "Re-generate"}
+                    </button>
+                    <button className="btn btn--ghost btn--sm" onClick={() => setRegenFor(null)}>Cancel</button>
+                  </div>
+                </div>
+              )}
               <ul className="bookblock__lessons">
                 {b.lessons.map((l) => (
                   <li key={l.id} className="bookblock__lesson">

@@ -373,6 +373,7 @@ export type Book = {
   lessons: BookLesson[];
   lesson_count: number;
   card_count: number;
+  has_pdf: boolean;
   created_at: string;
 };
 
@@ -429,6 +430,23 @@ export function uploadBook(payload: {
 
 export function deleteBook(id: number): Promise<void> {
   return jsonRequest<void>(`/api/books/${id}/`, { method: "DELETE" });
+}
+
+/** Re-split the book's stored PDF with new page settings (replaces lessons). */
+export function regenerateBook(
+  bookId: number,
+  payload: {
+    from_lesson: number;
+    to_lesson: number;
+    pages_per_unit?: number | null;
+    start_page?: number | null;
+    lesson_label?: string;
+  },
+): Promise<Book> {
+  return jsonRequest<Book>(`/api/books/${bookId}/regenerate/`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 /** A lesson's content — the page text assigned to it, plus any cards. */

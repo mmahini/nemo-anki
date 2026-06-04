@@ -38,14 +38,18 @@ class BookSerializer(serializers.ModelSerializer):
     lessons = BookLessonSerializer(many=True, read_only=True)
     lesson_count = serializers.SerializerMethodField()
     card_count = serializers.SerializerMethodField()
+    has_pdf = serializers.SerializerMethodField()
 
     class Meta:
         model = Book
         fields = [
             "id", "title", "source_language", "translation_language",
             "status", "color", "note", "lessons", "lesson_count",
-            "card_count", "created_at",
+            "card_count", "has_pdf", "created_at",
         ]
+
+    def get_has_pdf(self, obj) -> bool:
+        return bool(obj.pdf)
 
     def get_lesson_count(self, obj) -> int:
         return obj.lessons.count()
