@@ -347,7 +347,8 @@ kbd {
 .face__img { max-height: 180px; max-width: 100%; border-radius: 8px; border: 1px solid var(--line); object-fit: contain; }
 /* card editor photo manager */
 .cardimages { margin-top: 4px; }
-.cardimages__label { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); }
+.cardimages__label { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); }
+.cardimages__find { margin-left: auto; }
 .cardimages__grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .cardimages__item { position: relative; }
 .cardimages__item img { height: 64px; width: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); display: block; }

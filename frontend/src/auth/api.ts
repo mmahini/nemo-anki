@@ -325,6 +325,11 @@ export function fetchCardForReview(id: number): Promise<Card> {
   return jsonRequest<Card>(`/api/cards/${id}/review/`, { method: "GET" });
 }
 
+/** Auto-find a small image for a card and attach it. */
+export function findCardImage(cardId: number): Promise<CardImage> {
+  return jsonRequest<CardImage>(`/api/cards/${cardId}/find-image/`, { method: "POST" });
+}
+
 export function addCardImage(cardId: number, file: File): Promise<CardImage> {
   const fd = new FormData();
   fd.append("image", file);

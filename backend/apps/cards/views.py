@@ -1,3 +1,4 @@
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
@@ -209,6 +210,39 @@ class CardColourizeView(APIView):
 
         card.refresh_from_db()
         return Response(CardSerializer(card).data)
+
+
+class CardFindImageView(APIView):
+    """Auto-find a small image for a card and attach it (stored on the primary
+    card). Best for concrete vocab; uses the English meaning when available."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from .image_search import find_thumbnail
+
+        card = (
+            Card.objects.filter(id=pk, deck__user=request.user)
+            .select_related("reverse_of")
+            .first()
+        )
+        if not card:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        primary = card.reverse_of or card
+        # Image search hits best on the English meaning; fall back to the term.
+        term = (primary.back or primary.front or "").strip()
+        data = find_thumbnail(term)
+        if not data:
+            return Response(
+                {"detail": "Couldn't find an image for this card."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        last = primary.images.order_by("-position").first()
+        pos = (last.position + 1) if last else 0
+        img = CardImage.objects.create(
+            card=primary, image=ContentFile(data, name=f"auto_{primary.id}_{pos}.jpg"), position=pos
+        )
+        return Response({"id": img.id, "url": img.image.url}, status=status.HTTP_201_CREATED)
 
 
 class CardReviewView(APIView):

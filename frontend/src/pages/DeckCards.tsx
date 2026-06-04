@@ -8,6 +8,7 @@ import {
   colourizeDeck,
   deleteCard,
   deleteCardImage,
+  findCardImage,
   fetchCards,
   fetchDecks,
   updateCard,
@@ -65,9 +66,27 @@ function CardImages({ card, onChange }: { card: Card; onChange: () => void }) {
     }
   }
 
+  async function autoFind() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await findCardImage(card.id);
+      onChange();
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : "No image found.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="cardimages">
-      <span className="cardimages__label">Photos (shown on the answer)</span>
+      <span className="cardimages__label">
+        Photos (shown on the answer)
+        <button type="button" className="btn btn--ghost btn--sm cardimages__find" disabled={busy} onClick={autoFind}>
+          🔍 Find image
+        </button>
+      </span>
       <div className="cardimages__grid">
         {images.map((im) => (
           <div key={im.id} className="cardimages__item">
@@ -116,6 +135,7 @@ export default function DeckCards() {
   const [colourMsg, setColourMsg] = useState<string | null>(null);
   const [autoBusy, setAutoBusy] = useState(false);
   const [colourCard, setColourCard] = useState<number | null>(null);
+  const [findCard, setFindCard] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -154,6 +174,18 @@ export default function DeckCards() {
       setCards((cs) => cs.map((c) => (c.id === cardId ? updated : c)));
     } finally {
       setColourCard(null);
+    }
+  }
+
+  async function findImageOne(cardId: number) {
+    setFindCard(cardId);
+    try {
+      const img = await findCardImage(cardId);
+      setCards((cs) => cs.map((c) => (c.id === cardId ? { ...c, images: [...(c.images ?? []), img] } : c)));
+    } catch {
+      window.alert("Couldn't find an image for this card.");
+    } finally {
+      setFindCard(null);
     }
   }
 
@@ -310,6 +342,19 @@ export default function DeckCards() {
                   >
                     ▶ Review
                   </button>
+                  {c.card_type === "vocab" && (
+                    <button
+                      className="cardrow__colour"
+                      title="Auto-find an image for this card"
+                      disabled={findCard === c.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        findImageOne(c.id);
+                      }}
+                    >
+                      {findCard === c.id ? "…" : "🖼️"}
+                    </button>
+                  )}
                   <button
                     className="cardrow__colour"
                     title="Colourise this card (German article / noun genders)"
