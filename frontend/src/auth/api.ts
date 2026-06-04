@@ -357,6 +357,7 @@ export type BookLesson = {
   processed: boolean;
   page_start: number | null;
   page_end: number | null;
+  pdf_url: string | null;
 };
 
 export type BookLessonDetail = BookLesson & { raw_text: string; cards: DraftCard[] };

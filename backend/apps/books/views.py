@@ -1,6 +1,7 @@
 import hashlib
 import json
 
+from django.core.files.base import ContentFile
 from django.db import transaction
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
@@ -95,28 +96,25 @@ class BookListView(APIView):
         # Read the upload once.
         data = file.read() if file else b""
         fname = getattr(file, "name", "") or ""
-        pages = processing.read_pdf_pages(data) if data else []
+        is_pdf = bool(data) and (fname.lower().endswith(".pdf") or data[:5] == b"%PDF-")
         has_range = from_n is not None and to_n is not None
-
         page_map_raw = (d.get("page_map") or "").strip()
-        if page_map_raw and pages:
-            # Approved unit->page map from the preview step.
-            try:
-                page_map = json.loads(page_map_raw)
-            except json.JSONDecodeError:
-                return Response({"detail": "Invalid page map."}, status=status.HTTP_400_BAD_REQUEST)
-            lessons = processing.segment_by_page_map(pages, label or "Unit", page_map)
-        elif pages and has_range:
-            # PDF + a unit range → split by PAGES (guarantees all units): a fixed
-            # block size if given, else divide the pages evenly.
-            if ppu:
-                lessons = processing.segment_by_pages(
-                    pages, label or "Unit", int(from_n), int(to_n), int(start_page), int(ppu)
-                )
-            else:
-                lessons = processing.segment_by_even_pages(
-                    pages, label or "Unit", int(from_n), int(to_n), int(start_page)
-                )
+
+        if is_pdf and (page_map_raw or has_range):
+            # PDF + range (or approved map) → split the PDF into one sub-PDF per
+            # lesson. Always yields the requested count.
+            page_map = None
+            if page_map_raw:
+                try:
+                    page_map = json.loads(page_map_raw)
+                except json.JSONDecodeError:
+                    return Response({"detail": "Invalid page map."}, status=status.HTTP_400_BAD_REQUEST)
+            lessons = processing.segment_pdf(
+                data, label or "Unit",
+                int(from_n) if from_n is not None else 1,
+                int(to_n) if to_n is not None else 1,
+                int(start_page), ppu, page_map,
+            )
         else:
             text = processing.bytes_to_text(data, fname) or d.get("text", "")
             if not text.strip():
@@ -143,15 +141,16 @@ class BookListView(APIView):
         )
         # Upload only segments into lessons (fast). Vocab is extracted per
         # lesson via the Process button so we never block on the whole book.
-        BookLesson.objects.bulk_create(
-            [
-                BookLesson(
-                    book=book, title=l["title"], position=i, raw_text=l["raw_text"],
-                    page_start=l.get("page_start"), page_end=l.get("page_end"),
-                )
-                for i, l in enumerate(lessons)
-            ]
-        )
+        objs = []
+        for i, l in enumerate(lessons):
+            bl = BookLesson(
+                book=book, title=l["title"], position=i, raw_text=l["raw_text"],
+                page_start=l.get("page_start"), page_end=l.get("page_end"),
+            )
+            if l.get("pdf_bytes"):
+                bl.pdf.save(f"book{book.id}_{i:03d}.pdf", ContentFile(l["pdf_bytes"]), save=False)
+            objs.append(bl)
+        BookLesson.objects.bulk_create(objs)
         return Response(BookSerializer(book).data, status=status.HTTP_201_CREATED)
 
 

@@ -31,6 +31,7 @@ class BookLesson(models.Model):
     title = models.CharField(max_length=160)
     position = models.PositiveIntegerField(default=0)
     raw_text = models.TextField(blank=True, default="")
+    pdf = models.FileField(upload_to="book_lessons/", null=True, blank=True)
     page_start = models.PositiveIntegerField(null=True, blank=True)
     page_end = models.PositiveIntegerField(null=True, blank=True)
     # Vocab is extracted per lesson, on demand (the lesson's Process button).

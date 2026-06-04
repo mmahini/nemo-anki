@@ -14,13 +14,17 @@ class BookCardSerializer(serializers.ModelSerializer):
 
 class BookLessonSerializer(serializers.ModelSerializer):
     card_count = serializers.SerializerMethodField()
+    pdf_url = serializers.SerializerMethodField()
 
     class Meta:
         model = BookLesson
-        fields = ["id", "title", "position", "card_count", "processed", "page_start", "page_end"]
+        fields = ["id", "title", "position", "card_count", "processed", "page_start", "page_end", "pdf_url"]
 
     def get_card_count(self, obj) -> int:
         return obj.cards.count()
+
+    def get_pdf_url(self, obj) -> str | None:
+        return obj.pdf.url if obj.pdf else None
 
 
 class BookLessonDetailSerializer(BookLessonSerializer):
