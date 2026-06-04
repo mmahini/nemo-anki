@@ -381,6 +381,9 @@ export type Book = {
   lesson_count: number;
   card_count: number;
   has_pdf: boolean;
+  is_owner: boolean;
+  owner_email: string;
+  shared_with: string[];
   created_at: string;
 };
 
@@ -388,6 +391,28 @@ export type PageMapItem = { num: number; start_page: number };
 
 export function fetchBooks(): Promise<Book[]> {
   return jsonRequest<Book[]>("/api/books/", { method: "GET" });
+}
+
+export function fetchSharedBooks(): Promise<Book[]> {
+  return jsonRequest<Book[]>("/api/books/shared/", { method: "GET" });
+}
+
+export function fetchBook(id: number): Promise<Book> {
+  return jsonRequest<Book>(`/api/books/${id}/`, { method: "GET" });
+}
+
+export function shareBook(id: number, email: string): Promise<Book> {
+  return jsonRequest<Book>(`/api/books/${id}/shares/`, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function unshareBook(id: number, email: string): Promise<Book> {
+  return jsonRequest<Book>(`/api/books/${id}/shares/`, {
+    method: "DELETE",
+    body: JSON.stringify({ email }),
+  });
 }
 
 /** Per-page scan of a PDF → editable unit→start-page map (saves nothing). */
