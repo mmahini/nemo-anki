@@ -384,6 +384,8 @@ export function uploadBook(payload: {
   lesson_label?: string;
   from_lesson?: number | null;
   to_lesson?: number | null;
+  pages_per_unit?: number | null;
+  start_page?: number | null;
 }): Promise<Book> {
   const fd = new FormData();
   fd.append("title", payload.title);
@@ -394,6 +396,8 @@ export function uploadBook(payload: {
   if (payload.lesson_label) fd.append("lesson_label", payload.lesson_label);
   if (payload.from_lesson != null) fd.append("from_lesson", String(payload.from_lesson));
   if (payload.to_lesson != null) fd.append("to_lesson", String(payload.to_lesson));
+  if (payload.pages_per_unit != null) fd.append("pages_per_unit", String(payload.pages_per_unit));
+  if (payload.start_page != null) fd.append("start_page", String(payload.start_page));
   return jsonRequest<Book>("/api/books/", { method: "POST", body: fd });
 }
 
