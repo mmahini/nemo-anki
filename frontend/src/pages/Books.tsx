@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import {
   analyzeBook,
   deleteBook,
   fetchBookLesson,
   fetchBooks,
+  importBookLesson,
   processBookLesson,
   regenerateBook,
   updateBook,
@@ -15,9 +16,11 @@ import {
   type BookLessonDetail,
   type PageMapItem,
 } from "../auth/api";
+import { articleClass } from "../lib/article";
 import { TRANSLATE_LANGS } from "../lib/translateLang";
 
 export default function Books() {
+  const navigate = useNavigate();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
@@ -44,6 +47,10 @@ export default function Books() {
   const [regenFor, setRegenFor] = useState<number | null>(null);
   const [regen, setRegen] = useState({ from: "1", to: "100", ppu: "", start: "", label: "Unit" });
   const [regenerating, setRegenerating] = useState(false);
+  // Vocab preview / review for a processed lesson.
+  const [vocab, setVocab] = useState<{ book: Book; lesson: BookLessonDetail } | null>(null);
+  const [loadingVocab, setLoadingVocab] = useState<number | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -185,6 +192,31 @@ export default function Books() {
       setViewing(await fetchBookLesson(b.id, lesson.id));
     } finally {
       setLoadingView(null);
+    }
+  }
+
+  async function openVocab(b: Book, lesson: BookLesson) {
+    setLoadingVocab(lesson.id);
+    setError(null);
+    try {
+      setVocab({ book: b, lesson: await fetchBookLesson(b.id, lesson.id) });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't load the vocab.");
+    } finally {
+      setLoadingVocab(null);
+    }
+  }
+
+  async function reviewVocab() {
+    if (!vocab) return;
+    setReviewing(true);
+    setError(null);
+    try {
+      const res = await importBookLesson(vocab.book.id, vocab.lesson.id, null);
+      navigate(`/app/study/${res.lesson_deck}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't start review.");
+      setReviewing(false);
     }
   }
 
@@ -479,7 +511,14 @@ export default function Books() {
                     </button>
                     {l.processed ? (
                       <>
-                        <span className="bookblock__count">{l.card_count} vocab</span>
+                        <button
+                          className="bookblock__count bookblock__count--link"
+                          disabled={l.card_count === 0 || loadingVocab === l.id}
+                          onClick={() => openVocab(b, l)}
+                          title="See this lesson's vocab and review"
+                        >
+                          {loadingVocab === l.id ? "…" : `${l.card_count} vocab ›`}
+                        </button>
                         <button
                           className="btn btn--ghost btn--sm"
                           disabled={working.has(l.id)}
@@ -504,6 +543,32 @@ export default function Books() {
             </div>
           );
         })
+      )}
+
+      {vocab && (
+        <div className="lessonview" onClick={() => setVocab(null)}>
+          <div className="lessonview__card" onClick={(e) => e.stopPropagation()}>
+            <div className="lessonview__head">
+              <strong>{vocab.lesson.title}</strong>
+              <span className="bookblock__count">{vocab.lesson.cards.length} vocab</span>
+              <button className="btn btn--primary btn--sm" disabled={reviewing || vocab.lesson.cards.length === 0} onClick={reviewVocab}>
+                {reviewing ? "Starting…" : "Review these cards →"}
+              </button>
+              <button className="btn btn--ghost btn--sm" onClick={() => setVocab(null)}>Close</button>
+            </div>
+            <ul className="vocablist">
+              {vocab.lesson.cards.map((c, i) => (
+                <li key={i} className="vocablist__row">
+                  <span className={`vocablist__front ${articleClass(c.article)}`}>
+                    {c.article !== "none" ? `${c.article} ` : ""}{c.front}
+                  </span>
+                  {c.reading && <span className="vocablist__reading">/{c.reading}/</span>}
+                  <span className="vocablist__back" dir="auto">{c.back}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       )}
 
       {viewing && (
