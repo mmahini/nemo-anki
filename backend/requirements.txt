@@ -12,3 +12,4 @@ django-storages[s3]==1.14.4
 boto3==1.35.36
 requests==2.32.3
 pypdf==4.3.1
+pymupdf==1.24.14
