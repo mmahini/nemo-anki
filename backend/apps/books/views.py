@@ -1,4 +1,5 @@
 import hashlib
+import json
 
 from django.db import transaction
 from rest_framework import serializers, status
@@ -33,6 +34,43 @@ class BookUploadSerializer(serializers.Serializer):
     # Page-based split (most reliable for messy PDFs).
     pages_per_unit = serializers.IntegerField(required=False, allow_null=True, default=None)
     start_page = serializers.IntegerField(required=False, allow_null=True, default=None)
+    # An approved unit->start-page map (JSON list of {num, start_page}) from the
+    # preview step. Takes precedence over the other modes when present.
+    page_map = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class BookAnalyzeSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    lesson_label = serializers.CharField(max_length=40, required=False, allow_blank=True, default="Unit")
+    from_lesson = serializers.IntegerField()
+    to_lesson = serializers.IntegerField()
+    pages_per_unit = serializers.IntegerField(required=False, allow_null=True, default=None)
+
+
+class BookAnalyzeView(APIView):
+    """Per-page heading scan for a PDF — returns an editable unit->page map so
+    the user can review/approve page ranges before the book is created. Saves
+    nothing."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = BookAnalyzeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+        pages = processing.read_pdf_pages(d["file"])
+        if not pages:
+            return Response({"detail": "Couldn't read pages from the PDF."}, status=status.HTTP_400_BAD_REQUEST)
+        label = d.get("lesson_label") or "Unit"
+        from_n, to_n = int(d["from_lesson"]), int(d["to_lesson"])
+        detected = processing.detect_unit_pages(pages, label, from_n, to_n)
+        units = processing.build_page_map(
+            detected, from_n, to_n, len(pages), int(d.get("pages_per_unit") or 2)
+        )
+        return Response(
+            {"page_count": len(pages), "detected_count": len(detected), "units": units},
+            status=status.HTTP_200_OK,
+        )
 
 
 class BookListView(APIView):
@@ -54,7 +92,18 @@ class BookListView(APIView):
         ppu = d.get("pages_per_unit")
         start_page = d.get("start_page") or 1
 
-        if ppu and from_n is not None and to_n is not None and file is not None:
+        page_map_raw = (d.get("page_map") or "").strip()
+        if page_map_raw and file is not None:
+            # Approved unit->page map from the preview step.
+            try:
+                page_map = json.loads(page_map_raw)
+            except json.JSONDecodeError:
+                return Response({"detail": "Invalid page map."}, status=status.HTTP_400_BAD_REQUEST)
+            pages = processing.read_pdf_pages(file)
+            if not pages:
+                return Response({"detail": "Couldn't read pages from the PDF."}, status=status.HTTP_400_BAD_REQUEST)
+            lessons = processing.segment_by_page_map(pages, label or "Unit", page_map)
+        elif ppu and from_n is not None and to_n is not None and file is not None:
             # Page-based split (most reliable for messy PDFs).
             pages = processing.read_pdf_pages(file)
             if not pages:

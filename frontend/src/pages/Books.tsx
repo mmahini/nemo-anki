@@ -2,12 +2,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import {
+  analyzeBook,
   deleteBook,
   fetchBooks,
   processBookLesson,
   uploadBook,
   type Book,
   type BookLesson,
+  type PageMapItem,
 } from "../auth/api";
 import { TRANSLATE_LANGS } from "../lib/translateLang";
 
@@ -26,6 +28,11 @@ export default function Books() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState<Set<number>>(new Set()); // lesson ids being processed
+  // Preview step: editable unit->page map before the book is created.
+  const [analyzing, setAnalyzing] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [preview, setPreview] = useState<{ page_count: number; detected_count: number } | null>(null);
+  const [pageMap, setPageMap] = useState<PageMapItem[]>([]);
 
   async function load() {
     setLoading(true);
@@ -67,6 +74,59 @@ export default function Books() {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function onPreview() {
+    if (!file || !fromLesson || !toLesson) {
+      setError("Choose a PDF and set the From/To unit numbers to preview pages.");
+      return;
+    }
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const res = await analyzeBook({
+        file,
+        lesson_label: label.trim() || "Unit",
+        from_lesson: Number(fromLesson),
+        to_lesson: Number(toLesson),
+        pages_per_unit: pagesPerUnit ? Number(pagesPerUnit) : null,
+      });
+      setPreview({ page_count: res.page_count, detected_count: res.detected_count });
+      setPageMap(res.units);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not analyse the PDF.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  function setRowPage(i: number, value: string) {
+    setPageMap((m) => m.map((row, idx) => (idx === i ? { ...row, start_page: Number(value) || 0 } : row)));
+  }
+
+  async function onCreateFromMap() {
+    if (!file) return;
+    setCreating(true);
+    setError(null);
+    try {
+      await uploadBook({
+        title: title.trim() || "Book",
+        source_language: sourceLang,
+        translation_language: transLang,
+        file,
+        lesson_label: label.trim() || "Unit",
+        page_map: pageMap,
+      });
+      setPreview(null);
+      setPageMap([]);
+      setTitle("");
+      setFile(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create the book.");
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -200,10 +260,54 @@ export default function Books() {
         </fieldset>
 
         {error && <p className="auth__error">{error}</p>}
-        <button className="btn btn--primary btn--lg" disabled={uploading}>
-          {uploading ? "Uploading…" : "Upload & split into lessons"}
-        </button>
+        {file && fromLesson && toLesson ? (
+          <button type="button" className="btn btn--primary btn--lg" disabled={analyzing} onClick={onPreview}>
+            {analyzing ? "Analysing pages…" : "Preview lesson pages →"}
+          </button>
+        ) : (
+          <button className="btn btn--primary btn--lg" disabled={uploading}>
+            {uploading ? "Uploading…" : "Upload & split into lessons"}
+          </button>
+        )}
       </form>
+
+      {preview && (
+        <div className="panel pagemap">
+          <div className="pagemap__head">
+            <div>
+              <strong>{pageMap.length}</strong> lessons · PDF has {preview.page_count} pages ·
+              detected {preview.detected_count} unit headings
+            </div>
+            <div className="pagemap__actions">
+              <button className="btn btn--ghost" onClick={() => { setPreview(null); setPageMap([]); }}>Cancel</button>
+              <button className="btn btn--primary" disabled={creating} onClick={onCreateFromMap}>
+                {creating ? "Creating…" : `Create book (${pageMap.length} lessons)`}
+              </button>
+            </div>
+          </div>
+          <p className="books__hint">
+            Each unit's start page (detected per page; gaps interpolated). Edit any
+            that look wrong — a unit runs from its page up to the next unit's page.
+          </p>
+          <ul className="pagemap__list">
+            {pageMap.map((row, i) => (
+              <li key={row.num} className="pagemap__row">
+                <span className="pagemap__unit">{label.trim() || "Unit"} {row.num}</span>
+                <label className="pagemap__page">
+                  page
+                  <input
+                    className="input input--sm"
+                    type="number"
+                    min={1}
+                    value={row.start_page}
+                    onChange={(e) => setRowPage(i, e.target.value)}
+                  />
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <h2 className="books__h2">Your books</h2>
       {loading ? (
