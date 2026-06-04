@@ -1,8 +1,16 @@
+from datetime import datetime, timedelta, timezone as dt_timezone
+
+from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.cards.models import Card
+from apps.decks.models import Deck, DeckConfig
+
+from . import anki
 from .gemini import analyze_german, enrich_card, parse_text
 
 
@@ -73,3 +81,157 @@ class AnalyzeGermanView(APIView):
         serializer = AnalyzeGermanSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         return Response(analyze_german(serializer.validated_data["text"]), status=status.HTTP_200_OK)
+
+
+# Anki .apkg import -----------------------------------------------------------
+MAX_APKG_BYTES = 60 * 1024 * 1024  # 60 MB upload ceiling
+
+
+def _map_schedule(raw: dict, crt_dt: datetime, now: datetime) -> dict:
+    """Translate one Anki card's scheduling onto our SM-2 fields. Anki's
+    scheduler differs from ours, so review intervals are carried over verbatim
+    (days) and learning cards are simply made due now."""
+    q, t = raw.get("queue", 0), raw.get("type", 0)
+    out = {
+        "ease": raw.get("factor") or 2500,
+        "reps": max(0, raw.get("reps") or 0),
+        "lapses": max(0, raw.get("lapses") or 0),
+        "interval_days": 0,
+        "state": "new",
+        "due": now,
+        "step_index": 0,
+        "last_reviewed_at": now if (raw.get("reps") or 0) else None,
+    }
+    if q == -1:
+        out["state"] = "suspended"
+    elif t == 2 or q == 2:  # review
+        out["state"] = "review"
+        out["interval_days"] = max(0, raw.get("ivl") or 0)
+        try:
+            out["due"] = crt_dt + timedelta(days=int(raw.get("due") or 0))
+        except (TypeError, ValueError, OverflowError):
+            out["due"] = now
+    elif t in (1, 3) or q in (1, 3):  # (re)learning → review soon
+        out["state"] = "relearning" if t == 3 else "learning"
+        out["due"] = now
+    return out
+
+
+def _deck_resolver(user, cfg, parent):
+    """Return a function mapping an Anki '::' deck name to a (cached) Deck row,
+    creating the nested tree under `parent` on first use."""
+    cache: dict[str, Deck] = {}
+
+    def resolve(full_name: str) -> Deck:
+        parts = [p.strip() for p in (full_name or "").split("::") if p.strip()] or ["Imported"]
+        node, path = parent, ""
+        for part in parts:
+            path = f"{path}::{part}" if path else part
+            cached = cache.get(path)
+            if cached is None:
+                cached, _ = Deck.objects.get_or_create(
+                    user=user, parent=node, name=part[:120], defaults={"config": cfg}
+                )
+                cache[path] = cached
+            node = cached
+        return node
+
+    return resolve
+
+
+class AnkiImportView(APIView):
+    """Import an uploaded Anki .apkg/.colpkg: rebuild the deck tree and create
+    cards, preserving each card's study progress. Cloze notes become grammar
+    cards; 'reversed' notes become two-sided vocab (forward + reverse, each
+    keeping its own Anki schedule)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        upload = request.FILES.get("file")
+        if not upload:
+            return Response({"detail": "Attach an .apkg file."}, status=status.HTTP_400_BAD_REQUEST)
+        if upload.size and upload.size > MAX_APKG_BYTES:
+            return Response(
+                {"detail": "File too large (60 MB max). Export a smaller deck."},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        parent = None
+        parent_id = request.data.get("parent_deck")
+        if parent_id:
+            parent = Deck.objects.filter(id=parent_id, user=request.user).first()
+            if not parent:
+                return Response({"detail": "Invalid parent deck."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            parsed = anki.parse_apkg(upload.read())
+        except anki.AnkiImportError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:  # noqa: BLE001 - corrupt/odd packages
+            return Response(
+                {"detail": "Couldn't read that package. Re-export it from Anki and try again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        now = timezone.now()
+        crt_dt = datetime.fromtimestamp(parsed["crt"], dt_timezone.utc) if parsed["crt"] else now
+        cfg, _ = DeckConfig.objects.get_or_create(user=request.user, name="Default")
+        resolve = _deck_resolver(request.user, cfg, parent)
+
+        per_deck: dict[int, int] = {}
+
+        def next_pos(deck: Deck) -> int:
+            if deck.id not in per_deck:
+                last = Card.objects.filter(deck=deck).order_by("-position").first()
+                per_deck[deck.id] = (last.position + 1) if last else 0
+            pos = per_deck[deck.id]
+            per_deck[deck.id] = pos + 1
+            return pos
+
+        forwards: list[Card] = []
+        meta: list[dict] = []  # parallel to forwards: reverse schedule if any
+        decks_touched: set[int] = set()
+
+        for note in parsed["notes"]:
+            deck = resolve(note["deck"])
+            decks_touched.add(deck.id)
+            content = dict(
+                card_type="grammar" if note["kind"] == "grammar" else "vocab",
+                language=deck.language or "",
+                front=note["front"],
+                back=note["back"],
+                tags=note["tags"],
+            )
+            cards = note["cards"] or [{}]
+            forwards.append(
+                Card(deck=deck, position=next_pos(deck), direction="forward",
+                     **content, **_map_schedule(cards[0], crt_dt, now))
+            )
+            reverse_raw = cards[1] if (note["two_sided"] and len(cards) > 1) else None
+            meta.append({"deck": deck, "content": content, "reverse_raw": reverse_raw})
+
+        Card.objects.bulk_create(forwards)
+
+        reverses: list[Card] = []
+        for fwd, m in zip(forwards, meta):
+            if m["reverse_raw"] is not None:
+                reverses.append(
+                    Card(deck=m["deck"], position=fwd.position, direction="reverse",
+                         reverse_of=fwd, **m["content"], **_map_schedule(m["reverse_raw"], crt_dt, now))
+                )
+        if reverses:
+            Card.objects.bulk_create(reverses)
+
+        return Response(
+            {
+                "decks": len(decks_touched),
+                "notes": len(forwards),
+                "cards": len(forwards) + len(reverses),
+                "reversed": len(reverses),
+                "truncated": parsed["truncated"],
+                "max_notes": anki.MAX_NOTES,
+            },
+            status=status.HTTP_201_CREATED,
+        )

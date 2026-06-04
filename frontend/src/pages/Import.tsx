@@ -6,6 +6,8 @@ import {
   fetchBooks,
   fetchSharedBooks,
   fetchDecks,
+  importAnki,
+  type AnkiImportResult,
   importBookLesson,
   parseImport,
   processBookLesson,
@@ -18,7 +20,7 @@ import {
 import CardEditor from "../components/CardEditor";
 
 type Stage = "input" | "review";
-type Tab = "paste" | "books";
+type Tab = "paste" | "books" | "anki";
 
 export default function ImportPage() {
   const navigate = useNavigate();
@@ -42,6 +44,12 @@ export default function ImportPage() {
   const [added, setAdded] = useState<Record<number, string>>({}); // lessonId -> message
   const [importingLesson, setImportingLesson] = useState<number | null>(null);
   const [processingLesson, setProcessingLesson] = useState<number | null>(null);
+
+  // --- Anki .apkg flow ---
+  const [ankiFile, setAnkiFile] = useState<File | null>(null);
+  const [ankiParent, setAnkiParent] = useState<number | "">("");
+  const [ankiBusy, setAnkiBusy] = useState(false);
+  const [ankiResult, setAnkiResult] = useState<AnkiImportResult | null>(null);
 
   useEffect(() => {
     fetchDecks().then(setDecks);
@@ -133,6 +141,23 @@ export default function ImportPage() {
     }
   }
 
+  async function onImportAnki() {
+    if (!ankiFile || ankiBusy) return;
+    setAnkiBusy(true);
+    setError(null);
+    setAnkiResult(null);
+    try {
+      const res = await importAnki(ankiFile, ankiParent === "" ? null : Number(ankiParent));
+      setAnkiResult(res);
+      setAnkiFile(null);
+      fetchDecks().then(setDecks); // surface the new decks as parent options
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import failed.");
+    } finally {
+      setAnkiBusy(false);
+    }
+  }
+
   return (
     <div className="import">
       <div className="import__head">
@@ -143,6 +168,9 @@ export default function ImportPage() {
           </button>
           <button className={`tab ${tab === "books" ? "tab--on" : ""}`} onClick={() => setTab("books")}>
             From books
+          </button>
+          <button className={`tab ${tab === "anki" ? "tab--on" : ""}`} onClick={() => setTab("anki")}>
+            From Anki
           </button>
         </div>
       </div>
@@ -211,7 +239,7 @@ export default function ImportPage() {
             </ul>
           </div>
         )
-      ) : (
+      ) : tab === "books" ? (
         <div className="import__books">
           <div className="import__parentbar">
             <label>
@@ -273,6 +301,58 @@ export default function ImportPage() {
               </div>
             ))
           )}
+        </div>
+      ) : (
+        <div className="import__anki">
+          <div className="panel import__ankiform">
+            <p className="import__ankihelp">
+              AnkiWeb has no import link, so export your deck from Anki
+              (<strong>File → Export → Anki Deck Package</strong>) and upload the
+              <code> .apkg</code> here. Study progress is preserved; cloze notes
+              become grammar cards and reversed notes become two-sided vocab.
+            </p>
+            <label className="import__parentbar">
+              Add the imported decks under
+              <select
+                className="input"
+                value={ankiParent}
+                onChange={(e) => setAnkiParent(e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">Top level (no parent)</option>
+                {[...decks].sort((a, b) => a.full_name.localeCompare(b.full_name)).map((d) => (
+                  <option key={d.id} value={d.id}>{d.full_name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="books__row books__row--file">
+              <span className="books__or">Anki package (.apkg / .colpkg)</span>
+              <input
+                type="file"
+                accept=".apkg,.colpkg"
+                onChange={(e) => {
+                  setAnkiFile(e.target.files?.[0] ?? null);
+                  setAnkiResult(null);
+                }}
+              />
+            </div>
+            <button className="btn btn--primary btn--lg" disabled={ankiBusy || !ankiFile} onClick={onImportAnki}>
+              {ankiBusy ? "Importing…" : ankiFile ? `Import ${ankiFile.name}` : "Choose a file to import"}
+            </button>
+            {ankiResult && (
+              <div className="panel import__ankiresult">
+                ✓ Imported <strong>{ankiResult.cards}</strong> cards
+                ({ankiResult.notes} notes, {ankiResult.reversed} reversed) across{" "}
+                <strong>{ankiResult.decks}</strong> deck{ankiResult.decks === 1 ? "" : "s"}.{" "}
+                <Link to="/app">Go study →</Link>
+                {ankiResult.truncated && (
+                  <div className="import__ankiwarn">
+                    Note: only the first {ankiResult.max_notes.toLocaleString()} notes were imported
+                    (the rest were skipped to stay within limits).
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

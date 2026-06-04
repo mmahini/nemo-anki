@@ -356,6 +356,23 @@ export function enrichCard(payload: {
   });
 }
 
+export type AnkiImportResult = {
+  decks: number;
+  notes: number;
+  cards: number;
+  reversed: number;
+  truncated: boolean;
+  max_notes: number;
+};
+
+/** Import an Anki .apkg/.colpkg export: rebuild decks + create cards. */
+export function importAnki(file: File, parentDeck: number | null): Promise<AnkiImportResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  if (parentDeck != null) fd.append("parent_deck", String(parentDeck));
+  return jsonRequest<AnkiImportResult>("/api/import/anki/", { method: "POST", body: fd });
+}
+
 // ====== Books ======
 
 export type BookLesson = {

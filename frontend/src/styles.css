@@ -510,6 +510,11 @@ kbd {
 /* Import "From books" tab */
 .import__parentbar { margin: 4px 0 18px; }
 .import__parentbar label { display: flex; flex-direction: column; gap: 5px; font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); max-width: 360px; }
+.import__ankiform { display: flex; flex-direction: column; gap: 16px; }
+.import__ankihelp { margin: 0; color: var(--ink-soft); font-size: 0.9rem; line-height: 1.5; }
+.import__ankihelp code { font-family: var(--mono); background: var(--line-soft); padding: 1px 5px; border-radius: 4px; }
+.import__ankiresult { background: var(--surface-soft, var(--line-soft)); }
+.import__ankiwarn { margin-top: 8px; font-size: 0.82rem; color: var(--ink-faint); }
 .bookblock { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-bottom: 18px; background: var(--surface); }
 .bookblock__lessons { list-style: none; margin: 0; padding: 0; }
 .bookblock__lesson { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line-soft); }
