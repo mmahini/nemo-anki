@@ -122,24 +122,25 @@ class BookListView(APIView):
         ppu = d.get("pages_per_unit")
         start_page = d.get("start_page") or 1
 
-        # Read the upload once.
+        # Read the upload once. Detect PDF by filename/magic (no full parse —
+        # that doubled memory and OOM'd small instances).
         data = file.read() if file else b""
         fname = getattr(file, "name", "") or ""
-        # Robust PDF detection: if we can read pages out of it, treat it as a PDF.
-        pages_probe = processing.read_pdf_pages(data) if data else []
-        is_pdf = bool(pages_probe) or (bool(data) and (fname.lower().endswith(".pdf") or data[:5] == b"%PDF-"))
+        is_pdf = bool(data) and (fname.lower().endswith(".pdf") or data[:5] == b"%PDF-")
         has_range = from_n is not None and to_n is not None
         page_map_raw = (d.get("page_map") or "").strip()
 
+        capped = False
         if is_pdf and (page_map_raw or has_range):
-            # PDF + range (or approved map) → split the PDF into one sub-PDF per
-            # lesson. Always yields the requested count.
             page_map = None
             if page_map_raw:
                 try:
                     page_map = json.loads(page_map_raw)
                 except json.JSONDecodeError:
                     return Response({"detail": "Invalid page map."}, status=status.HTTP_400_BAD_REQUEST)
+            elif (int(to_n) - int(from_n) + 1) > processing.MAX_LESSONS:
+                capped = True
+            # `lessons` is a generator — streamed/saved one at a time below.
             lessons = processing.segment_pdf(
                 data, label or "Unit",
                 int(from_n) if from_n is not None else 1,
@@ -153,13 +154,12 @@ class BookListView(APIView):
                     {"detail": "Couldn't read any text from the upload."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            if label and has_range:
-                lessons = processing.segment_by_range(text, label, int(from_n), int(to_n))
-            else:
-                lessons = processing.segment_lessons(text)
-
-        capped = len(lessons) > processing.MAX_LESSONS
-        lessons = lessons[: processing.MAX_LESSONS]
+            built = (
+                processing.segment_by_range(text, label, int(from_n), int(to_n))
+                if label and has_range else processing.segment_lessons(text)
+            )
+            capped = len(built) > processing.MAX_LESSONS
+            lessons = built[: processing.MAX_LESSONS]
 
         book = Book.objects.create(
             user=request.user,
@@ -173,6 +173,7 @@ class BookListView(APIView):
         # Keep the original PDF so lessons can be re-generated later.
         if is_pdf and data:
             book.pdf.save(f"book{book.id}_src.pdf", ContentFile(data), save=True)
+        del data  # free the source bytes before streaming sub-PDFs
         _create_lessons(book, lessons)
         return Response(_book_data(book, request), status=status.HTTP_201_CREATED)
 
@@ -219,19 +220,22 @@ class BookSharesView(APIView):
 
 
 def _create_lessons(book, lessons):
-    """(Re)create a book's lessons from segmenter output, saving each lesson's
-    sub-PDF. Replaces any existing lessons."""
+    """(Re)create a book's lessons from segmenter output (list OR generator),
+    saving each lesson's sub-PDF one at a time so peak memory stays low.
+    Replaces any existing lessons."""
     book.lessons.all().delete()
-    objs = []
-    for i, l in enumerate(lessons[: processing.MAX_LESSONS]):
+    for i, l in enumerate(lessons):
+        if i >= processing.MAX_LESSONS:
+            break
         bl = BookLesson(
             book=book, title=l["title"], position=i, raw_text=l["raw_text"],
             page_start=l.get("page_start"), page_end=l.get("page_end"),
         )
         if l.get("pdf_bytes"):
-            bl.pdf.save(f"book{book.id}_{i:03d}.pdf", ContentFile(l["pdf_bytes"]), save=False)
-        objs.append(bl)
-    BookLesson.objects.bulk_create(objs)
+            bl.pdf.save(f"book{book.id}_{i:03d}.pdf", ContentFile(l["pdf_bytes"]), save=True)
+        else:
+            bl.save()
+        l["pdf_bytes"] = None  # free the bytes before the next lesson
 
 
 class BookRegenerateView(APIView):

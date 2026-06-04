@@ -173,30 +173,45 @@ def _ranges(n_pages, from_n, to_n, start_page, pages_per_unit, page_map):
 def segment_pdf(
     data: bytes, label: str, from_n: int, to_n: int,
     start_page: int = 1, pages_per_unit=None, page_map=None,
-) -> list[dict]:
-    """Split a PDF into one sub-PDF per lesson (+ that lesson's page text).
-    Always yields one lesson per range — the count is guaranteed."""
-    label = _label_cap(label)
-    pages_text = read_pdf_pages(data)
-    reader = _pdf_reader(data)
-    n_pages = len(reader.pages)
-    ranges = _ranges(n_pages, from_n, to_n, start_page, pages_per_unit, page_map)
+):
+    """Split a PDF into one sub-PDF per lesson — a GENERATOR that yields one
+    lesson at a time so memory stays bounded (one sub-PDF in flight) on small
+    instances. Opens the source PDF once with PyMuPDF; each lesson's bytes are
+    meant to be saved + freed by the caller before the next is produced.
+    """
+    import fitz
 
-    lessons = []
-    for num, s0, e0 in ranges:
-        s0 = max(0, min(s0, n_pages))
-        e0 = max(s0, min(e0, n_pages))
-        raw = "\n".join(pages_text[s0:e0]).strip() if pages_text else ""
-        lessons.append({
-            "num": num,
-            "title": f"{label} {num}",
-            "raw_text": raw,
-            "pdf_bytes": _make_lesson_pdf(reader, s0, e0),
-            "page_start": s0 + 1,
-            "page_end": max(s0 + 1, e0),
-        })
-    lessons.sort(key=lambda x: x["num"])
-    return lessons
+    label = _label_cap(label)
+    src = fitz.open(stream=data, filetype="pdf")
+    try:
+        if src.needs_pass:
+            try:
+                src.authenticate("")
+            except Exception:  # noqa: BLE001
+                pass
+        n_pages = src.page_count
+        ranges = sorted(_ranges(n_pages, from_n, to_n, start_page, pages_per_unit, page_map),
+                        key=lambda r: r[0])
+        for num, s0, e0 in ranges:
+            s0 = max(0, min(s0, n_pages))
+            e0 = max(s0, min(e0, n_pages))
+            raw = "\n".join(src[i].get_text("text") for i in range(s0, e0)).strip()
+            pdf_bytes = b""
+            if e0 > s0:
+                sub = fitz.open()
+                sub.insert_pdf(src, from_page=s0, to_page=e0 - 1)
+                pdf_bytes = sub.tobytes(garbage=3, deflate=True)
+                sub.close()
+            yield {
+                "num": num,
+                "title": f"{label} {num}",
+                "raw_text": raw,
+                "pdf_bytes": pdf_bytes,
+                "page_start": s0 + 1,
+                "page_end": max(s0 + 1, e0),
+            }
+    finally:
+        src.close()
 
 
 def segment_by_even_pages(

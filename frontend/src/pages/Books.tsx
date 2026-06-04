@@ -26,6 +26,8 @@ export default function Books() {
   const [label, setLabel] = useState("Unit");
   const [fromLesson, setFromLesson] = useState("");
   const [toLesson, setToLesson] = useState("");
+  const [startPage, setStartPage] = useState("");
+  const [pagesPerUnit, setPagesPerUnit] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +66,8 @@ export default function Books() {
         lesson_label: label.trim() || "Unit",
         from_lesson: fromLesson ? Number(fromLesson) : null,
         to_lesson: toLesson ? Number(toLesson) : null,
+        start_page: startPage ? Number(startPage) : null,
+        pages_per_unit: pagesPerUnit ? Number(pagesPerUnit) : null,
       });
       setTitle("");
       setFile(null);
@@ -153,8 +157,21 @@ export default function Books() {
             <span>To</span>
             <input className="input" type="number" min={1} value={toLesson} onChange={(e) => setToLesson(e.target.value)} placeholder="100" />
           </label>
+          <label className="cardeditor__field">
+            <span>First unit page</span>
+            <input className="input" type="number" min={1} value={startPage} onChange={(e) => setStartPage(e.target.value)} placeholder="e.g. 6" />
+          </label>
+          <label className="cardeditor__field">
+            <span>Pages / unit</span>
+            <input className="input" type="number" min={1} value={pagesPerUnit} onChange={(e) => setPagesPerUnit(e.target.value)} placeholder="e.g. 2" />
+          </label>
         </div>
-        <span className="books__hint">The PDF is split into one sub-PDF per lesson; open a book to process, review, re-split, and share its lessons.</span>
+        <span className="books__hint">
+          Set the page the first unit starts on and how many pages each unit spans —
+          the PDF is sliced into one sub-PDF per lesson. (Leave pages/unit blank to
+          divide the pages evenly across the range.) You can fix any unit later with
+          per-lesson “Re-split”.
+        </span>
         {error && <p className="auth__error">{error}</p>}
         <button className="btn btn--primary btn--lg" disabled={uploading}>
           {uploading ? "Splitting…" : file && fromLesson && toLesson ? `Upload & split into ${Math.max(0, Number(toLesson) - Number(fromLesson) + 1)} lessons` : "Upload & split into lessons"}
