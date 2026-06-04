@@ -461,6 +461,14 @@ kbd {
 .books__range legend { font-size: 0.78rem; font-weight: 700; color: var(--ink-soft); padding: 0 6px; }
 .books__range .books__row { align-items: flex-end; }
 .books__hint { font-size: 0.78rem; color: var(--ink-faint); }
+.pagemap { max-width: none; }
+.pagemap__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pagemap__actions { display: flex; gap: 8px; }
+.pagemap__list { list-style: none; margin: 12px 0 0; padding: 0; max-height: 360px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.pagemap__row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.pagemap__unit { font-weight: 600; font-size: 0.9rem; }
+.pagemap__page { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--ink-faint); }
+.pagemap__page .input { width: 64px; }
 .books__h2 { margin-top: 28px; }
 .books__list { list-style: none; padding: 0; margin: 14px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
 .bookcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }

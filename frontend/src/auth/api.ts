@@ -371,8 +371,27 @@ export type Book = {
   created_at: string;
 };
 
+export type PageMapItem = { num: number; start_page: number };
+
 export function fetchBooks(): Promise<Book[]> {
   return jsonRequest<Book[]>("/api/books/", { method: "GET" });
+}
+
+/** Per-page scan of a PDF → editable unit→start-page map (saves nothing). */
+export function analyzeBook(payload: {
+  file: File;
+  lesson_label?: string;
+  from_lesson: number;
+  to_lesson: number;
+  pages_per_unit?: number | null;
+}): Promise<{ page_count: number; detected_count: number; units: PageMapItem[] }> {
+  const fd = new FormData();
+  fd.append("file", payload.file);
+  if (payload.lesson_label) fd.append("lesson_label", payload.lesson_label);
+  fd.append("from_lesson", String(payload.from_lesson));
+  fd.append("to_lesson", String(payload.to_lesson));
+  if (payload.pages_per_unit != null) fd.append("pages_per_unit", String(payload.pages_per_unit));
+  return jsonRequest("/api/books/analyze/", { method: "POST", body: fd });
 }
 
 export function uploadBook(payload: {
@@ -386,6 +405,7 @@ export function uploadBook(payload: {
   to_lesson?: number | null;
   pages_per_unit?: number | null;
   start_page?: number | null;
+  page_map?: PageMapItem[] | null;
 }): Promise<Book> {
   const fd = new FormData();
   fd.append("title", payload.title);
@@ -398,6 +418,7 @@ export function uploadBook(payload: {
   if (payload.to_lesson != null) fd.append("to_lesson", String(payload.to_lesson));
   if (payload.pages_per_unit != null) fd.append("pages_per_unit", String(payload.pages_per_unit));
   if (payload.start_page != null) fd.append("start_page", String(payload.start_page));
+  if (payload.page_map) fd.append("page_map", JSON.stringify(payload.page_map));
   return jsonRequest<Book>("/api/books/", { method: "POST", body: fd });
 }
 

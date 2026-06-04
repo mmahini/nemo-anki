@@ -131,27 +131,115 @@ _DIGIT_LOOKALIKE = {
 }
 
 
+# Stops a number matching inside a longer one ("5" inside "50"), allowing for
+# OCR look-alikes in the following character too.
+_NUM_TAIL = r"(?![0-9OoSsIlZBGgqQD])"
+
+
 def _num_pattern(n: int) -> str:
     return "".join(f"[{_DIGIT_LOOKALIKE[d]}]" for d in str(n))
+
+
+def _heading_regex(kw_escaped: str, n: int, line_start: bool):
+    anchor = r"(?m)^[ \t>·•\-]*" if line_start else r"\b"
+    return re.compile(
+        rf"{anchor}{kw_escaped}[ \t]*\.?[ \t]*0*{_num_pattern(n)}{_NUM_TAIL}",
+        re.IGNORECASE,
+    )
 
 
 def _find_unit(text: str, kw_escaped: str, n: int, cursor: int):
     """Find lesson `n`'s heading at or after `cursor`. Prefers a clean
     line-start heading; falls back to any occurrence so mangled PDF headings
-    can still be located. The number is matched OCR-tolerantly (digits may be
-    extracted as look-alike letters); `0*` allows leading zeros; the trailing
-    `(?![0-9...])` keeps "5" from matching inside "50"."""
-    num = _num_pattern(n)
-    tail = r"(?![0-9OoSsIlZBGgqQD])"
-    line_start = re.compile(
-        rf"^[ \t>·•\-]*{kw_escaped}[ \t]*\.?[ \t]*0*{num}{tail}",
-        re.IGNORECASE | re.MULTILINE,
-    )
-    m = line_start.search(text, cursor)
+    can still be located. The number is matched OCR-tolerantly."""
+    m = _heading_regex(kw_escaped, n, True).search(text, cursor)
     if m:
         return m
-    anywhere = re.compile(rf"\b{kw_escaped}[ \t]*\.?[ \t]*0*{num}{tail}", re.IGNORECASE)
-    return anywhere.search(text, cursor)
+    return _heading_regex(kw_escaped, n, False).search(text, cursor)
+
+
+def detect_unit_pages(pages: list[str], label: str, from_n: int, to_n: int) -> dict[int, int]:
+    """Per-page heading scan: return {unit_number: 0-based page index} for the
+    units whose "<label> N" heading is found, scanning pages in order so the
+    detected pages stay monotonic (review/section pages don't shift things)."""
+    label = (label or "Unit").strip() or "Unit"
+    kw = re.escape(label)
+    to_n = min(to_n, from_n + MAX_LESSONS - 1)
+    detected: dict[int, int] = {}
+    last_page = 0
+    for n in range(from_n, to_n + 1):
+        rx = _heading_regex(kw, n, True)
+        for pi in range(last_page, len(pages)):
+            if rx.search(pages[pi]):
+                detected[n] = pi
+                last_page = pi
+                break
+    return detected
+
+
+def build_page_map(
+    detected: dict[int, int], from_n: int, to_n: int, page_count: int, fallback_ppu: int = 2
+) -> list[dict]:
+    """Fill a full unit->start-page list for [from_n..to_n], interpolating the
+    pages of units that weren't detected. Returns 1-based start pages,
+    non-decreasing. Editable by the user before commit."""
+    to_n = min(to_n, from_n + MAX_LESSONS - 1)
+    known = sorted(detected.items())  # [(num, page_idx)]
+    # Estimate pages-per-unit from detected spacing.
+    ppu = fallback_ppu
+    if len(known) >= 2:
+        spans = [
+            (known[i + 1][1] - known[i][1]) / (known[i + 1][0] - known[i][0])
+            for i in range(len(known) - 1)
+            if known[i + 1][0] != known[i][0]
+        ]
+        if spans:
+            ppu = max(1, round(sorted(spans)[len(spans) // 2]))  # median
+
+    def interp(n: int) -> int:
+        if n in detected:
+            return detected[n]
+        prev = [k for k in known if k[0] < n]
+        nxt = [k for k in known if k[0] > n]
+        if prev and nxt:
+            (pn, pp), (nn, np_) = prev[-1], nxt[0]
+            return round(pp + (np_ - pp) * (n - pn) / (nn - pn))
+        if prev:
+            pn, pp = prev[-1]
+            return pp + (n - pn) * ppu
+        if nxt:
+            nn, np_ = nxt[0]
+            return np_ - (nn - n) * ppu
+        return (n - from_n) * ppu
+
+    out = []
+    last = 0
+    for n in range(from_n, to_n + 1):
+        idx = interp(n)
+        idx = max(last, min(idx, max(0, page_count - 1)))  # clamp + non-decreasing
+        last = idx
+        out.append({"num": n, "start_page": idx + 1})  # 1-based
+    return out
+
+
+def segment_by_page_map(pages: list[str], label: str, page_map: list[dict]) -> list[dict]:
+    """Build lessons from an (approved) unit->start-page map."""
+    label = (label or "Unit").strip() or "Unit"
+    label = label[:1].upper() + label[1:]
+    items = sorted(
+        ({"num": int(p["num"]), "start": max(1, int(p["start_page"]))} for p in page_map),
+        key=lambda x: x["start"],
+    )
+    lessons = []
+    for i, it in enumerate(items):
+        s = it["start"] - 1
+        end = (items[i + 1]["start"] - 1) if i + 1 < len(items) else len(pages)
+        if s >= len(pages):
+            continue
+        raw = "\n".join(pages[s:max(s + 1, end)]).strip()
+        lessons.append({"num": it["num"], "title": f"{label} {it['num']}", "raw_text": raw})
+    lessons.sort(key=lambda l: l["num"])
+    return [{"title": l["title"], "raw_text": l["raw_text"]} for l in lessons]
 
 
 def segment_by_range(text: str, keyword: str, from_n: int, to_n: int) -> list[dict]:
