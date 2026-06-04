@@ -1,5 +1,34 @@
 # Deployment Plan — Nemo Anki
 
+## ✅ Live (2026-06-04)
+
+| Layer | URL / id |
+| ----- | -------- |
+| Frontend (Vercel) | https://nemo-anki.vercel.app · project `prj_Nj62ft4JNJmjLYsO9azQIpT77q8g` |
+| Backend (Render) | https://nemo-anki-backend.onrender.com · service `srv-d8gn8vegvqtc73f0e1g0` |
+| Database | shared Render Postgres `toloo`, schema `nemo_anki` |
+| Media | Cloudflare R2 bucket `nemo-anki` (public `pub-7726657d…r2.dev`) |
+
+Verified: health 200, OTP sign-in, book upload → lesson PDFs served from R2,
+Gemini vocab extraction (Persian), CORS from the Vercel origin. Credentials /
+ids live in `.secrets/deploy.env` (gitignored).
+
+**Gotcha that bit us:** the Render build command's schema-bootstrap line is
+quote-heavy. When set via the API its escaping was mangled, so the schema
+wasn't created, `migrate` failed, but the build still reported success because
+the final `createsuperuser … || true` exited 0 — leaving a live service with no
+tables. Fix: bootstrap the schema with a quote-free command and confirm the
+build log shows `Applying …` migrations. (A failing `migrate` should ideally
+fail the build — consider dropping the `|| true` or adding `set -e`.)
+
+**Hardening still open:** OTP `dev_code` is returned in the API response (no
+email provider yet) — anyone can sign in as any email in production. Wire real
+email before this is genuinely public. See docs/FUTURE.md.
+
+---
+
+
+
 Mirrors the `nemo-map` / `nemo-gardening` setup so we reuse the same Render
 workspace, the same shared Postgres instance, and the same Vercel/Cloudflare
 keys. Only the things specific to this project (schema, R2 bucket, Gemini key,
