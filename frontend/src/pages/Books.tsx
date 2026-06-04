@@ -412,8 +412,11 @@ export default function Books() {
               {regenFor === b.id && (
                 <div className="bookblock__regen">
                   <span className="books__hint">
-                    Re-split the original PDF and replace all lessons. Leave “pages
-                    per unit” blank to divide the pages evenly.
+                    Re-splits the original PDF and replaces <strong>only the units in
+                    From–To</strong> (others are kept). To fix specific units, set the
+                    range (e.g. 37–38), <strong>pages per unit</strong>, and the
+                    <strong> start page</strong> of the first unit. (Leaving pages/unit
+                    blank divides those pages evenly across the range.)
                   </span>
                   <div className="bookblock__regenrow">
                     <label>Label<input className="input input--sm" value={regen.label} onChange={(e) => setRegen({ ...regen, label: e.target.value })} /></label>
