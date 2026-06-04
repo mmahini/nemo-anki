@@ -4,6 +4,7 @@ import re
 
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -13,7 +14,7 @@ from apps.cards.models import Card
 from apps.decks.models import Deck, DeckConfig
 
 from . import processing
-from .models import BANNER_COLORS, Book, BookCard, BookLesson
+from .models import BANNER_COLORS, Book, BookCard, BookLesson, BookShare
 from .serializers import BookLessonDetailSerializer, BookLessonSerializer, BookSerializer
 
 
@@ -26,6 +27,19 @@ def _title_num(title: str):
     """Parse the unit number out of a lesson title ("Unit 37" -> 37)."""
     m = re.search(r"(\d+)", title or "")
     return int(m.group(1)) if m else None
+
+
+def _book_for(request, pk, owner_only=False):
+    """Fetch a book the user may access. owner_only=True restricts to the owner;
+    otherwise the owner OR anyone it's shared with."""
+    qs = Book.objects.filter(id=pk)
+    if owner_only:
+        return qs.filter(user=request.user).first()
+    return qs.filter(Q(user=request.user) | Q(shares__user=request.user)).distinct().first()
+
+
+def _book_data(book, request):
+    return BookSerializer(book, context={"request": request}).data
 
 
 class BookUploadSerializer(serializers.Serializer):
@@ -94,7 +108,7 @@ class BookListView(APIView):
 
     def get(self, request):
         books = Book.objects.filter(user=request.user).prefetch_related("lessons")
-        return Response(BookSerializer(books, many=True).data)
+        return Response(BookSerializer(books, many=True, context={"request": request}).data)
 
     @transaction.atomic
     def post(self, request):
@@ -160,7 +174,48 @@ class BookListView(APIView):
         if is_pdf and data:
             book.pdf.save(f"book{book.id}_src.pdf", ContentFile(data), save=True)
         _create_lessons(book, lessons)
-        return Response(BookSerializer(book).data, status=status.HTTP_201_CREATED)
+        return Response(_book_data(book, request), status=status.HTTP_201_CREATED)
+
+
+class BooksSharedView(APIView):
+    """Books other users have shared with me."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        books = Book.objects.filter(shares__user=request.user).distinct().prefetch_related("lessons")
+        return Response(BookSerializer(books, many=True, context={"request": request}).data)
+
+
+class BookSharesView(APIView):
+    """Owner: list / add the users a book is shared with."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        book = _book_for(request, pk, owner_only=True)
+        if not book:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        email = (request.data.get("email") or "").strip().lower()
+        if not email:
+            return Response({"detail": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if email == request.user.email.lower():
+            return Response({"detail": "That's you."}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.accounts.models import User
+
+        target = User.objects.filter(email=email).first()
+        if not target:
+            return Response({"detail": "No user with that email yet."}, status=status.HTTP_404_NOT_FOUND)
+        BookShare.objects.get_or_create(book=book, user=target)
+        return Response(_book_data(book, request), status=status.HTTP_201_CREATED)
+
+    def delete(self, request, pk):
+        book = _book_for(request, pk, owner_only=True)
+        if not book:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        email = (request.data.get("email") or "").strip().lower()
+        BookShare.objects.filter(book=book, user__email=email).delete()
+        return Response(_book_data(book, request), status=status.HTTP_200_OK)
 
 
 def _create_lessons(book, lessons):
@@ -223,7 +278,7 @@ class BookRegenerateView(APIView):
         for pos, l in enumerate(ordered):
             if l.position != pos:
                 BookLesson.objects.filter(id=l.id).update(position=pos)
-        return Response(BookSerializer(book).data, status=status.HTTP_200_OK)
+        return Response(_book_data(book, request), status=status.HTTP_200_OK)
 
 
 class BookLessonDetailView(APIView):
@@ -233,7 +288,8 @@ class BookLessonDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk, lid):
-        lesson = BookLesson.objects.filter(id=lid, book__id=pk, book__user=request.user).first()
+        book = _book_for(request, pk)  # owner or shared
+        lesson = BookLesson.objects.filter(id=lid, book=book).first() if book else None
         if not lesson:
             return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(BookLessonDetailSerializer(lesson).data)
@@ -272,13 +328,13 @@ class BookDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        book = Book.objects.filter(id=pk, user=request.user).first()
+        book = _book_for(request, pk)  # owner or shared
         if not book:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        return Response(BookSerializer(book).data)
+        return Response(_book_data(book, request))
 
     def patch(self, request, pk):
-        book = Book.objects.filter(id=pk, user=request.user).first()
+        book = _book_for(request, pk, owner_only=True)
         if not book:
             return Response(status=status.HTTP_404_NOT_FOUND)
         fields = []
@@ -293,10 +349,10 @@ class BookDetailView(APIView):
             fields.append("title")
         if fields:
             book.save(update_fields=fields)
-        return Response(BookSerializer(book).data)
+        return Response(_book_data(book, request))
 
     def delete(self, request, pk):
-        book = Book.objects.filter(id=pk, user=request.user).first()
+        book = _book_for(request, pk, owner_only=True)
         if not book:
             return Response(status=status.HTTP_204_NO_CONTENT)
         book.delete()
@@ -328,7 +384,7 @@ class BookLessonImportView(APIView):
 
     @transaction.atomic
     def post(self, request, pk, lid):
-        book = Book.objects.filter(id=pk, user=request.user).first()
+        book = _book_for(request, pk)  # owner or shared can review into their own decks
         lesson = BookLesson.objects.filter(id=lid, book=book).first() if book else None
         if not lesson:
             return Response(status=status.HTTP_404_NOT_FOUND)

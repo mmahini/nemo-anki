@@ -29,6 +29,19 @@ class Book(models.Model):
         return self.title
 
 
+class BookShare(models.Model):
+    """A book the owner has shared with another user (read + review access)."""
+
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="shares")
+    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="shared_books")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["book", "user"], name="unique_book_share"),
+        ]
+
+
 class BookLesson(models.Model):
     book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="lessons")
     title = models.CharField(max_length=160)

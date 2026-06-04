@@ -11,6 +11,7 @@ import DeckCards from "./pages/DeckCards";
 import AddCard from "./pages/AddCard";
 import ImportPage from "./pages/Import";
 import Books from "./pages/Books";
+import BookPage from "./pages/BookPage";
 import Study from "./pages/Study";
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
               <Route path="/app/decks/:deckId" element={<DeckCards />} />
               <Route path="/app/decks/:deckId/add" element={<AddCard />} />
               <Route path="/app/books" element={<Books />} />
+              <Route path="/app/books/:bookId" element={<BookPage />} />
               <Route path="/app/import" element={<ImportPage />} />
             </Route>
           </Route>
