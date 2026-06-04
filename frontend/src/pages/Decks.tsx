@@ -19,6 +19,8 @@ export default function Decks() {
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [movingDeck, setMovingDeck] = useState<number | null>(null);
   const [langDeck, setLangDeck] = useState<number | null>(null);
+  const [renamingDeck, setRenamingDeck] = useState<number | null>(null);
+  const [renameVal, setRenameVal] = useState("");
 
   async function load() {
     setLoading(true);
@@ -52,6 +54,18 @@ export default function Decks() {
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't move the deck.");
+    }
+  }
+
+  async function onRename(d: Deck) {
+    const name = renameVal.trim();
+    setRenamingDeck(null);
+    if (!name || name === d.name) return;
+    try {
+      await updateDeck(d.id, { name });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't rename the deck.");
     }
   }
 
@@ -137,9 +151,23 @@ export default function Decks() {
                   <span className="twisty twisty--leaf" />
                 )}
                 {d.language && <span className={`flag flag--${d.language}`}>{d.language}</span>}
-                <Link to={`/app/decks/${d.id}`} className="decklist__link">
-                  {d.name}
-                </Link>
+                {renamingDeck === d.id ? (
+                  <input
+                    className="input input--sm decklist__rename"
+                    autoFocus
+                    value={renameVal}
+                    onChange={(e) => setRenameVal(e.target.value)}
+                    onBlur={() => onRename(d)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") onRename(d);
+                      if (e.key === "Escape") setRenamingDeck(null);
+                    }}
+                  />
+                ) : (
+                  <Link to={`/app/decks/${d.id}`} className="decklist__link">
+                    {d.name}
+                  </Link>
+                )}
               </div>
               <div className="decklist__counts">
                 <span className="count count--new">{d.counts.new}</span>
@@ -147,6 +175,16 @@ export default function Decks() {
                 <span className="count count--due">{d.counts.due}</span>
               </div>
               <div className="decklist__actions">
+                <button
+                  className="btn btn--ghost btn--sm"
+                  title="Rename this deck"
+                  onClick={() => {
+                    setRenameVal(d.name);
+                    setRenamingDeck(d.id);
+                  }}
+                >
+                  ✎ Rename
+                </button>
                 {langDeck === d.id ? (
                   <select
                     className="input input--sm"

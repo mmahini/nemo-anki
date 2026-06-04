@@ -275,6 +275,7 @@ kbd {
 .decklist__row:last-child { border-bottom: none; }
 .decklist__name { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .decklist__link { font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.decklist__rename { max-width: 220px; font-weight: 600; }
 .twisty { background: none; border: none; cursor: pointer; color: var(--ink-faint); width: 18px; font-size: 0.8rem; padding: 0; }
 .twisty--leaf { display: inline-block; }
 .flag { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: var(--line-soft); color: var(--ink-soft); }
