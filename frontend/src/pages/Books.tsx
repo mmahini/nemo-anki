@@ -167,10 +167,16 @@ export default function Books() {
     }
   }
 
-  async function viewLesson(b: Book, lessonId: number) {
-    setLoadingView(lessonId);
+  async function viewLesson(b: Book, lesson: BookLesson) {
+    // If the lesson has its own PDF, show it embedded immediately; otherwise
+    // fetch the page text.
+    if (lesson.pdf_url) {
+      setViewing({ ...(lesson as any), raw_text: "", cards: [] });
+      return;
+    }
+    setLoadingView(lesson.id);
     try {
-      setViewing(await fetchBookLesson(b.id, lessonId));
+      setViewing(await fetchBookLesson(b.id, lesson.id));
     } finally {
       setLoadingView(null);
     }
@@ -274,8 +280,17 @@ export default function Books() {
         </fieldset>
 
         {error && <p className="auth__error">{error}</p>}
+        {file && !(fromLesson && toLesson) && (
+          <p className="books__hint" style={{ color: "var(--hard)" }}>
+            Enter <strong>From</strong> and <strong>To</strong> (e.g. 1 and 100) so the
+            PDF can be split into that many lessons.
+          </p>
+        )}
         <div className="books__submit">
-          <button className="btn btn--primary btn--lg" disabled={uploading}>
+          <button
+            className="btn btn--primary btn--lg"
+            disabled={uploading || (!!file && !(fromLesson && toLesson))}
+          >
             {uploading
               ? "Splitting…"
               : file && fromLesson && toLesson
@@ -364,26 +379,14 @@ export default function Books() {
                         pp. {l.page_start}{l.page_end && l.page_end !== l.page_start ? `–${l.page_end}` : ""}
                       </span>
                     )}
-                    {l.pdf_url ? (
-                      <a
-                        className="btn btn--ghost btn--sm"
-                        href={l.pdf_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        title="Open this lesson's PDF"
-                      >
-                        View
-                      </a>
-                    ) : (
-                      <button
-                        className="btn btn--ghost btn--sm"
-                        disabled={loadingView === l.id}
-                        onClick={() => viewLesson(b, l.id)}
-                        title="View this lesson's pages"
-                      >
-                        {loadingView === l.id ? "…" : "View"}
-                      </button>
-                    )}
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      disabled={loadingView === l.id}
+                      onClick={() => viewLesson(b, l)}
+                      title="View this lesson's pages"
+                    >
+                      {loadingView === l.id ? "…" : "View"}
+                    </button>
                     {l.processed ? (
                       <>
                         <span className="bookblock__count">{l.card_count} vocab</span>
@@ -423,9 +426,16 @@ export default function Books() {
                   pp. {viewing.page_start}{viewing.page_end && viewing.page_end !== viewing.page_start ? `–${viewing.page_end}` : ""}
                 </span>
               )}
+              {viewing.pdf_url && (
+                <a className="btn btn--ghost btn--sm" href={viewing.pdf_url} target="_blank" rel="noreferrer">Open in tab</a>
+              )}
               <button className="btn btn--ghost btn--sm" onClick={() => setViewing(null)}>Close</button>
             </div>
-            <pre className="lessonview__text">{viewing.raw_text || "(no text on these pages)"}</pre>
+            {viewing.pdf_url ? (
+              <iframe className="lessonview__pdf" src={viewing.pdf_url} title={viewing.title} />
+            ) : (
+              <pre className="lessonview__text">{viewing.raw_text || "(no text on these pages)"}</pre>
+            )}
           </div>
         </div>
       )}

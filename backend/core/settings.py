@@ -150,6 +150,9 @@ if R2_ACCESS_KEY and R2_SECRET_KEY and R2_ACCOUNT_ID and R2_BUCKET:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Allow the app to embed its own media (e.g. per-lesson PDFs) in an iframe.
+X_FRAME_OPTIONS = "SAMEORIGIN"
+
 CORS_ALLOWED_ORIGINS = os.getenv(
     "CORS_ALLOWED_ORIGINS",
     "http://localhost:5176,http://127.0.0.1:5176",
