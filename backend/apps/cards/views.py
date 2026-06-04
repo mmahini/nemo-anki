@@ -218,20 +218,42 @@ class CardFindImageView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def _looks_latin(s: str) -> bool:
+        letters = [c for c in s if c.isalpha()]
+        return bool(letters) and sum(1 for c in letters if ord(c) < 0x250) >= 0.6 * len(letters)
+
+    def _english_term(self, primary) -> str:
+        """A good English search term: the meaning if it's Latin-script, else a
+        translation of the word (the stored meaning may be Persian/etc.)."""
+        back = (primary.back or "").strip()
+        if back and self._looks_latin(back):
+            return back
+        front = (primary.front or "").strip()
+        lang = primary.language or (primary.deck.language if primary.deck_id else "")
+        if front and lang and lang != "en":
+            try:
+                from apps.imports.gemini import enrich_card
+
+                tr = (enrich_card(front, lang, "vocab", "English") or {}).get("back", "").strip()
+                if tr:
+                    return tr
+            except Exception:  # noqa: BLE001 - fall back to the raw term
+                pass
+        return front or back
+
     def post(self, request, pk):
         from .image_search import find_thumbnail
 
         card = (
             Card.objects.filter(id=pk, deck__user=request.user)
-            .select_related("reverse_of")
+            .select_related("reverse_of", "deck")
             .first()
         )
         if not card:
             return Response(status=status.HTTP_404_NOT_FOUND)
         primary = card.reverse_of or card
-        # Image search hits best on the English meaning; fall back to the term.
-        term = (primary.back or primary.front or "").strip()
-        data = find_thumbnail(term)
+        data = find_thumbnail(self._english_term(primary))
         if not data:
             return Response(
                 {"detail": "Couldn't find an image for this card."},

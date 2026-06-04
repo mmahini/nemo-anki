@@ -63,8 +63,10 @@ def find_thumbnail(term: str) -> bytes | None:
     term = (term or "").strip()
     if not term:
         return None
-    # Illustrations / clipart read clearest on a flashcard; photos as a fallback.
-    for category in ("illustration", "photograph", None):
+    # Photographs are the most literal/accurate (an "illustration" search for
+    # e.g. "tree" returns family-trees and tree-diagrams). Broad search next,
+    # illustration only as a last resort.
+    for category in ("photograph", None, "illustration"):
         data = _download_thumb(_search(term, category))
         if data:
             return data
