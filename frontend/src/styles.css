@@ -480,6 +480,10 @@ kbd {
 .bookblock__banner .btn--ghost { background: rgba(255,255,255,0.18); border-color: transparent; color: #fff; }
 .bookblock__banner .btn--ghost:hover:not(:disabled) { background: rgba(255,255,255,0.28); }
 .bookblock__note { padding: 8px 16px; font-size: 0.8rem; color: var(--ink-faint); background: var(--line-soft); }
+.bookblock__regen { padding: 12px 16px; background: var(--line-soft); display: flex; flex-direction: column; gap: 8px; }
+.bookblock__regenrow { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.bookblock__regenrow label { display: flex; flex-direction: column; gap: 4px; font-size: 0.74rem; font-weight: 600; color: var(--ink-soft); }
+.bookblock__regenrow .input { width: 76px; }
 .bookblock__count--todo { color: var(--hard); font-style: italic; }
 .bookcard__title { font-weight: 800; font-size: 1.1rem; }
 .bookcard__langs { font-size: 0.78rem; opacity: 0.92; font-weight: 600; }

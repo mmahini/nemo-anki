@@ -40,6 +40,14 @@ class BookUploadSerializer(serializers.Serializer):
     page_map = serializers.CharField(required=False, allow_blank=True, default="")
 
 
+class RegenerateSerializer(serializers.Serializer):
+    from_lesson = serializers.IntegerField()
+    to_lesson = serializers.IntegerField()
+    pages_per_unit = serializers.IntegerField(required=False, allow_null=True, default=None)
+    start_page = serializers.IntegerField(required=False, allow_null=True, default=None)
+    lesson_label = serializers.CharField(max_length=40, required=False, allow_blank=True, default="Unit")
+
+
 class BookAnalyzeSerializer(serializers.Serializer):
     file = serializers.FileField()
     lesson_label = serializers.CharField(max_length=40, required=False, allow_blank=True, default="Unit")
@@ -141,19 +149,56 @@ class BookListView(APIView):
             color=_color_for(d["title"]),
             note=(f"Only the first {processing.MAX_LESSONS} lessons were kept." if capped else ""),
         )
-        # Upload only segments into lessons (fast). Vocab is extracted per
-        # lesson via the Process button so we never block on the whole book.
-        objs = []
-        for i, l in enumerate(lessons):
-            bl = BookLesson(
-                book=book, title=l["title"], position=i, raw_text=l["raw_text"],
-                page_start=l.get("page_start"), page_end=l.get("page_end"),
-            )
-            if l.get("pdf_bytes"):
-                bl.pdf.save(f"book{book.id}_{i:03d}.pdf", ContentFile(l["pdf_bytes"]), save=False)
-            objs.append(bl)
-        BookLesson.objects.bulk_create(objs)
+        # Keep the original PDF so lessons can be re-generated later.
+        if is_pdf and data:
+            book.pdf.save(f"book{book.id}_src.pdf", ContentFile(data), save=True)
+        _create_lessons(book, lessons)
         return Response(BookSerializer(book).data, status=status.HTTP_201_CREATED)
+
+
+def _create_lessons(book, lessons):
+    """(Re)create a book's lessons from segmenter output, saving each lesson's
+    sub-PDF. Replaces any existing lessons."""
+    book.lessons.all().delete()
+    objs = []
+    for i, l in enumerate(lessons[: processing.MAX_LESSONS]):
+        bl = BookLesson(
+            book=book, title=l["title"], position=i, raw_text=l["raw_text"],
+            page_start=l.get("page_start"), page_end=l.get("page_end"),
+        )
+        if l.get("pdf_bytes"):
+            bl.pdf.save(f"book{book.id}_{i:03d}.pdf", ContentFile(l["pdf_bytes"]), save=False)
+        objs.append(bl)
+    BookLesson.objects.bulk_create(objs)
+
+
+class BookRegenerateView(APIView):
+    """Re-split the book's original PDF with new page settings, replacing all
+    its lessons. Requires the original PDF (stored on upload)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, pk):
+        book = Book.objects.filter(id=pk, user=request.user).first()
+        if not book:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not book.pdf:
+            return Response(
+                {"detail": "No original PDF stored for this book — re-upload it to enable re-generate."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer = RegenerateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        v = serializer.validated_data
+        data = book.pdf.read()
+        lessons = processing.segment_pdf(
+            data, v.get("lesson_label") or "Unit",
+            int(v["from_lesson"]), int(v["to_lesson"]),
+            int(v.get("start_page") or 1), v.get("pages_per_unit"), None,
+        )
+        _create_lessons(book, lessons)
+        return Response(BookSerializer(book).data, status=status.HTTP_200_OK)
 
 
 class BookLessonDetailView(APIView):

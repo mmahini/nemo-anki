@@ -16,6 +16,9 @@ class Book(models.Model):
     translation_language = models.CharField(max_length=40, default="English")
     status = models.CharField(max_length=12, choices=STATUS, default="processing")
     color = models.CharField(max_length=20, default="#4c6ef5")
+    # Original uploaded PDF, kept so lessons can be re-generated with different
+    # page settings.
+    pdf = models.FileField(upload_to="books/", null=True, blank=True)
     note = models.CharField(max_length=240, blank=True, default="")            # e.g. cap info
     created_at = models.DateTimeField(auto_now_add=True)
 
