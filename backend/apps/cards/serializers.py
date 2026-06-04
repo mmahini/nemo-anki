@@ -9,6 +9,7 @@ class CardSerializer(serializers.ModelSerializer):
     # Predicted next intervals per button, attached by the study view.
     intervals = serializers.SerializerMethodField()
     deck_name = serializers.CharField(source="deck.full_name", read_only=True)
+    deck_language = serializers.CharField(source="deck.language", read_only=True)
     has_reverse = serializers.SerializerMethodField()
     images = serializers.SerializerMethodField()
 
@@ -18,6 +19,7 @@ class CardSerializer(serializers.ModelSerializer):
             "id",
             "deck",
             "deck_name",
+            "deck_language",
             "card_type",
             "direction",
             "has_reverse",
@@ -47,6 +49,7 @@ class CardSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "deck_name",
+            "deck_language",
             "direction",
             "has_reverse",
             "images",

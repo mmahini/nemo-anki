@@ -11,6 +11,11 @@ function cardDirection(card: AnyCard): "forward" | "reverse" {
   return "direction" in card ? card.direction : "forward";
 }
 
+/** The language to read/colour the card in: the card's own, else the deck's. */
+function cardLang(card: AnyCard): string {
+  return card.language || ("deck_language" in card ? card.deck_language ?? "" : "");
+}
+
 /** The article-tinted term (German word) with its gender pill + audio. Used as
  * the prompt on forward vocab and as the answer on reverse vocab. */
 function TermReveal({ card }: { card: AnyCard }) {
@@ -22,7 +27,7 @@ function TermReveal({ card }: { card: AnyCard }) {
       )}
       <div className="face__termrow">
         <div className={`face__term ${tint}`}>{card.front}</div>
-        <SpeakButton text={card.front} lang={card.language} title="Hear the word" />
+        <SpeakButton text={card.front} lang={cardLang(card)} title="Hear the word" />
       </div>
     </>
   );
@@ -58,10 +63,10 @@ export function CardFront({ card }: { card: AnyCard }) {
           {isVocab ? (
             card.front
           ) : (
-            <GermanText text={card.front} lang={card.language} genders={card.genders} />
+            <GermanText text={card.front} lang={cardLang(card)} genders={card.genders} />
           )}
         </div>
-        <SpeakButton text={card.front} lang={card.language} title="Hear the word" />
+        <SpeakButton text={card.front} lang={cardLang(card)} title="Hear the word" />
       </div>
       {card.card_type === "grammar" && card.notes && (
         <div className="face__hint">complete the sentence</div>
@@ -84,7 +89,7 @@ export function CardBack({ card }: { card: AnyCard }) {
       {card.reading && (
         <div className="face__readingrow">
           <span className="face__reading">/{card.reading}/</span>
-          <SpeakButton text={card.front} lang={card.language} small title="Hear pronunciation" />
+          <SpeakButton text={card.front} lang={cardLang(card)} small title="Hear pronunciation" />
         </div>
       )}
       {"images" in card && card.images && card.images.length > 0 && (
@@ -97,7 +102,7 @@ export function CardBack({ card }: { card: AnyCard }) {
       {card.card_type === "vocab" && card.plural && (
         <div className="face__plural">
           plural: <span className="art-plural">{card.plural}</span>
-          <SpeakButton text={card.plural} lang={card.language} small title="Hear the plural" />
+          <SpeakButton text={card.plural} lang={cardLang(card)} small title="Hear the plural" />
         </div>
       )}
       {card.notes && <div className="face__notes">{card.notes}</div>}
@@ -107,7 +112,7 @@ export function CardBack({ card }: { card: AnyCard }) {
       )}
       {card.example && (
         <div className="face__example">
-          “<GermanText text={card.example} lang={card.language} />”
+          “<GermanText text={card.example} lang={cardLang(card)} />”
         </div>
       )}
       {card.tags.length > 0 && (

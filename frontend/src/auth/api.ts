@@ -186,6 +186,7 @@ export type Card = {
   id: number;
   deck: number;
   deck_name?: string;
+  deck_language?: string;
   card_type: CardType;
   direction: "forward" | "reverse";
   has_reverse?: boolean;
