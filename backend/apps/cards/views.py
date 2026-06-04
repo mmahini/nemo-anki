@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from apps.decks.models import Deck
 
 from . import scheduler
-from .models import Card, ReviewLog
+from .models import Card, ReviewLog, add_reverse_cards, sync_card_group
 from .queue import study_queue
 from .serializers import AnswerSerializer, BulkCardSerializer, CardSerializer
 
@@ -17,7 +17,11 @@ class CardListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = Card.objects.filter(deck__user=request.user).select_related("deck")
+        # Management list shows one row per note (the forward/primary card);
+        # the reverse companion is hidden here but still studied & edited in sync.
+        qs = Card.objects.filter(
+            deck__user=request.user, reverse_of__isnull=True
+        ).select_related("deck")
         deck_id = request.query_params.get("deck")
         if deck_id:
             deck = Deck.objects.filter(id=deck_id, user=request.user).first()
@@ -29,6 +33,7 @@ class CardListView(APIView):
             qs = qs.filter(card_type=card_type)
         return Response(CardSerializer(qs, many=True).data)
 
+    @transaction.atomic
     def post(self, request):
         serializer = CardSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
@@ -39,6 +44,7 @@ class CardListView(APIView):
             extra["language"] = deck.language
         extra["position"] = _next_position(deck)
         card = serializer.save(**extra)
+        add_reverse_cards([card])  # vocab → also create the reverse direction
         return Response(CardSerializer(card).data, status=status.HTTP_201_CREATED)
 
 
@@ -59,6 +65,7 @@ class CardDetailView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(CardSerializer(card).data)
 
+    @transaction.atomic
     def patch(self, request, pk):
         card = self._get(request, pk)
         if not card:
@@ -66,6 +73,7 @@ class CardDetailView(APIView):
         serializer = CardSerializer(card, data=request.data, partial=True, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        sync_card_group(card)  # mirror content/deck onto the other direction
         return Response(CardSerializer(card).data)
 
     def delete(self, request, pk):
@@ -94,6 +102,7 @@ class BulkCardView(APIView):
                 item["language"] = deck.language
             created.append(Card(deck=deck, position=pos + i, **item))
         Card.objects.bulk_create(created)
+        add_reverse_cards(created)  # vocab cards get their reverse direction
         return Response(
             {"created": len(created), "deck": deck.id},
             status=status.HTTP_201_CREATED,

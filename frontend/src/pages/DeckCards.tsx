@@ -124,6 +124,7 @@ export default function DeckCards() {
               ) : (
                 <div className="cardrow__view" onClick={() => startEdit(c)}>
                   <span className="badge">{c.card_type}</span>
+                  {c.has_reverse && <span className="badge badge--rev" title="Reviewed both ways (term ⇄ meaning), tracked separately">⇄</span>}
                   <span className="cardrow__front"><FrontText card={c} /></span>
                   <span className="cardrow__back" dir="auto">{c.back}</span>
                   <span className={`state state--${c.state}`}>{c.state}</span>

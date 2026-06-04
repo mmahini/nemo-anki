@@ -321,6 +321,8 @@ kbd {
 .face { display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; }
 .face__termrow { display: flex; align-items: center; gap: 10px; justify-content: center; }
 .face__term { font-size: 2.2rem; font-weight: 700; line-height: 1.1; }
+.face__term--meaning { font-weight: 600; color: var(--ink-soft); }
+.face__dirbadge { display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; color: var(--ink-faint); text-transform: uppercase; }
 .face__hint { font-size: 0.8rem; color: var(--ink-faint); }
 .face__answer { font-size: 1.5rem; font-weight: 600; }
 .face__readingrow { display: flex; align-items: center; gap: 6px; justify-content: center; }
@@ -430,6 +432,7 @@ kbd {
 /* Type tag is intentionally neutral so it never clashes with the
    der/die/das gender colours on the word itself. */
 .badge { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; background: var(--line-soft); color: var(--ink-soft); }
+.badge--rev { background: var(--accent-soft, var(--line-soft)); color: var(--accent, var(--ink-soft)); }
 .state { font-size: 0.7rem; font-weight: 600; color: var(--ink-faint); }
 .state--review { color: var(--good); }
 .state--new { color: var(--brand); }

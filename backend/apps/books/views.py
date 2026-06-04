@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.cards.models import Card
+from apps.cards.models import Card, add_reverse_cards
 from apps.decks.models import Deck, DeckConfig
 
 from . import processing
@@ -421,6 +421,7 @@ class BookLessonImportView(APIView):
             for i, bc in enumerate(lesson.cards.all())
         ]
         Card.objects.bulk_create(cards)
+        add_reverse_cards(cards)  # vocab cards get their reverse direction too
         return Response(
             {"book_deck": book_deck.id, "lesson_deck": lesson_deck.id, "cards": len(cards)},
             status=status.HTTP_201_CREATED,

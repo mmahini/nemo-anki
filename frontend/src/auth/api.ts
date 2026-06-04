@@ -185,6 +185,8 @@ export type Card = {
   deck: number;
   deck_name?: string;
   card_type: CardType;
+  direction: "forward" | "reverse";
+  has_reverse?: boolean;
   language: string;
   front: string;
   back: string;

@@ -9,6 +9,7 @@ class CardSerializer(serializers.ModelSerializer):
     # Predicted next intervals per button, attached by the study view.
     intervals = serializers.SerializerMethodField()
     deck_name = serializers.CharField(source="deck.full_name", read_only=True)
+    has_reverse = serializers.SerializerMethodField()
 
     class Meta:
         model = Card
@@ -17,6 +18,8 @@ class CardSerializer(serializers.ModelSerializer):
             "deck",
             "deck_name",
             "card_type",
+            "direction",
+            "has_reverse",
             "language",
             "front",
             "back",
@@ -42,6 +45,8 @@ class CardSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "deck_name",
+            "direction",
+            "has_reverse",
             "state",
             "due",
             "interval_days",
@@ -56,6 +61,12 @@ class CardSerializer(serializers.ModelSerializer):
 
     def get_intervals(self, obj):
         return getattr(obj, "_intervals", None)
+
+    def get_has_reverse(self, obj) -> bool:
+        # True for a forward vocab card that has a reverse companion.
+        if obj.reverse_of_id is not None:
+            return False
+        return obj.reverses.exists()
 
     def validate_deck(self, deck: Deck) -> Deck:
         request = self.context.get("request")

@@ -26,6 +26,23 @@ class Article(models.TextChoices):
     PLURAL = "plural", "die (pl)"
 
 
+class CardDirection(models.TextChoices):
+    """Which way a card is reviewed. A vocab note becomes two cards — a forward
+    (prompt = term) and a reverse (prompt = meaning) — each scheduled
+    independently so their progress tracks separately."""
+
+    FORWARD = "forward", "Forward (term → meaning)"
+    REVERSE = "reverse", "Reverse (meaning → term)"
+
+
+# Content fields shared by the two directions of a note. Scheduling fields are
+# deliberately excluded — each direction keeps its own track.
+CONTENT_FIELDS = [
+    "card_type", "language", "front", "back", "reading", "article",
+    "plural", "example", "notes", "table", "genders", "tags",
+]
+
+
 class Card(models.Model):
     deck = models.ForeignKey("decks.Deck", on_delete=models.CASCADE, related_name="cards")
 
@@ -45,6 +62,17 @@ class Card(models.Model):
     # button so sentence colouring is grammatically correct (case-independent).
     genders = models.JSONField(default=list, blank=True)
     tags = models.JSONField(default=list, blank=True)
+
+    # ---- Direction (two-sided review) ----
+    # A vocab note is two rows: a forward card and a reverse card. The reverse
+    # points at its forward via `reverse_of`; deleting the forward cascades to
+    # it. Content is mirrored across the pair; scheduling is independent.
+    direction = models.CharField(
+        max_length=8, choices=CardDirection.choices, default=CardDirection.FORWARD
+    )
+    reverse_of = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.CASCADE, related_name="reverses"
+    )
 
     # ---- Scheduling (Anki SM-2; see docs/ANKI_RESEARCH.md §5) ----
     state = models.CharField(max_length=12, choices=CardState.choices, default=CardState.NEW)
@@ -69,6 +97,24 @@ class Card(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.card_type}] {self.front[:40]}"
+
+    def content_dict(self) -> dict:
+        """The shared, direction-independent content of this card."""
+        return {f: getattr(self, f) for f in CONTENT_FIELDS}
+
+    def wants_reverse(self) -> bool:
+        """Vocab notes are reviewed both ways; everything else is one-directional."""
+        return self.card_type == CardType.VOCAB
+
+    def build_reverse(self) -> "Card":
+        """An unsaved reverse companion mirroring this (saved) forward card."""
+        return Card(
+            deck=self.deck,
+            position=self.position,
+            direction=CardDirection.REVERSE,
+            reverse_of=self,
+            **self.content_dict(),
+        )
 
     def scheduling_snapshot(self) -> dict:
         """Capture the scheduling fields so a review can be undone."""
@@ -98,6 +144,36 @@ class Card(models.Model):
             parse_datetime(snap["last_reviewed_at"]) if snap["last_reviewed_at"] else None
         )
         self.is_leech = snap["is_leech"]
+
+
+def add_reverse_cards(forward_cards) -> list["Card"]:
+    """Create reverse companions for the eligible (vocab) forward cards.
+
+    `forward_cards` must be saved (have PKs). Returns the created reverses.
+    """
+    reverses = [
+        c.build_reverse()
+        for c in forward_cards
+        if c.direction == CardDirection.FORWARD and c.wants_reverse()
+    ]
+    if reverses:
+        Card.objects.bulk_create(reverses)
+    return reverses
+
+
+def sync_card_group(edited: "Card") -> None:
+    """Mirror an edited card's content (and deck) onto the other direction(s)
+    of the same note. Scheduling is left untouched on every row."""
+    primary = edited.reverse_of or edited
+    group = [primary, *primary.reverses.all()]
+    fields = [*CONTENT_FIELDS, "deck"]
+    for other in group:
+        if other.pk == edited.pk:
+            continue
+        for f in CONTENT_FIELDS:
+            setattr(other, f, getattr(edited, f))
+        other.deck = edited.deck
+        other.save(update_fields=fields)
 
 
 class ReviewLog(models.Model):
