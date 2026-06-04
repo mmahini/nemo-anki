@@ -358,6 +358,7 @@ kbd {
 .browse__note { margin-bottom: 14px; font-size: 0.9rem; }
 .typepanel { margin-bottom: 16px; }
 .typepanel__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.typepanel__tools { display: flex; align-items: center; gap: 12px; }
 .typepanel__all { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--ink-soft); }
 .typepanel__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow: auto; }
 .typepanel__row { display: flex; align-items: center; gap: 10px; }

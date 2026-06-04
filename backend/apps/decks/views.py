@@ -103,54 +103,96 @@ class DeckStatsView(APIView):
 
 
 class DeckColourizeView(APIView):
-    """Bulk-run the German gender analysis over a deck's multi-word cards
-    (sentence + grammar) so they colour correctly. Processes a capped batch per
-    call (Gemini is per-card) and reports how many remain, so the client can
-    re-run until done."""
+    """Bulk-run German colouring over a deck's cards: detect & set the article
+    for vocab nouns, and the per-noun genders for sentence/grammar cards.
+    Processes a capped batch per call (Gemini is per-card) and reports how many
+    remain, so the client can re-run until done."""
 
     permission_classes = [IsAuthenticated]
     BATCH = 30
 
-    def post(self, request, pk):
+    def _eligible(self, deck):
         from django.db.models import Q
 
-        from apps.cards.models import Card, sync_card_group
+        from apps.cards.models import Card
+
+        return Card.objects.filter(
+            deck_id__in=deck.descendant_ids(), language="de", reverse_of__isnull=True
+        ).filter(
+            Q(card_type="vocab", article="none")
+            | Q(card_type__in=["sentence", "grammar"], genders=[])
+            | Q(card_type__in=["sentence", "grammar"], genders__isnull=True)
+        )
+
+    def post(self, request, pk):
+        from apps.cards.models import sync_card_group
         from apps.imports.gemini import analyze_german
 
         deck = Deck.objects.filter(id=pk, user=request.user).first()
         if not deck:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        eligible = Card.objects.filter(
-            deck_id__in=deck.descendant_ids(),
-            language="de",
-            reverse_of__isnull=True,
-            card_type__in=["sentence", "grammar"],
-        ).filter(Q(genders=[]) | Q(genders__isnull=True))
-
         colourized = 0
-        for card in list(eligible[: self.BATCH]):
+        for card in list(self._eligible(deck)[: self.BATCH]):
             try:
                 nouns = (analyze_german(card.front) or {}).get("nouns") or []
             except Exception:  # noqa: BLE001 - one bad card shouldn't abort the batch
                 continue
-            if nouns:
+            if not nouns:
+                continue
+            if card.card_type == "vocab":
+                # A vocab term is one word — colour it by its (first) noun gender.
+                card.article = nouns[0]["gender"]
+                card.save(update_fields=["article"])
+            else:
                 card.genders = nouns
                 card.save(update_fields=["genders"])
-                sync_card_group(card)
-                colourized += 1
+            sync_card_group(card)
+            colourized += 1
 
-        remaining = (
-            Card.objects.filter(
-                deck_id__in=deck.descendant_ids(),
-                language="de",
-                reverse_of__isnull=True,
-                card_type__in=["sentence", "grammar"],
-            )
-            .filter(Q(genders=[]) | Q(genders__isnull=True))
-            .count()
-        )
-        return Response({"colourized": colourized, "remaining": remaining})
+        return Response({"colourized": colourized, "remaining": self._eligible(deck).count()})
+
+
+class DeckAutotypeView(APIView):
+    """Auto-detect each card's type (vocab / sentence / grammar) from its
+    content and update it. A fast, free heuristic — no LLM."""
+
+    permission_classes = [IsAuthenticated]
+
+    @staticmethod
+    def _classify(card) -> str:
+        import re
+
+        f = (card.front or "").strip()
+        low = f.lower()
+        # A gap/cloze marker or an attached rule table ⇒ grammar.
+        if card.table or "___" in f or "…" in f or "{{c" in low or ("[" in f and "]" in f):
+            return "grammar"
+        words = [w for w in re.split(r"\s+", f) if w]
+        # Reads like a sentence: several words, or ends with sentence punctuation.
+        if len(words) >= 4 or (len(words) >= 2 and f[-1:] in ".!?"):
+            return "sentence"
+        return "vocab"
+
+    def post(self, request, pk):
+        from apps.cards.models import Card, sync_card_group
+
+        deck = Deck.objects.filter(id=pk, user=request.user).first()
+        if not deck:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        cards = Card.objects.filter(deck_id__in=deck.descendant_ids(), reverse_of__isnull=True)
+        changed = 0
+        counts = {"vocab": 0, "sentence": 0, "grammar": 0}
+        for card in cards:
+            new_type = self._classify(card)
+            counts[new_type] += 1
+            if new_type != card.card_type:
+                card.card_type = new_type
+                card.save(update_fields=["card_type"])
+                sync_card_group(card)
+                changed += 1
+        return Response({"changed": changed, "total": cards.count(), "counts": counts})
 
 
 class DeckConfigDetailView(APIView):

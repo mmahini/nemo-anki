@@ -277,10 +277,17 @@ export function deleteDeck(id: number): Promise<void> {
   return jsonRequest<void>(`/api/decks/${id}/`, { method: "DELETE" });
 }
 
-/** Bulk-run German gender colouring over a deck's sentence/grammar cards.
- * Processes a capped batch per call; re-run while `remaining > 0`. */
+/** Bulk-run German colouring over a deck (article for vocab, genders for
+ * sentence/grammar). Capped batch per call; re-run while `remaining > 0`. */
 export function colourizeDeck(id: number): Promise<{ colourized: number; remaining: number }> {
   return jsonRequest(`/api/decks/${id}/colourize/`, { method: "POST" });
+}
+
+/** Auto-detect every card's type from its content and update it. */
+export function autotypeDeck(
+  id: number,
+): Promise<{ changed: number; total: number; counts: Record<string, number> }> {
+  return jsonRequest(`/api/decks/${id}/autotype/`, { method: "POST" });
 }
 
 // ====== Cards ======

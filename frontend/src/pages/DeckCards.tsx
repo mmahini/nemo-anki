@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
   addCardImage,
+  autotypeDeck,
   colourizeDeck,
   deleteCard,
   deleteCardImage,
@@ -112,6 +113,7 @@ export default function DeckCards() {
   const [typePanel, setTypePanel] = useState(false);
   const [colourBusy, setColourBusy] = useState(false);
   const [colourMsg, setColourMsg] = useState<string | null>(null);
+  const [autoBusy, setAutoBusy] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -153,6 +155,20 @@ export default function DeckCards() {
     if (!targets.length || !window.confirm(`Set all ${targets.length} card(s) to "${type}"?`)) return;
     setCards((cs) => cs.map((c) => ({ ...c, card_type: type })));
     for (const c of targets) await updateCard(c.id, { card_type: type });
+  }
+
+  async function autoDetectTypes() {
+    setAutoBusy(true);
+    try {
+      const res = await autotypeDeck(id);
+      await load();
+      window.alert(
+        `Auto-detected types: ${res.changed} changed.\n` +
+          `vocab ${res.counts.vocab ?? 0} · sentence ${res.counts.sentence ?? 0} · grammar ${res.counts.grammar ?? 0}`,
+      );
+    } finally {
+      setAutoBusy(false);
+    }
   }
 
   async function colourise() {
@@ -210,13 +226,18 @@ export default function DeckCards() {
         <div className="panel typepanel">
           <div className="typepanel__bar">
             <strong>Card types</strong>
-            <label className="typepanel__all">
-              Set all to
-              <select className="input input--sm" defaultValue="" onChange={(e) => { if (e.target.value) { setAllTypes(e.target.value as CardType); e.target.value = ""; } }}>
-                <option value="">…</option>
-                {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </label>
+            <div className="typepanel__tools">
+              <button className="btn btn--primary btn--sm" onClick={autoDetectTypes} disabled={autoBusy} title="Check every card and set its type automatically from its content">
+                {autoBusy ? "Detecting…" : "✨ Auto-detect types"}
+              </button>
+              <label className="typepanel__all">
+                Set all to
+                <select className="input input--sm" defaultValue="" onChange={(e) => { if (e.target.value) { setAllTypes(e.target.value as CardType); e.target.value = ""; } }}>
+                  <option value="">…</option>
+                  {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+            </div>
           </div>
           <ul className="typepanel__list">
             {cards.map((c) => (
