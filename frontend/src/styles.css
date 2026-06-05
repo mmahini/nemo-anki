@@ -592,3 +592,85 @@ kbd {
   .grades { gap: 8px; }
   .grade { min-width: calc(50% - 4px); }
 }
+
+/* ============================================================
+   Mobile (≤640px) — stack rows, reflow the header, bigger taps
+   ============================================================ */
+@media (max-width: 640px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body { overflow-x: hidden; }
+  img { max-width: 100%; }
+  h1 { font-size: 1.5rem; }
+
+  /* 16px inputs stop iOS zooming on focus; comfier tap targets */
+  .input, .input--sm, .auth__input, .import__textarea,
+  select, textarea { font-size: 16px; }
+  .input--sm { padding: 7px 10px; }
+  .btn--sm { padding: 8px 12px; font-size: 0.9rem; }
+
+  /* Header: brand + sign-out on row 1, nav as a full-width row 2 */
+  .shell__bar { flex-wrap: wrap; gap: 10px 12px; padding: 10px 14px; }
+  .shell__nav { order: 3; flex: 1 0 100%; gap: 4px; }
+  .shell__link { flex: 1; text-align: center; padding: 9px 6px; }
+  .shell__email { display: none; }
+  .shell__main { padding: 18px 14px 72px; }
+
+  /* Decks list: name+counts first, actions wrap to their own line */
+  .decks__head { gap: 8px; }
+  .decklist__row { flex-wrap: wrap; gap: 8px 10px; padding: 12px; }
+  .decklist__name { flex: 1 1 auto; }
+  .decklist__rename { max-width: 100%; flex: 1; }
+  .decklist__actions { flex: 1 0 100%; flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+  .decklist__actions .input--sm { flex: 1 1 100%; }
+  .decks__new { flex-direction: column; align-items: stretch; }
+  .decks__new > * { width: 100%; }
+
+  /* Deck card list */
+  .browse__head { flex-direction: column; align-items: stretch; }
+  .browse__actions { flex-wrap: wrap; }
+  .browse__actions .btn { flex: 1 1 auto; }
+  .cardrow__view { flex-wrap: wrap; gap: 6px 8px; }
+  .cardrow__front { flex: 1 1 auto; }
+  .cardrow__back { flex: 1 0 100%; white-space: normal; }
+  .typepanel__bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .typepanel__tools { justify-content: space-between; }
+
+  /* Study / single-card review */
+  .study__stage { padding: 24px 14px; gap: 22px; }
+  .study__show { width: 100%; min-width: 0; }
+  .grade { min-width: calc(50% - 4px); }
+
+  /* Card editor */
+  .cardeditor__row { flex-wrap: wrap; }
+  .cardeditor__tools { margin-left: 0; flex: 1 0 100%; flex-wrap: wrap; }
+  .translate-group { flex: 1; }
+  .translate-group__btn { flex: 1; }
+  .addcard__grid { gap: 16px; }
+  .addcard__actions .btn { flex: 1; }
+
+  /* Import */
+  .import__controls { flex-direction: column; gap: 10px; }
+  .import__controls label { width: 100%; }
+  .tabs { flex-wrap: wrap; }
+  .import__item { flex-direction: column; }
+
+  /* Books */
+  .books__row .cardeditor__field,
+  .books__row > label { flex: 1 1 100%; }
+  .books__list { grid-template-columns: 1fr; }
+  .bookblock__banner { flex-direction: column; align-items: stretch; }
+  .bookblock__lessonrow { flex-wrap: wrap; }
+  .bookblock__regenrow .input,
+  .bookblock__lessonregen .input { width: 100%; }
+  .sharepanel__add { flex-direction: column; }
+  .pagemap__list { grid-template-columns: 1fr 1fr; }
+
+  /* Lesson viewer goes full-screen on phones */
+  .lessonview { padding: 0; }
+  .lessonview__card,
+  .lessonview__card--split { width: 100%; height: 100%; max-height: 100%; border-radius: 0; }
+  .lessonview__head { flex-wrap: wrap; gap: 8px; }
+  .lessonview__head .btn { margin-left: 0; }
+
+  .panel { padding: 16px; margin: 16px auto; }
+}
