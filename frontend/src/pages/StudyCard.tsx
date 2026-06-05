@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { answerCard, fetchCardForReview, type Card } from "../auth/api";
 import { CardBack, CardFront } from "../components/CardFace";
+import { promptSpeech } from "../lib/cardSpeech";
+import { speak } from "../lib/tts";
 
 type Rating = 1 | 2 | 3 | 4;
 
@@ -31,6 +33,8 @@ export default function StudyCard() {
       .then((c) => {
         setCard(c);
         shownAt.current = Date.now();
+        const s = promptSpeech(c); // auto-read the front aloud
+        if (s) speak(s.text, s.lang);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Couldn't load the card."))
       .finally(() => setLoading(false));

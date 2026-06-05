@@ -8,6 +8,8 @@ import {
   type Card,
 } from "../auth/api";
 import { CardBack, CardFront } from "../components/CardFace";
+import { promptSpeech } from "../lib/cardSpeech";
+import { speak } from "../lib/tts";
 
 type Rating = 1 | 2 | 3 | 4;
 
@@ -51,6 +53,13 @@ export default function Study() {
   useEffect(() => {
     shownAt.current = Date.now();
   }, [current?.id, flipped]);
+
+  // Auto-read the front (prompt) aloud whenever a new card appears.
+  useEffect(() => {
+    if (!current) return;
+    const s = promptSpeech(current);
+    if (s) speak(s.text, s.lang);
+  }, [current?.id]);
 
   const grade = useCallback(
     async (rating: Rating) => {
