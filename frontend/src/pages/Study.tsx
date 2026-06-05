@@ -3,7 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import {
   answerCard,
+  colourizeCard,
   fetchStudyQueue,
+  findCardImage,
   undoLastAnswer,
   type Card,
 } from "../auth/api";
@@ -29,6 +31,7 @@ export default function Study() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canUndo, setCanUndo] = useState(false);
+  const [cardBusy, setCardBusy] = useState(false);
   const shownAt = useRef<number>(Date.now());
 
   const id = Number(deckId);
@@ -101,6 +104,34 @@ export default function Study() {
     }
   }, [busy]);
 
+  // Per-card actions available while reviewing (keep the interval preview).
+  const patchCurrent = (patch: Partial<Card>) =>
+    setQueue((q) => q.map((c, i) => (i === 0 ? { ...c, ...patch } : c)));
+
+  const colourise = useCallback(async () => {
+    if (!current || cardBusy) return;
+    setCardBusy(true);
+    try {
+      const u = await colourizeCard(current.id);
+      patchCurrent({ article: u.article, genders: u.genders, language: u.language });
+    } finally {
+      setCardBusy(false);
+    }
+  }, [current, cardBusy]);
+
+  const findImage = useCallback(async () => {
+    if (!current || cardBusy) return;
+    setCardBusy(true);
+    try {
+      const img = await findCardImage(current.id);
+      patchCurrent({ images: [...(current.images ?? []), img] });
+    } catch {
+      /* no image found — ignore */
+    } finally {
+      setCardBusy(false);
+    }
+  }, [current, cardBusy]);
+
   // When the working queue empties, try to pull more (learning steps may be due).
   useEffect(() => {
     if (!loading && queue.length === 0) {
@@ -171,6 +202,11 @@ export default function Study() {
         </div>
       ) : (
         <div className="study__stage">
+          <div className="cardtools">
+            <button className="cardtools__btn" title="Colourise (German article / genders)" disabled={cardBusy} onClick={colourise}>🎨</button>
+            <button className="cardtools__btn" title="Find an image" disabled={cardBusy} onClick={findImage}>🖼️</button>
+            <button className="cardtools__btn" title="Edit this card in its deck" onClick={() => navigate(`/app/decks/${current.deck}`)}>✎</button>
+          </div>
           <div className={`reviewcard ${flipped ? "is-flipped" : ""}`}>
             <CardFront card={current} />
             {flipped && <hr className="reviewcard__rule" />}

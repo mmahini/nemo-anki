@@ -287,11 +287,41 @@ kbd {
 .count--learn { color: var(--hard); background: rgba(232, 151, 58, 0.12); }
 .count--due { color: var(--good); background: rgba(31, 157, 87, 0.1); }
 .decklist__actions { display: flex; gap: 6px; align-items: center; }
+.deckmenu-wrap { position: relative; display: inline-flex; }
+.deckmenu-btn { padding: 5px 10px; font-size: 1.05rem; line-height: 1; }
+.menu-overlay { position: fixed; inset: 0; z-index: 40; }
+.deckmenu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 41; min-width: 168px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); padding: 4px; display: flex; flex-direction: column; }
+.deckmenu button { text-align: left; background: none; border: none; font: inherit; font-weight: 600; color: var(--ink); padding: 9px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.deckmenu button:hover { background: var(--line-soft); }
+.deckmenu__danger { color: var(--again); }
+.deckmenu__danger:hover { background: rgba(226, 59, 84, 0.1); }
 .decklist__del { background: none; border: none; color: var(--ink-faint); cursor: pointer; font-size: 0.9rem; padding: 4px 6px; border-radius: 6px; }
 .decklist__del:hover { color: var(--again); background: rgba(226, 59, 84, 0.1); }
 .decks__empty { text-align: center; }
 .decks__empty code { font-family: var(--mono); background: var(--line-soft); padding: 1px 6px; border-radius: 5px; }
 .decks__new { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+
+/* ============================================================
+   Activity / streak panel
+   ============================================================ */
+.activity { margin: 0 0 22px; padding: 18px 20px; }
+.activity__stats { display: flex; flex-wrap: wrap; gap: 10px 22px; }
+.activity__stat { display: flex; flex-direction: column; gap: 1px; }
+.activity__num { font-size: 1.35rem; font-weight: 800; line-height: 1.1; }
+.activity__stat--streak .activity__num { color: var(--hard); }
+.activity__lbl { font-size: 0.72rem; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+.activity__msg { margin: 12px 0 14px; color: var(--ink-soft); font-weight: 600; font-size: 0.92rem; }
+.activity__heatwrap { overflow-x: auto; padding-bottom: 4px; }
+.activity__heat { display: grid; grid-template-rows: repeat(7, 11px); grid-auto-flow: column; gap: 3px; width: max-content; }
+.heatcell { width: 11px; height: 11px; border-radius: 3px; background: var(--line-soft); }
+.heatcell--pad { background: transparent; }
+.heat--0 { background: var(--line-soft); }
+.heat--1 { background: rgba(76, 110, 245, 0.30); }
+.heat--2 { background: rgba(76, 110, 245, 0.52); }
+.heat--3 { background: rgba(76, 110, 245, 0.74); }
+.heat--4 { background: var(--brand); }
+.activity__legend { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 0.72rem; color: var(--ink-faint); }
+.activity__legend .heatcell { width: 11px; height: 11px; }
 
 /* ============================================================
    Study / review
@@ -300,6 +330,10 @@ kbd {
 .study__bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .study__progress { display: flex; gap: 6px; }
 .study__stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 32px 20px; }
+.cardtools { display: flex; gap: 8px; width: 100%; max-width: 560px; justify-content: flex-end; margin-bottom: -16px; }
+.cardtools__btn { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; width: 38px; height: 38px; font-size: 1.05rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.cardtools__btn:hover:not(:disabled) { border-color: var(--ink-faint); }
+.cardtools__btn:disabled { opacity: 0.5; cursor: default; }
 .study__show { min-width: 220px; justify-content: center; }
 .study__done { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
 .study__done-emoji { font-size: 3rem; }
@@ -615,13 +649,15 @@ kbd {
   .shell__email { display: none; }
   .shell__main { padding: 18px 14px 72px; }
 
-  /* Decks list: name+counts first, actions wrap to their own line */
+  /* Decks list: name (+counts) on the left, compact Study + ⋯ on the right */
   .decks__head { gap: 8px; }
-  .decklist__row { flex-wrap: wrap; gap: 8px 10px; padding: 12px; }
-  .decklist__name { flex: 1 1 auto; }
+  .decklist__row { gap: 8px; padding: 11px 12px; }
+  .decklist__name { flex: 1 1 auto; min-width: 0; }
   .decklist__rename { max-width: 100%; flex: 1; }
-  .decklist__actions { flex: 1 0 100%; flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
-  .decklist__actions .input--sm { flex: 1 1 100%; }
+  .decklist__counts { gap: 4px; }
+  .count { min-width: 22px; padding: 2px 4px; }
+  .deckmenu { min-width: 180px; }
+  .deckmenu button { padding: 11px 12px; }
   .decks__new { flex-direction: column; align-items: stretch; }
   .decks__new > * { width: 100%; }
 

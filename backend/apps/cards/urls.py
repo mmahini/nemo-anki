@@ -10,6 +10,7 @@ from .views import (
     CardImageDetailView,
     CardImageView,
     CardListView,
+    ReviewActivityView,
     StudyView,
     UndoView,
 )
@@ -18,6 +19,7 @@ urlpatterns = [
     path("cards/", CardListView.as_view(), name="card-list"),
     path("cards/bulk/", BulkCardView.as_view(), name="card-bulk"),
     path("cards/undo/", UndoView.as_view(), name="card-undo"),
+    path("stats/activity/", ReviewActivityView.as_view(), name="stats-activity"),
     path("cards/<int:pk>/", CardDetailView.as_view(), name="card-detail"),
     path("cards/<int:pk>/answer/", AnswerView.as_view(), name="card-answer"),
     path("cards/<int:pk>/colourize/", CardColourizeView.as_view(), name="card-colourize"),

@@ -364,6 +364,22 @@ export function undoLastAnswer(): Promise<Card> {
   return jsonRequest<Card>("/api/cards/undo/", { method: "POST" });
 }
 
+// ====== Activity / stats ======
+
+export type ActivityDay = { date: string; count: number; seconds: number };
+export type ReviewActivity = {
+  days: ActivityDay[];
+  streak: number;
+  longest_streak: number;
+  active_days: number;
+  today: { count: number; seconds: number };
+  total_reviews: number;
+};
+
+export function fetchActivity(): Promise<ReviewActivity> {
+  return jsonRequest<ReviewActivity>("/api/stats/activity/", { method: "GET" });
+}
+
 // ====== Import ======
 
 export function parseImport(payload: {

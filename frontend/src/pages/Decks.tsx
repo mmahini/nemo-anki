@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { createDeck, deleteDeck, fetchDecks, updateDeck, type Deck } from "../auth/api";
+import ReviewActivity from "../components/ReviewActivity";
 
 /** Indentation depth from the `::` chain in full_name. */
 function depth(d: Deck): number {
@@ -21,6 +22,7 @@ export default function Decks() {
   const [langDeck, setLangDeck] = useState<number | null>(null);
   const [renamingDeck, setRenamingDeck] = useState<number | null>(null);
   const [renameVal, setRenameVal] = useState("");
+  const [openMenu, setOpenMenu] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -131,6 +133,8 @@ export default function Decks() {
         </div>
       </div>
 
+      {decks.length > 0 && <ReviewActivity />}
+
       <ul className="decklist">
         {decks.filter((d) => !hidden(d)).map((d) => {
           const hasChildren = decks.some((c) => c.parent === d.id);
@@ -175,16 +179,6 @@ export default function Decks() {
                 <span className="count count--due">{d.counts.due}</span>
               </div>
               <div className="decklist__actions">
-                <button
-                  className="btn btn--ghost btn--sm"
-                  title="Rename this deck"
-                  onClick={() => {
-                    setRenameVal(d.name);
-                    setRenamingDeck(d.id);
-                  }}
-                >
-                  ✎ Rename
-                </button>
                 {langDeck === d.id ? (
                   <select
                     className="input input--sm"
@@ -197,16 +191,7 @@ export default function Decks() {
                     <option value="de">German</option>
                     <option value="en">English</option>
                   </select>
-                ) : (
-                  <button
-                    className="btn btn--ghost btn--sm"
-                    title="Set the deck's language"
-                    onClick={() => setLangDeck(d.id)}
-                  >
-                    {d.language ? `🌐 ${d.language.toUpperCase()}` : "🌐 Lang"}
-                  </button>
-                )}
-                {movingDeck === d.id ? (
+                ) : movingDeck === d.id ? (
                   <select
                     className="input input--sm"
                     autoFocus
@@ -220,33 +205,37 @@ export default function Decks() {
                     ))}
                   </select>
                 ) : (
-                  <button
-                    className="btn btn--ghost btn--sm"
-                    title="Move to another parent deck"
-                    onClick={() => setMovingDeck(d.id)}
-                  >
-                    Move
-                  </button>
+                  <>
+                    <button
+                      className="btn btn--primary btn--sm"
+                      disabled={studyable === 0}
+                      onClick={() => navigate(`/app/study/${d.id}`)}
+                    >
+                      Study
+                    </button>
+                    <div className="deckmenu-wrap">
+                      <button
+                        className="btn btn--ghost btn--sm deckmenu-btn"
+                        aria-label="More actions"
+                        onClick={() => setOpenMenu(openMenu === d.id ? null : d.id)}
+                      >
+                        ⋯
+                      </button>
+                      {openMenu === d.id && (
+                        <>
+                          <div className="menu-overlay" onClick={() => setOpenMenu(null)} />
+                          <div className="deckmenu">
+                            <button onClick={() => { setOpenMenu(null); setRenameVal(d.name); setRenamingDeck(d.id); }}>✎ Rename</button>
+                            <button onClick={() => { setOpenMenu(null); setLangDeck(d.id); }}>🌐 Language{d.language ? ` (${d.language.toUpperCase()})` : ""}</button>
+                            <button onClick={() => { setOpenMenu(null); setMovingDeck(d.id); }}>↪ Move</button>
+                            {isLeaf && <button onClick={() => { setOpenMenu(null); navigate(`/app/decks/${d.id}/add`); }}>＋ Add card</button>}
+                            <button className="deckmenu__danger" onClick={() => { setOpenMenu(null); onDelete(d); }}>🗑 Delete</button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </>
                 )}
-                {isLeaf && (
-                  <Link to={`/app/decks/${d.id}/add`} className="btn btn--ghost btn--sm">
-                    + Card
-                  </Link>
-                )}
-                <button
-                  className="btn btn--primary btn--sm"
-                  disabled={studyable === 0}
-                  onClick={() => navigate(`/app/study/${d.id}`)}
-                >
-                  Study
-                </button>
-                <button
-                  className="decklist__del"
-                  title="Delete deck"
-                  onClick={() => onDelete(d)}
-                >
-                  ✕
-                </button>
               </div>
             </li>
           );

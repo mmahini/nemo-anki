@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { answerCard, fetchCardForReview, type Card } from "../auth/api";
+import { answerCard, colourizeCard, fetchCardForReview, findCardImage, type Card } from "../auth/api";
 import { CardBack, CardFront } from "../components/CardFace";
 import { promptSpeech } from "../lib/cardSpeech";
 import { speak } from "../lib/tts";
@@ -43,6 +43,30 @@ export default function StudyCard() {
   const back = useCallback(() => {
     navigate(card ? `/app/decks/${card.deck}` : "/app");
   }, [navigate, card]);
+
+  async function colourise() {
+    if (!card || busy) return;
+    setBusy(true);
+    try {
+      const u = await colourizeCard(card.id);
+      setCard({ ...card, article: u.article, genders: u.genders, language: u.language });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function findImage() {
+    if (!card || busy) return;
+    setBusy(true);
+    try {
+      const img = await findCardImage(card.id);
+      setCard({ ...card, images: [...(card.images ?? []), img] });
+    } catch {
+      /* no image found */
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const grade = useCallback(
     async (rating: Rating) => {
@@ -103,6 +127,10 @@ export default function StudyCard() {
         </div>
       ) : (
         <div className="study__stage">
+          <div className="cardtools">
+            <button className="cardtools__btn" title="Colourise (German article / genders)" disabled={busy} onClick={colourise}>🎨</button>
+            <button className="cardtools__btn" title="Find an image" disabled={busy} onClick={findImage}>🖼️</button>
+          </div>
           <div className={`reviewcard ${flipped ? "is-flipped" : ""}`}>
             <CardFront card={card} />
             {flipped && <hr className="reviewcard__rule" />}

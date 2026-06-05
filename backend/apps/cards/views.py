@@ -1,5 +1,9 @@
+import datetime
+
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.db.models import Count, Sum
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -350,6 +354,64 @@ class AnswerView(APIView):
             prev_snapshot=snapshot,
         )
         return Response(CardSerializer(card).data)
+
+
+class ReviewActivityView(APIView):
+    """Per-day review activity for the motivational panel: counts + time spent
+    over a trailing window, plus current/longest streaks."""
+
+    permission_classes = [IsAuthenticated]
+    DAYS = 119  # ~17 weeks of heatmap
+
+    def get(self, request):
+        today = timezone.localdate()
+        start = today - datetime.timedelta(days=self.DAYS)
+        rows = (
+            ReviewLog.objects.filter(user=request.user, reviewed_at__date__gte=start)
+            .annotate(d=TruncDate("reviewed_at"))
+            .values("d")
+            .annotate(count=Count("id"), ms=Sum("time_ms"))
+        )
+        by_date = {r["d"]: (r["count"], r["ms"] or 0) for r in rows}
+
+        days = []
+        for i in range(self.DAYS + 1):
+            day = start + datetime.timedelta(days=i)
+            c, ms = by_date.get(day, (0, 0))
+            days.append({"date": day.isoformat(), "count": c, "seconds": round(ms / 1000)})
+
+        active = {d for d, (c, _) in by_date.items() if c > 0}
+
+        def run_back(anchor):
+            s, cur = 0, anchor
+            while cur in active:
+                s += 1
+                cur -= datetime.timedelta(days=1)
+            return s
+
+        # Today counts toward the streak once done; before that, yesterday's run still stands.
+        streak = run_back(today) if today in active else run_back(today - datetime.timedelta(days=1))
+
+        longest = 0
+        if active:
+            ordered = sorted(active)
+            run = 1
+            longest = 1
+            for a, b in zip(ordered, ordered[1:]):
+                run = run + 1 if (b - a).days == 1 else 1
+                longest = max(longest, run)
+
+        tc, tms = by_date.get(today, (0, 0))
+        return Response(
+            {
+                "days": days,
+                "streak": streak,
+                "longest_streak": longest,
+                "active_days": len(active),
+                "today": {"count": tc, "seconds": round(tms / 1000)},
+                "total_reviews": ReviewLog.objects.filter(user=request.user).count(),
+            }
+        )
 
 
 class UndoView(APIView):
