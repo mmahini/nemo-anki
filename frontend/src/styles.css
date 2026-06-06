@@ -359,11 +359,11 @@ kbd {
 .reviewcard__rule { width: 100%; border: none; border-top: 1px solid var(--line-soft); margin: 22px 0; }
 .face { display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; }
 .face__termrow { display: flex; align-items: center; gap: 10px; justify-content: center; }
-.face__term { font-size: 2.2rem; font-weight: 700; line-height: 1.1; }
+.face__term { font-size: 2.2rem; font-weight: 700; line-height: 1.1; white-space: pre-wrap; }
 .face__term--meaning { font-weight: 600; color: var(--ink-soft); }
 .face__dirbadge { display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.03em; color: var(--ink-faint); text-transform: uppercase; }
 .face__hint { font-size: 0.8rem; color: var(--ink-faint); }
-.face__answer { font-size: 1.5rem; font-weight: 600; }
+.face__answer { font-size: 1.5rem; font-weight: 600; white-space: pre-wrap; }
 .face__readingrow { display: flex; align-items: center; gap: 6px; justify-content: center; }
 .face__reading { font-family: var(--mono); color: var(--ink-soft); font-size: 1rem; }
 
@@ -476,7 +476,9 @@ kbd {
 .translate-group__btn { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .cardeditor__field { display: flex; flex-direction: column; gap: 5px; font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); }
 .cardeditor__inline { display: flex; gap: 8px; align-items: center; }
+.cardeditor__inline--top { align-items: flex-start; }
 .cardeditor__inline .input { flex: 1; }
+.cardeditor__text { resize: vertical; min-height: 42px; line-height: 1.45; width: 100%; }
 .cardeditor__note { font-weight: 500; font-size: 0.78rem; color: var(--ink-faint); }
 
 .browse__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }

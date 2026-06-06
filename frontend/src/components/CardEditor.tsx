@@ -196,9 +196,10 @@ export default function CardEditor({ value, onChange, compact }: Props) {
 
       <label className="cardeditor__field">
         <span>{value.card_type === "grammar" ? "Prompt (use ___ for the gap)" : "Front"}</span>
-        <div className="cardeditor__inline">
-          <input
-            className="input"
+        <div className="cardeditor__inline cardeditor__inline--top">
+          <textarea
+            className="input cardeditor__text"
+            rows={2}
             value={value.front}
             onChange={(e) => onFrontChange(e.target.value)}
             onBlur={onFrontBlur}
@@ -215,7 +216,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
 
       <label className="cardeditor__field">
         <span>{value.card_type === "grammar" ? "Answer (fills the gap)" : "Back / translation"}</span>
-        <input className="input" dir="auto" value={value.back} onChange={(e) => set("back", e.target.value)} />
+        <textarea className="input cardeditor__text" rows={2} dir="auto" value={value.back} onChange={(e) => set("back", e.target.value)} />
       </label>
 
       {hasReading && (
