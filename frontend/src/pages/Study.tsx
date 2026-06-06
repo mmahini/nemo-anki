@@ -10,6 +10,7 @@ import {
   type Card,
 } from "../auth/api";
 import { CardBack, CardFront } from "../components/CardFace";
+import CardEditModal from "../components/CardEditModal";
 import { promptSpeech } from "../lib/cardSpeech";
 import { speak } from "../lib/tts";
 
@@ -32,6 +33,7 @@ export default function Study() {
   const [error, setError] = useState<string | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [cardBusy, setCardBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const shownAt = useRef<number>(Date.now());
 
   const id = Number(deckId);
@@ -144,10 +146,11 @@ export default function Study() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (editing) return; // let the editor own the keyboard
       if (e.key === "Escape") return void navigate("/app");
       if (e.key === "u" || e.key === "U") return void undo();
       if (e.key === "e" || e.key === "E") {
-        if (current) navigate(`/app/decks/${current.deck}`);
+        if (current) setEditing(true);
         return;
       }
       if (!current) return;
@@ -167,7 +170,7 @@ export default function Study() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [current, flipped, grade, undo, navigate]);
+  }, [current, flipped, grade, undo, navigate, editing]);
 
   const counts = {
     new: queue.filter((c) => c.state === "new").length,
@@ -205,7 +208,7 @@ export default function Study() {
           <div className="cardtools">
             <button className="cardtools__btn" title="Colourise (German article / genders)" disabled={cardBusy} onClick={colourise}>🎨</button>
             <button className="cardtools__btn" title="Find an image" disabled={cardBusy} onClick={findImage}>🖼️</button>
-            <button className="cardtools__btn" title="Edit this card in its deck" onClick={() => navigate(`/app/decks/${current.deck}`)}>✎</button>
+            <button className="cardtools__btn" title="Edit this card" onClick={() => setEditing(true)}>✎</button>
           </div>
           <div className={`reviewcard ${flipped ? "is-flipped" : ""}`}>
             <CardFront card={current} />
@@ -234,6 +237,19 @@ export default function Study() {
             </div>
           )}
         </div>
+      )}
+
+      {editing && current && (
+        <CardEditModal
+          card={current}
+          onClose={() => setEditing(false)}
+          onSaved={(u) => patchCurrent({
+            card_type: u.card_type, front: u.front, back: u.back, reading: u.reading,
+            article: u.article, plural: u.plural, example: u.example, notes: u.notes,
+            table: u.table, genders: u.genders, tags: u.tags, language: u.language,
+            images: u.images,
+          })}
+        />
       )}
     </div>
   );

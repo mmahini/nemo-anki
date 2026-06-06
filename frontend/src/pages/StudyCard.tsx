@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { answerCard, colourizeCard, fetchCardForReview, findCardImage, type Card } from "../auth/api";
 import { CardBack, CardFront } from "../components/CardFace";
+import CardEditModal from "../components/CardEditModal";
 import { promptSpeech } from "../lib/cardSpeech";
 import { speak } from "../lib/tts";
 
@@ -25,6 +26,7 @@ export default function StudyCard() {
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const shownAt = useRef<number>(Date.now());
 
@@ -86,6 +88,7 @@ export default function StudyCard() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (editing) return; // let the editor own the keyboard
       if (e.key === "Escape") return back();
       if (done || !card) return;
       if (!flipped) {
@@ -104,7 +107,7 @@ export default function StudyCard() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [card, flipped, done, grade, back]);
+  }, [card, flipped, done, grade, back, editing]);
 
   if (loading) return <div className="study"><div className="panel">Loading…</div></div>;
 
@@ -130,6 +133,7 @@ export default function StudyCard() {
           <div className="cardtools">
             <button className="cardtools__btn" title="Colourise (German article / genders)" disabled={busy} onClick={colourise}>🎨</button>
             <button className="cardtools__btn" title="Find an image" disabled={busy} onClick={findImage}>🖼️</button>
+            <button className="cardtools__btn" title="Edit this card" onClick={() => setEditing(true)}>✎</button>
           </div>
           <div className={`reviewcard ${flipped ? "is-flipped" : ""}`}>
             <CardFront card={card} />
@@ -153,6 +157,14 @@ export default function StudyCard() {
             </div>
           )}
         </div>
+      )}
+
+      {editing && card && (
+        <CardEditModal
+          card={card}
+          onClose={() => setEditing(false)}
+          onSaved={(u) => setCard((c) => (c ? { ...u, intervals: c.intervals } : u))}
+        />
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import {
   analyzeGerman,
   enrichCard,
   type Article,
+  type Card,
   type CardType,
   type DraftCard,
 } from "../auth/api";
@@ -29,6 +30,24 @@ export function emptyDraft(language: "de" | "en" | "" = "", card_type: CardType 
     table: null,
     genders: [],
     tags: [],
+  };
+}
+
+/** Snapshot a saved card's editable content into a draft for the editor. */
+export function cardToDraft(c: Card): DraftCard {
+  return {
+    card_type: c.card_type,
+    language: c.language as DraftCard["language"],
+    front: c.front,
+    back: c.back,
+    reading: c.reading,
+    article: c.article,
+    plural: c.plural,
+    example: c.example,
+    notes: c.notes,
+    table: c.table,
+    genders: c.genders,
+    tags: c.tags,
   };
 }
 
