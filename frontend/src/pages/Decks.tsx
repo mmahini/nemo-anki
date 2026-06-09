@@ -23,6 +23,7 @@ export default function Decks() {
   const [renamingDeck, setRenamingDeck] = useState<number | null>(null);
   const [renameVal, setRenameVal] = useState("");
   const [openMenu, setOpenMenu] = useState<number | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -217,14 +218,19 @@ export default function Decks() {
                       <button
                         className="btn btn--ghost btn--sm deckmenu-btn"
                         aria-label="More actions"
-                        onClick={() => setOpenMenu(openMenu === d.id ? null : d.id)}
+                        onClick={(e) => {
+                          if (openMenu === d.id) return setOpenMenu(null);
+                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          setMenuPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+                          setOpenMenu(d.id);
+                        }}
                       >
                         ⋯
                       </button>
-                      {openMenu === d.id && (
+                      {openMenu === d.id && menuPos && (
                         <>
                           <div className="menu-overlay" onClick={() => setOpenMenu(null)} />
-                          <div className="deckmenu">
+                          <div className="deckmenu" style={{ top: menuPos.top, right: menuPos.right }}>
                             <button onClick={() => { setOpenMenu(null); setRenameVal(d.name); setRenamingDeck(d.id); }}>✎ Rename</button>
                             <button onClick={() => { setOpenMenu(null); setLangDeck(d.id); }}>🌐 Language{d.language ? ` (${d.language.toUpperCase()})` : ""}</button>
                             <button onClick={() => { setOpenMenu(null); setMovingDeck(d.id); }}>↪ Move</button>
