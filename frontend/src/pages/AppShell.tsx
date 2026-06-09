@@ -14,6 +14,7 @@ export default function AppShell() {
           <NavLink to="/app" end className="shell__link">Decks</NavLink>
           <NavLink to="/app/books" className="shell__link">Books</NavLink>
           <NavLink to="/app/import" className="shell__link">Import</NavLink>
+          <NavLink to="/app/write" className="shell__link">Writing</NavLink>
         </nav>
         <div className="shell__user">
           <span className="shell__email">{user?.email}</span>

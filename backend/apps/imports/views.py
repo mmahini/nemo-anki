@@ -12,7 +12,7 @@ from apps.cards.models import Card, CardImage
 from apps.decks.models import Deck, DeckConfig
 
 from . import anki
-from .gemini import analyze_german, enrich_card, parse_text
+from .gemini import analyze_german, enrich_card, parse_text, writing_check, writing_topic
 
 
 class ParseRequestSerializer(serializers.Serializer):
@@ -245,5 +245,67 @@ class AnkiImportView(APIView):
                 "img_truncated": parsed.get("img_truncated", False),
                 "max_notes": anki.MAX_NOTES,
             },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+# Writing practice -----------------------------------------------------------
+class WritingTopicView(APIView):
+    """Suggest one short writing-practice topic for a chosen language."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        language = (request.data.get("language") or "").strip()
+        return Response(writing_topic(language), status=status.HTTP_200_OK)
+
+
+class WritingCheckView(APIView):
+    """Correct a piece of writing; return per-issue corrections + explanations."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        text = request.data.get("text") or ""
+        language = (request.data.get("language") or "").strip()
+        if not text.strip():
+            return Response({"detail": "Write something first."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(writing_check(text, language), status=status.HTTP_200_OK)
+
+
+class WritingToCardView(APIView):
+    """Turn one writing issue into a sentence card in the per-language deck
+    'Writing problems (<lang>)' (created on demand)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        language = (request.data.get("language") or "").strip()
+        front = (request.data.get("front") or "").strip()
+        if not front:
+            return Response({"detail": "Nothing to add."}, status=status.HTTP_400_BAD_REQUEST)
+        back = (request.data.get("back") or "").strip()
+        notes = (request.data.get("notes") or "").strip()
+
+        cfg, _ = DeckConfig.objects.get_or_create(user=request.user, name="Default")
+        deck, _ = Deck.objects.get_or_create(
+            user=request.user,
+            parent=None,
+            name=f"Writing problems ({language or '?'})",
+            defaults={"config": cfg, "language": language},
+        )
+        last = Card.objects.filter(deck=deck).order_by("-position").first()
+        card = Card.objects.create(
+            deck=deck,
+            card_type="sentence",
+            language=language,
+            front=front,
+            back=back,
+            notes=notes,
+            position=(last.position + 1) if last else 0,
+        )
+        return Response(
+            {"card_id": card.id, "deck_id": deck.id, "deck_name": deck.full_name},
             status=status.HTTP_201_CREATED,
         )

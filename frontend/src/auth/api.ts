@@ -597,3 +597,32 @@ export function analyzeGerman(text: string): Promise<{ nouns: NounGender[]; sour
     body: JSON.stringify({ text }),
   });
 }
+
+// ====== Writing practice ======
+
+export type WritingIssue = {
+  original: string;
+  correction: string;
+  type: string;
+  explanation: string;
+};
+
+export function writingTopic(language: string): Promise<{ topic: string; en: string }> {
+  return jsonRequest("/api/writing/topic/", { method: "POST", body: JSON.stringify({ language }) });
+}
+
+export function writingCheck(
+  text: string,
+  language: string,
+): Promise<{ feedback: string; issues: WritingIssue[] }> {
+  return jsonRequest("/api/writing/check/", { method: "POST", body: JSON.stringify({ text, language }) });
+}
+
+export function writingToCard(payload: {
+  language: string;
+  front: string;
+  back?: string;
+  notes?: string;
+}): Promise<{ card_id: number; deck_id: number; deck_name: string }> {
+  return jsonRequest("/api/writing/card/", { method: "POST", body: JSON.stringify(payload) });
+}

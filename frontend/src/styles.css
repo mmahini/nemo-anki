@@ -523,6 +523,25 @@ kbd {
 .import__item { display: flex; gap: 8px; align-items: flex-start; }
 .import__item .cardeditor { flex: 1; }
 
+/* Writing practice */
+.writing__bar { display: flex; align-items: flex-end; gap: 12px; margin: 10px 0 14px; }
+.writing__topic { display: flex; flex-direction: column; gap: 4px; margin: 0 0 14px; }
+.writing__topicen { color: var(--ink-faint); font-size: 0.85rem; }
+.writing__textarea { min-height: 200px; }
+.writing__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 4px; }
+.writing__count { color: var(--ink-faint); font-size: 0.85rem; }
+.writing__feedback { margin: 14px 0; font-weight: 600; }
+.writing__clean { margin: 14px 0; }
+.writing__issueshead { display: flex; flex-direction: column; gap: 2px; margin: 18px 0 10px; }
+.writing__issues { display: flex; flex-direction: column; gap: 10px; }
+.issue { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.issue__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.issue__added { color: var(--good); font-weight: 600; font-size: 0.82rem; }
+.issue__bad { color: var(--again); text-decoration: line-through; text-decoration-thickness: 1px; }
+.issue__good { color: var(--good); font-weight: 700; }
+.issue__why { color: var(--ink-soft); font-size: 0.9rem; }
+.writing__hint { color: var(--ink-faint); font-size: 0.85rem; margin-top: 14px; }
+
 /* Tabs */
 .tabs { display: flex; gap: 4px; margin-top: 10px; }
 .tab { border: none; background: var(--line-soft); color: var(--ink-soft); font: inherit; font-weight: 600; padding: 8px 16px; border-radius: 999px; cursor: pointer; }

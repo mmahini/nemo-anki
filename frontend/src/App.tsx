@@ -14,6 +14,7 @@ import Books from "./pages/Books";
 import BookPage from "./pages/BookPage";
 import Study from "./pages/Study";
 import StudyCard from "./pages/StudyCard";
+import Writing from "./pages/Writing";
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/app/books" element={<Books />} />
               <Route path="/app/books/:bookId" element={<BookPage />} />
               <Route path="/app/import" element={<ImportPage />} />
+              <Route path="/app/write" element={<Writing />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

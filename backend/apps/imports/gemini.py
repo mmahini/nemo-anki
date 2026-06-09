@@ -195,6 +195,102 @@ def analyze_german(text: str) -> dict:
         return {"nouns": [], "source": f"error:{exc.__class__.__name__}"}
 
 
+# ---- Writing practice (topic suggestion + correction) ----
+_WRITING_LANGS = {
+    "de": "German", "en": "English", "fr": "French", "es": "Spanish",
+    "it": "Italian", "fa": "Persian", "tr": "Turkish",
+}
+
+
+def _writing_lang_name(code: str) -> str:
+    return _WRITING_LANGS.get(code, code or "the target language")
+
+
+def _gemini_text(prompt: str, timeout: int = 30) -> str:
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json"},
+    }
+    res = requests.post(url, json=payload, timeout=timeout)
+    res.raise_for_status()
+    return res.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+
+def writing_topic(language: str) -> dict:
+    """Suggest one short writing-practice topic for a learner of `language`."""
+    name = _writing_lang_name(language)
+    if not settings.GEMINI_API_KEY:
+        return {"topic": f"Schreibe über deinen Tag." if language == "de" else f"Write a short paragraph about your day.",
+                "en": "Write a short paragraph about your day."}
+    prompt = (
+        f"Suggest ONE short, engaging writing-practice topic for a {name} learner "
+        f"(about A2-B1 level). Return ONLY JSON: "
+        f'{{"topic": "<the prompt written in {name}>", "en": "<English translation>"}}. '
+        f"One concrete sentence. No markdown."
+    )
+    try:
+        obj = _extract_json_object(_gemini_text(prompt))
+        topic = str(obj.get("topic", "")).strip()
+        if not topic:
+            raise ValueError("empty")
+        return {"topic": topic, "en": str(obj.get("en", "")).strip()}
+    except Exception:  # noqa: BLE001
+        return {"topic": f"Write a short paragraph in {name} about your weekend.", "en": ""}
+
+
+_WRITING_TYPES = {
+    "grammar", "spelling", "word order", "article", "case",
+    "preposition", "vocabulary", "punctuation", "style", "agreement",
+}
+
+
+def writing_check(text: str, language: str) -> dict:
+    """Return {feedback, issues:[{original, correction, type, explanation}]}."""
+    text = (text or "").strip()
+    if not text:
+        return {"feedback": "", "issues": []}
+    name = _writing_lang_name(language)
+    if not settings.GEMINI_API_KEY:
+        return {"feedback": "AI is not configured.", "issues": []}
+    prompt = (
+        f"You are a {name} writing tutor. Find the mistakes in the student's text below. "
+        f"Return ONLY a JSON object:\n"
+        f'{{"feedback": "<one short encouraging overall note in English>", '
+        f'"issues": [{{"original": "<the exact problematic word/phrase/sentence copied from the text>", '
+        f'"correction": "<the corrected {name} version>", '
+        f'"type": "<one of: grammar, spelling, word order, article, case, preposition, vocabulary, punctuation, style, agreement>", '
+        f'"explanation": "<one short English explanation of the mistake>"}}]}}\n'
+        f"Only include real mistakes. If the text is correct, return an empty issues array. "
+        f"No markdown, no commentary.\n\nTEXT:\n{text[:4000]}"
+    )
+    try:
+        obj = _extract_json_object(_gemini_text(prompt, timeout=45))
+    except Exception as exc:  # noqa: BLE001
+        return {"feedback": "", "issues": [], "source": f"error:{exc.__class__.__name__}"}
+    issues = []
+    for it in obj.get("issues") or []:
+        if not isinstance(it, dict):
+            continue
+        original = str(it.get("original", "")).strip()
+        correction = str(it.get("correction", "")).strip()
+        if not (original or correction):
+            continue
+        t = str(it.get("type", "")).strip().lower()
+        issues.append(
+            {
+                "original": original,
+                "correction": correction,
+                "type": t if t in _WRITING_TYPES else "grammar",
+                "explanation": str(it.get("explanation", "")).strip(),
+            }
+        )
+    return {"feedback": str(obj.get("feedback", "")).strip(), "issues": issues}
+
+
 _BATCH_PROMPT = """You are a German teacher. For each item in the INPUT JSON array \
 decide the noun gender(s). Return ONLY a JSON array with exactly one object per \
 input item, keeping the same "i" index:
