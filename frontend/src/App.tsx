@@ -15,11 +15,13 @@ import BookPage from "./pages/BookPage";
 import Study from "./pages/Study";
 import StudyCard from "./pages/StudyCard";
 import Writing from "./pages/Writing";
+import BackendStatus from "./components/BackendStatus";
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <BackendStatus />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth/sign-in" element={<SignIn />} />

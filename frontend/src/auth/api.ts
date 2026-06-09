@@ -20,6 +20,46 @@ const _state: AuthConfig = {
 
 const API_BASE_URL = ((import.meta as any).env.VITE_API_URL ?? "") as string;
 
+// The backend runs on a free instance that sleeps after inactivity and takes a
+// while to wake. Rather than failing the first request with a scary error, we
+// retry transparently with backoff and broadcast a "waking" status so the UI
+// can show a friendly banner.
+const WAKE_RETRY_DELAYS = [1200, 2500, 4000, 5000, 6000, 8000, 8000]; // ~35s total
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function emitWaking(on: boolean) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("nemo:waking", { detail: on }));
+  }
+}
+
+/** fetch() that rides out a cold start: retries when the network call fails
+ * (the proxy 502s before CORS headers, so fetch rejects) or on 502/503/504. */
+async function fetchResilient(url: string, init: RequestInit): Promise<Response> {
+  const isGet = (init.method ?? "GET").toUpperCase() === "GET";
+  let waking = false;
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await fetch(url, init);
+        if (isGet && [502, 503, 504].includes(res.status) && attempt < WAKE_RETRY_DELAYS.length) {
+          if (!waking) emitWaking((waking = true));
+          await sleep(WAKE_RETRY_DELAYS[attempt]);
+          continue;
+        }
+        return res;
+      } catch (err) {
+        if (attempt >= WAKE_RETRY_DELAYS.length) throw err;
+        if (!waking) emitWaking((waking = true));
+        await sleep(WAKE_RETRY_DELAYS[attempt]);
+      }
+    }
+  } finally {
+    if (waking) emitWaking(false);
+  }
+}
+
 export function configureAuth(opts: Partial<AuthConfig>) {
   if (opts.tokens !== undefined) _state.tokens = opts.tokens;
   if (opts.onTokensChange !== undefined) _state.onTokensChange = opts.onTokensChange;
@@ -64,7 +104,7 @@ export async function refreshAccessToken(): Promise<string | null> {
 
   let res: Response;
   try {
-    res = await fetch(API_BASE_URL + "/api/auth/refresh", {
+    res = await fetchResilient(API_BASE_URL + "/api/auth/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh }),
@@ -99,7 +139,7 @@ async function jsonRequest<T>(path: string, init: RequestInit): Promise<T> {
 
   let res: Response;
   try {
-    res = await fetch(API_BASE_URL + path, { ...init, headers: buildHeaders(getAccessToken()) });
+    res = await fetchResilient(API_BASE_URL + path, { ...init, headers: buildHeaders(getAccessToken()) });
   } catch (err) {
     throw new NetworkError(
       "Network error: " + (err instanceof Error ? err.message : String(err)),
@@ -109,7 +149,7 @@ async function jsonRequest<T>(path: string, init: RequestInit): Promise<T> {
   if (res.status === 401 && _state.tokens?.refresh && !path.startsWith("/api/auth/")) {
     const fresh = await refreshAccessToken();
     if (fresh) {
-      res = await fetch(API_BASE_URL + path, { ...init, headers: buildHeaders(fresh) });
+      res = await fetchResilient(API_BASE_URL + path, { ...init, headers: buildHeaders(fresh) });
     } else {
       _state.onAuthFailed?.();
     }

@@ -523,6 +523,21 @@ kbd {
 .import__item { display: flex; gap: 8px; align-items: flex-start; }
 .import__item .cardeditor { flex: 1; }
 
+/* Backend wake-up banner */
+.wakebanner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 10px 16px; font-size: 0.88rem; font-weight: 600;
+  background: var(--brand); color: #fff; text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+.wakebanner__spinner {
+  width: 15px; height: 15px; flex: none; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.45); border-top-color: #fff;
+  animation: wakespin 0.8s linear infinite;
+}
+@keyframes wakespin { to { transform: rotate(360deg); } }
+
 /* Writing practice */
 .writing__bar { display: flex; align-items: flex-end; gap: 12px; margin: 10px 0 14px; }
 .writing__topic { display: flex; flex-direction: column; gap: 4px; margin: 0 0 14px; }
