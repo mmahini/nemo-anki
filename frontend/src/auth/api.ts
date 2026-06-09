@@ -164,6 +164,7 @@ export type NounGender = {
   article?: string;
   case?: string; // Nominativ | Akkusativ | Dativ | Genitiv
   reason?: string;
+  trigger?: string; // the word that forces the case (preposition/verb)
 };
 
 export type DeckCounts = { new: number; learning: number; due: number; total: number };

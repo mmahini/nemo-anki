@@ -41,6 +41,16 @@ export default function GermanText({
   const tokens = text.split(/(\s+|[.,!?;:„""'»«()\[\]\-])/).filter((t) => t !== "");
   const cls = new Array<string>(tokens.length).fill("");
 
+  // Words that force a case (prepositions / governing verbs) — highlighted in a
+  // distinct colour so the learner sees *why* a noun is Akkusativ/Dativ/etc.
+  const triggers = new Set<string>();
+  for (const g of genders) {
+    for (const w of (g.trigger || "").split(/\s+/)) {
+      const n = norm(w);
+      if (n && !ARTICLE_WORDS.has(n)) triggers.add(n);
+    }
+  }
+
   const queue = [...genders];
   const wordIdx: number[] = []; // indices of word tokens, to scan back for the article
   tokens.forEach((tok, i) => {
@@ -57,6 +67,8 @@ export default function GermanText({
           break;
         }
       }
+    } else if (!cls[i] && triggers.has(norm(tok))) {
+      cls[i] = "trigger-word";
     }
   });
 

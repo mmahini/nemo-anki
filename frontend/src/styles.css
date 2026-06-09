@@ -53,6 +53,7 @@
   --art-die: #e23b54;   /* feminine  — red   */
   --art-das: #1f9d57;   /* neuter    — green */
   --art-plural: #8a63d2;
+  --trigger: #d97706;   /* case-trigger word — amber */
 
   /* Grade buttons */
   --again: #e23b54;
@@ -146,6 +147,7 @@ kbd {
 .art-die { color: var(--art-die); }
 .art-das { color: var(--art-das); }
 .art-plural { color: var(--art-plural); }
+.trigger-word { color: var(--trigger); font-weight: 700; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
 
 .pill {
   display: inline-flex;

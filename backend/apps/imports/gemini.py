@@ -137,6 +137,9 @@ Frau is "die").
 - "reason": a short, beginner-friendly English explanation of WHY that case is \
 used (e.g. "subject of the sentence", "direct object of geben", "indirect \
 object (to whom)", "after the preposition mit, which always takes Dativ").
+- "trigger": the exact word, copied verbatim from the sentence, that FORCES \
+this case — the preposition before the noun (e.g. "mit","für","in","aus") or \
+the governing verb for an object; use "" for a plain subject (Nominativ).
 
 Include only nouns. No markdown, no commentary.
 
@@ -184,6 +187,7 @@ def analyze_german(text: str) -> dict:
                     "article": str(it.get("article", "")).strip(),
                     "case": case,
                     "reason": str(it.get("reason", "")).strip(),
+                    "trigger": str(it.get("trigger", "")).strip(),
                 }
             )
         return {"nouns": nouns, "source": "gemini"}

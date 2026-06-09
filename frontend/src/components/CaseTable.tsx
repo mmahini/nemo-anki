@@ -25,7 +25,11 @@ export default function CaseTable({ items }: { items: NounGender[] }) {
             <td className={`casetable__word ${articleClass(n.gender)}`}>{n.noun}</td>
             <td className={articleClass(n.gender)}>{n.article || "—"}</td>
             <td>{n.case && <span className={`casebadge casebadge--${n.case}`}>{n.case}</span>}</td>
-            <td className="casetable__why">{n.reason}</td>
+            <td className="casetable__why">
+              {n.trigger && <span className="trigger-word">{n.trigger}</span>}
+              {n.trigger && n.reason ? " — " : ""}
+              {n.reason}
+            </td>
           </tr>
         ))}
       </tbody>
