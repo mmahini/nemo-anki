@@ -187,3 +187,9 @@ SIMPLE_JWT = {
 # When unset, the import endpoint falls back to a deterministic line parser.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+# Resend — transactional email for sign-in OTP codes. When RESEND_API_KEY is
+# set the code is emailed (and never returned in the API response); otherwise
+# (local dev) the code is surfaced as `dev_code` so sign-in still works offline.
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+OTP_FROM_EMAIL = os.getenv("OTP_FROM_EMAIL", "Nemo Anki <noreply@nemoapps.xyz>")

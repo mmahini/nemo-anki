@@ -43,6 +43,12 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
+      # Resend — emails sign-in OTP codes (domain nemoapps.xyz). Without the key
+      # the code is returned as dev_code; with it, the code is emailed only.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: OTP_FROM_EMAIL
+        value: Nemo Anki <noreply@nemoapps.xyz>
       # Cloudflare R2 (media: book + per-lesson PDFs). When all are set,
       # settings.py serves uploads from R2 and file .url is the public R2 URL —
       # required in prod so lesson PDFs load from the Vercel frontend.

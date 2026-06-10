@@ -179,6 +179,7 @@ export type AuthUser = {
 export type RequestOtpResponse = {
   otp_id: string;
   expires_at: string;
+  emailed?: boolean;
   dev_code?: string;
 };
 

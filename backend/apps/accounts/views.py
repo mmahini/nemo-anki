@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .email import send_otp_email
 from .models import EmailOTP, User
 from .serializers import RequestOTPSerializer, UserSerializer, VerifyOTPSerializer
 
@@ -28,13 +29,16 @@ class RequestOTPView(APIView):
 
         otp = EmailOTP.issue(email=email)
 
-        # No email delivery yet — surface the code to the client so the
-        # Verify page can show it to the user.
+        emailed = send_otp_email(email, otp.code)
         payload = {
             "otp_id": str(otp.id),
             "expires_at": otp.expires_at.isoformat(),
-            "dev_code": otp.code,
+            "emailed": emailed,
         }
+        # Only surface the code when we couldn't email it (local dev / no key),
+        # so production never leaks codes in the API response.
+        if not emailed:
+            payload["dev_code"] = otp.code
         return Response(payload, status=status.HTTP_201_CREATED)
 
 

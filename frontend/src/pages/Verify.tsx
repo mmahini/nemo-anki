@@ -45,7 +45,9 @@ export default function Verify() {
       <div className="auth__card">
         <h1>Enter your code</h1>
         <p className="auth__sub">
-          We generated a 5-digit code{state.email ? ` for ${state.email}` : ""}.
+          {state.devCode
+            ? `We generated a 5-digit code${state.email ? ` for ${state.email}` : ""}.`
+            : `We've emailed a 5-digit code${state.email ? ` to ${state.email}` : ""}. Check your inbox (and spam) and enter it below.`}
         </p>
 
         {state.devCode && (
@@ -53,7 +55,7 @@ export default function Verify() {
             <span className="dev-banner__label">DEV — your code is</span>
             <span className="dev-banner__code">{state.devCode}</span>
             <span className="dev-banner__note">
-              Email delivery isn't wired yet, so we're showing it here.
+              No email key configured here, so we're showing it for local testing.
             </span>
           </div>
         )}
