@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nemo Apps — small tools that help you learn</title>
+    <meta
+      name="description"
+      content="Nemo Apps — a small family of focused learning tools. Starting with Nemo Anki, spaced-repetition flashcards for languages."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🐠%3C/text%3E%3C/svg%3E" />
+    <style>
+      :root {
+        --brand: #4c6ef5;
+        --brand-dark: #3b5bdb;
+        --ink: #1a1f2e;
+        --ink-soft: #4a5168;
+        --ink-faint: #8a90a2;
+        --bg: #f6f7fb;
+        --surface: #ffffff;
+        --line: #e6e8ef;
+        --radius: 18px;
+        --shadow: 0 10px 30px rgba(28, 40, 80, 0.08);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(1200px 600px at 80% -10%, rgba(76, 110, 245, 0.12), transparent 60%),
+          radial-gradient(900px 500px at -10% 10%, rgba(138, 99, 210, 0.10), transparent 55%),
+          var(--bg);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        line-height: 1.55;
+      }
+      a { color: inherit; text-decoration: none; }
+      .wrap { width: 100%; max-width: 860px; margin: 0 auto; padding: 0 22px; }
+
+      header { padding: 22px 0; }
+      .brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 800; font-size: 1.15rem; }
+      .brand__logo { font-size: 1.4rem; }
+
+      main { flex: 1; display: flex; align-items: center; }
+      .hero { padding: 28px 0 56px; width: 100%; }
+      .eyebrow {
+        display: inline-block; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em;
+        text-transform: uppercase; color: var(--brand-dark);
+        background: rgba(76, 110, 245, 0.12); padding: 5px 12px; border-radius: 999px;
+      }
+      h1 { font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.08; margin: 18px 0 12px; letter-spacing: -0.02em; }
+      .lede { font-size: 1.12rem; color: var(--ink-soft); max-width: 560px; margin: 0 0 34px; }
+
+      .apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+      .app {
+        display: flex; flex-direction: column; gap: 8px;
+        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+        padding: 22px; box-shadow: var(--shadow); transition: transform 0.12s ease, box-shadow 0.12s ease;
+      }
+      .app--live:hover { transform: translateY(-3px); box-shadow: 0 16px 40px rgba(28, 40, 80, 0.12); }
+      .app__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .app__name { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.15rem; }
+      .app__emoji { font-size: 1.5rem; }
+      .tag { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 9px; border-radius: 999px; }
+      .tag--live { color: #1f9d57; background: rgba(31, 157, 87, 0.12); }
+      .tag--soon { color: var(--ink-faint); background: var(--line); }
+      .app__desc { color: var(--ink-soft); font-size: 0.96rem; margin: 0; }
+      .app__cta { margin-top: 8px; align-self: flex-start; font-weight: 700; color: var(--brand-dark); }
+      .app--soon { opacity: 0.72; }
+
+      footer { padding: 26px 0 34px; color: var(--ink-faint); font-size: 0.85rem; }
+      footer .wrap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <span class="brand"><span class="brand__logo">🐠</span> Nemo&nbsp;Apps</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero wrap">
+        <span class="eyebrow">Learn · Remember · Repeat</span>
+        <h1>Small apps that help things stick.</h1>
+        <p class="lede">
+          Nemo Apps is a tiny family of focused learning tools — no clutter, no noise,
+          just the few things that actually help you learn and remember.
+        </p>
+
+        <div class="apps">
+          <a class="app app--live" href="https://nemo-anki.vercel.app" target="_blank" rel="noopener">
+            <div class="app__top">
+              <span class="app__name"><span class="app__emoji">🗂️</span> Nemo Anki</span>
+              <span class="tag tag--live">Live</span>
+            </div>
+            <p class="app__desc">
+              Spaced-repetition flashcards for languages — colour-coded German articles,
+              two-sided cards, photos, book &amp; Anki import, and a writing tutor.
+            </p>
+            <span class="app__cta">Open the app →</span>
+          </a>
+
+          <div class="app app--soon">
+            <div class="app__top">
+              <span class="app__name"><span class="app__emoji">✨</span> More soon</span>
+              <span class="tag tag--soon">In the works</span>
+            </div>
+            <p class="app__desc">More small, focused learning tools are on the way.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>© <span id="y"></span> Nemo Apps</span>
+        <span>nemoapps.xyz</span>
+      </div>
+    </footer>
+    <script>document.getElementById("y").textContent = new Date().getFullYear();</script>
+  </body>
+</html>
