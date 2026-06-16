@@ -4,6 +4,8 @@
  * on 401. AuthContext is the only writer via `configureAuth(...)`.
  */
 
+import { cdpTrack } from "../lib/cdp-pixel";
+
 export type AuthTokens = { access: string; refresh: string };
 
 type AuthConfig = {
@@ -306,6 +308,9 @@ export function createDeck(payload: {
   return jsonRequest<Deck>("/api/decks/", {
     method: "POST",
     body: JSON.stringify(payload),
+  }).then((deck) => {
+    cdpTrack("feature_used", { feature: "deck_create" });
+    return deck;
   });
 }
 
@@ -343,6 +348,9 @@ export function createCard(payload: Partial<Card> & { deck: number; front: strin
   return jsonRequest<Card>("/api/cards/", {
     method: "POST",
     body: JSON.stringify(payload),
+  }).then((card) => {
+    cdpTrack("feature_used", { feature: "card_create" });
+    return card;
   });
 }
 
@@ -383,9 +391,12 @@ export function deleteCardImage(cardId: number, imageId: number): Promise<void> 
 }
 
 export function bulkCreateCards(deck: number, cards: DraftCard[]): Promise<{ created: number; deck: number }> {
-  return jsonRequest("/api/cards/bulk/", {
+  return jsonRequest<{ created: number; deck: number }>("/api/cards/bulk/", {
     method: "POST",
     body: JSON.stringify({ deck, cards }),
+  }).then((res) => {
+    cdpTrack("feature_used", { feature: "import", count: res.created });
+    return res;
   });
 }
 
