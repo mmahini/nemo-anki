@@ -1,5 +1,7 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
+import { cdpPage } from "./lib/cdp-pixel";
 import { AuthProvider } from "./auth/AuthContext";
 import LandingPage from "./components/LandingPage";
 import ProtectedRoute from "./pages/ProtectedRoute";
@@ -17,10 +19,20 @@ import StudyCard from "./pages/StudyCard";
 import Writing from "./pages/Writing";
 import BackendStatus from "./components/BackendStatus";
 
+// Emit a Wiser CDP pageview on every route change (no-op unless the pixel is configured).
+function CdpRouteTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    cdpPage({ path: location.pathname });
+  }, [location.pathname]);
+  return null;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <CdpRouteTracker />
         <BackendStatus />
         <Routes>
           <Route path="/" element={<LandingPage />} />

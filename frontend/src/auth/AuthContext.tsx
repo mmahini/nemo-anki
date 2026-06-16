@@ -16,6 +16,7 @@ import {
   NetworkError,
   ServerError,
 } from "./api";
+import { cdpIdentify, cdpReset, cdpTrack } from "../lib/cdp-pixel";
 
 const STORAGE_KEY = "nemo-anki.auth";
 const PROACTIVE_REFRESH_MS = 10 * 60 * 1000;
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     configureAuth({ tokens: null });
+    cdpReset(); // Wiser CDP: clear identity for the next user on this device
     setUser(null);
   }, []);
 
@@ -66,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         onAuthFailed: () => signOut(),
       });
       setUser(payload.user);
+      // Wiser CDP: an explicit OTP sign-in is a `login` (identify is handled by the
+      // user effect below, covering both sign-in and session restore).
+      cdpTrack("login");
     },
     [signOut],
   );
@@ -133,6 +138,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Wiser CDP: attach the signed-in user to events whenever it becomes available
+  // (sign-in or restored session), so every event folds into one profile.
+  useEffect(() => {
+    if (!user) return;
+    cdpIdentify({ external_id: String(user.id), email: user.email, name: user.display_name });
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
