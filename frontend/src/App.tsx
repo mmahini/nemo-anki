@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
-import { cdpPage } from "./lib/cdp-pixel";
+import { cdpPage, initCdpPixel } from "./lib/cdp-pixel";
 import { AuthProvider } from "./auth/AuthContext";
 import LandingPage from "./components/LandingPage";
 import ProtectedRoute from "./pages/ProtectedRoute";
@@ -22,6 +22,10 @@ import BackendStatus from "./components/BackendStatus";
 // Emit a Wiser CDP pageview on every route change (no-op unless the pixel is configured).
 function CdpRouteTracker() {
   const location = useLocation();
+  // Start engagement-time tracking + the page_leave beacon once (CDP-9.1).
+  useEffect(() => {
+    initCdpPixel();
+  }, []);
   useEffect(() => {
     cdpPage({ path: location.pathname });
   }, [location.pathname]);
