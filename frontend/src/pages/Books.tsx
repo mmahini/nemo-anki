@@ -23,11 +23,6 @@ export default function Books() {
   const [sourceLang, setSourceLang] = useState<"de" | "en" | "">("en");
   const [transLang, setTransLang] = useState("English");
   const [file, setFile] = useState<File | null>(null);
-  const [label, setLabel] = useState("Unit");
-  const [fromLesson, setFromLesson] = useState("");
-  const [toLesson, setToLesson] = useState("");
-  const [startPage, setStartPage] = useState("");
-  const [pagesPerUnit, setPagesPerUnit] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,23 +46,16 @@ export default function Books() {
       setError("Add a title and choose a file (.txt / .pdf).");
       return;
     }
-    if (file && !(fromLesson && toLesson)) {
-      setError("Enter From and To (e.g. 1 and 100) so the PDF can be split into lessons.");
-      return;
-    }
     setUploading(true);
     setError(null);
     try {
+      // Just create the book + store the file. Splitting a PDF into lessons is
+      // a separate step on the book page (and can be re-run for smaller chunks).
       const book = await uploadBook({
         title: title.trim(),
         source_language: sourceLang,
         translation_language: transLang,
         file,
-        lesson_label: label.trim() || "Unit",
-        from_lesson: fromLesson ? Number(fromLesson) : null,
-        to_lesson: toLesson ? Number(toLesson) : null,
-        start_page: startPage ? Number(startPage) : null,
-        pages_per_unit: pagesPerUnit ? Number(pagesPerUnit) : null,
       });
       setTitle("");
       setFile(null);
@@ -141,40 +129,13 @@ export default function Books() {
           <span className="books__or">Book file (.txt / .pdf)</span>
           <input type="file" accept=".txt,.pdf,text/plain,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         </div>
-        <div className="books__row">
-          <label className="cardeditor__field">
-            <span>Lesson label</span>
-            <input className="input" list="lesson-labels" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Unit" />
-            <datalist id="lesson-labels">
-              <option value="Unit" /><option value="Lesson" /><option value="Lektion" /><option value="Kapitel" /><option value="Chapter" />
-            </datalist>
-          </label>
-          <label className="cardeditor__field">
-            <span>From</span>
-            <input className="input" type="number" min={1} value={fromLesson} onChange={(e) => setFromLesson(e.target.value)} placeholder="1" />
-          </label>
-          <label className="cardeditor__field">
-            <span>To</span>
-            <input className="input" type="number" min={1} value={toLesson} onChange={(e) => setToLesson(e.target.value)} placeholder="100" />
-          </label>
-          <label className="cardeditor__field">
-            <span>First unit page</span>
-            <input className="input" type="number" min={1} value={startPage} onChange={(e) => setStartPage(e.target.value)} placeholder="e.g. 6" />
-          </label>
-          <label className="cardeditor__field">
-            <span>Pages / unit</span>
-            <input className="input" type="number" min={1} value={pagesPerUnit} onChange={(e) => setPagesPerUnit(e.target.value)} placeholder="e.g. 2" />
-          </label>
-        </div>
         <span className="books__hint">
-          Set the page the first unit starts on and how many pages each unit spans —
-          the PDF is sliced into one sub-PDF per lesson. (Leave pages/unit blank to
-          divide the pages evenly across the range.) You can fix any unit later with
-          per-lesson “Re-split”.
+          Upload the book first — then open it to split the PDF into lessons (and
+          re-split into smaller chunks whenever you like).
         </span>
         {error && <p className="auth__error">{error}</p>}
         <button className="btn btn--primary btn--lg" disabled={uploading}>
-          {uploading ? "Splitting…" : file && fromLesson && toLesson ? `Upload & split into ${Math.max(0, Number(toLesson) - Number(fromLesson) + 1)} lessons` : "Upload & split into lessons"}
+          {uploading ? "Uploading…" : "Create book"}
         </button>
       </form>
 

@@ -572,6 +572,9 @@ kbd {
 .books__range legend { font-size: 0.78rem; font-weight: 700; color: var(--ink-soft); padding: 0 6px; }
 .books__range .books__row { align-items: flex-end; }
 .books__hint { font-size: 0.78rem; color: var(--ink-faint); }
+.booksplit { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.booksplit__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.booksplit__form { display: flex; flex-direction: column; gap: 12px; }
 .books__submit { display: flex; gap: 10px; flex-wrap: wrap; }
 .pagemap { max-width: none; }
 .pagemap__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }

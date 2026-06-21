@@ -44,6 +44,12 @@ export default function BookPage() {
   const [regenLessonId, setRegenLessonId] = useState<number | null>(null);
   const [regenL, setRegenL] = useState({ start: "", ppu: "" });
 
+  // Whole-book split (separate from per-lesson "Re-split"). Re-runnable, so the
+  // user can break the book into smaller chunks at any time.
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitting, setSplitting] = useState(false);
+  const [split, setSplit] = useState({ label: "Unit", from: "1", to: "", start: "", ppu: "" });
+
   const [lessonView, setLessonView] = useState<BookLessonDetail | null>(null);
   const [loadingLesson, setLoadingLesson] = useState<number | null>(null);
   const [reviewing, setReviewing] = useState(false);
@@ -88,6 +94,38 @@ export default function BookPage() {
 
   async function processAll() {
     for (const l of book!.lessons.filter((x) => !x.processed)) await process(l);
+  }
+
+  async function doSplit(e: FormEvent) {
+    e.preventDefault();
+    const from = Number(split.from) || 1;
+    const to = Number(split.to);
+    if (!to || to < from) {
+      setError("Enter a valid range — e.g. From 1, To 20.");
+      return;
+    }
+    const had = book!.lessons.length;
+    if (had > 0 && !window.confirm(`Re-split replaces all ${had} current lessons (extracted vocab is cleared). Continue?`)) {
+      return;
+    }
+    setSplitting(true);
+    setError(null);
+    try {
+      const updated = await regenerateBook(book!.id, {
+        from_lesson: from,
+        to_lesson: to,
+        start_page: split.start ? Number(split.start) : null,
+        pages_per_unit: split.ppu ? Number(split.ppu) : null,
+        lesson_label: split.label.trim() || "Unit",
+        replace_all: true,
+      });
+      setBook(updated);
+      setSplitOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Split failed.");
+    } finally {
+      setSplitting(false);
+    }
   }
 
   function toggleLessonRegen(l: BookLesson) {
@@ -223,7 +261,63 @@ export default function BookPage() {
       {error && <div className="panel panel--error">{error}</div>}
 
       {tab === "lessons" ? (
-        <ul className="bookblock__lessons bookpage__lessons">
+        <>
+          {owner && book.has_pdf && (
+            <div className="panel booksplit">
+              <div className="booksplit__head">
+                <strong>Split into lessons</strong>
+                {book.lessons.length > 0 && (
+                  <button className="btn btn--ghost btn--sm" onClick={() => setSplitOpen((o) => !o)}>
+                    {splitOpen ? "Cancel" : "Re-split whole book"}
+                  </button>
+                )}
+              </div>
+              {(splitOpen || book.lessons.length === 0) && (
+                <form className="booksplit__form" onSubmit={doSplit}>
+                  <span className="books__hint">
+                    {book.lessons.length === 0
+                      ? "This book hasn't been split yet — slice the PDF into one sub-PDF per lesson."
+                      : "Re-split the whole book (replaces all current lessons) — handy to break it into smaller chunks."}{" "}
+                    Set where the first unit starts and how many pages each spans
+                    (leave pages/unit blank to divide evenly across the range).
+                  </span>
+                  <div className="books__row">
+                    <label className="cardeditor__field">
+                      <span>Lesson label</span>
+                      <input className="input" list="lesson-labels" value={split.label} onChange={(e) => setSplit({ ...split, label: e.target.value })} placeholder="Unit" />
+                      <datalist id="lesson-labels">
+                        <option value="Unit" /><option value="Lesson" /><option value="Lektion" /><option value="Kapitel" /><option value="Chapter" />
+                      </datalist>
+                    </label>
+                    <label className="cardeditor__field">
+                      <span>From</span>
+                      <input className="input" type="number" min={1} value={split.from} onChange={(e) => setSplit({ ...split, from: e.target.value })} placeholder="1" />
+                    </label>
+                    <label className="cardeditor__field">
+                      <span>To</span>
+                      <input className="input" type="number" min={1} value={split.to} onChange={(e) => setSplit({ ...split, to: e.target.value })} placeholder="100" />
+                    </label>
+                    <label className="cardeditor__field">
+                      <span>First unit page</span>
+                      <input className="input" type="number" min={1} value={split.start} onChange={(e) => setSplit({ ...split, start: e.target.value })} placeholder="e.g. 6" />
+                    </label>
+                    <label className="cardeditor__field">
+                      <span>Pages / unit</span>
+                      <input className="input" type="number" min={1} value={split.ppu} onChange={(e) => setSplit({ ...split, ppu: e.target.value })} placeholder="e.g. 2" />
+                    </label>
+                  </div>
+                  <button className="btn btn--primary" disabled={splitting}>
+                    {splitting
+                      ? "Splitting…"
+                      : split.to && Number(split.to) >= (Number(split.from) || 1)
+                        ? `Split into ${Number(split.to) - (Number(split.from) || 1) + 1} lessons`
+                        : "Split into lessons"}
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+          <ul className="bookblock__lessons bookpage__lessons">
           {book.lessons.map((l) => (
             <li key={l.id} className="bookblock__lesson">
               <div className="bookblock__lessonrow">
@@ -267,7 +361,8 @@ export default function BookPage() {
               )}
             </li>
           ))}
-        </ul>
+          </ul>
+        </>
       ) : (
         <div className="panel sharepanel">
           <h2>Share this book</h2>
