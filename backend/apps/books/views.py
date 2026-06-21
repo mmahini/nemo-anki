@@ -67,10 +67,6 @@ class RegenerateSerializer(serializers.Serializer):
     pages_per_unit = serializers.IntegerField(required=False, allow_null=True, default=None)
     start_page = serializers.IntegerField(required=False, allow_null=True, default=None)
     lesson_label = serializers.CharField(max_length=40, required=False, allow_blank=True, default="Unit")
-    # Whole-book split: drop ALL existing lessons first (so the book can be
-    # re-split into smaller chunks). Default keeps the per-lesson behaviour of
-    # replacing only the units in [from..to].
-    replace_all = serializers.BooleanField(required=False, default=False)
 
 
 class BookAnalyzeSerializer(serializers.Serializer):
@@ -275,15 +271,11 @@ class BookRegenerateView(APIView):
             from_n, to_n, int(v.get("start_page") or 1), v.get("pages_per_unit"), None,
         )
 
-        if v.get("replace_all"):
-            # Whole-book (re-)split: clear every existing lesson first.
-            book.lessons.all().delete()
-        else:
-            # Replace ONLY the units in [from..to]; keep every other lesson intact.
-            replace = set(range(from_n, to_n + 1))
-            for l in list(book.lessons.all()):
-                if _title_num(l.title) in replace:
-                    l.delete()
+        # Replace ONLY the units in [from..to]; keep every other lesson intact.
+        replace = set(range(from_n, to_n + 1))
+        for l in list(book.lessons.all()):
+            if _title_num(l.title) in replace:
+                l.delete()
         for l in new_lessons:
             bl = BookLesson(
                 book=book, title=l["title"], position=0, raw_text=l["raw_text"],

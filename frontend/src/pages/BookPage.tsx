@@ -104,8 +104,13 @@ export default function BookPage() {
       setError("Enter a valid range — e.g. From 1, To 20.");
       return;
     }
-    const had = book!.lessons.length;
-    if (had > 0 && !window.confirm(`Re-split replaces all ${had} current lessons (extracted vocab is cleared). Continue?`)) {
+    // Only lessons whose unit number falls in [from..to] are replaced; the rest
+    // are kept. Warn if any existing lesson sits in that range (its vocab clears).
+    const overlap = book!.lessons.filter((l) => {
+      const n = lessonNum(l.title);
+      return n >= from && n <= to;
+    }).length;
+    if (overlap > 0 && !window.confirm(`Re-splitting replaces ${overlap} lesson${overlap === 1 ? "" : "s"} in units ${from}–${to} (their extracted vocab is cleared). Other lessons are kept. Continue?`)) {
       return;
     }
     setSplitting(true);
@@ -117,7 +122,6 @@ export default function BookPage() {
         start_page: split.start ? Number(split.start) : null,
         pages_per_unit: split.ppu ? Number(split.ppu) : null,
         lesson_label: split.label.trim() || "Unit",
-        replace_all: true,
       });
       setBook(updated);
       setSplitOpen(false);
@@ -268,7 +272,7 @@ export default function BookPage() {
                 <strong>Split into lessons</strong>
                 {book.lessons.length > 0 && (
                   <button className="btn btn--ghost btn--sm" onClick={() => setSplitOpen((o) => !o)}>
-                    {splitOpen ? "Cancel" : "Re-split whole book"}
+                    {splitOpen ? "Cancel" : "Split more lessons"}
                   </button>
                 )}
               </div>
@@ -277,7 +281,7 @@ export default function BookPage() {
                   <span className="books__hint">
                     {book.lessons.length === 0
                       ? "This book hasn't been split yet — slice the PDF into one sub-PDF per lesson."
-                      : "Re-split the whole book (replaces all current lessons) — handy to break it into smaller chunks."}{" "}
+                      : "Split another range into lessons — only the units in From–To are (re)created; your other lessons stay."}{" "}
                     Set where the first unit starts and how many pages each spans
                     (leave pages/unit blank to divide evenly across the range).
                   </span>
