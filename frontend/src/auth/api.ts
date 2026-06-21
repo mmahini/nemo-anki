@@ -602,7 +602,9 @@ export function updateBook(
   return jsonRequest<Book>(`/api/books/${id}/`, { method: "PATCH", body: JSON.stringify(payload) });
 }
 
-/** Re-split the book's stored PDF with new page settings (replaces lessons). */
+/** Re-split the book's stored PDF with new page settings (replaces lessons).
+ * Pass `replace_all` to drop every existing lesson first — a whole-book split
+ * that can be re-run to break the book into smaller chunks. */
 export function regenerateBook(
   bookId: number,
   payload: {
@@ -611,6 +613,7 @@ export function regenerateBook(
     pages_per_unit?: number | null;
     start_page?: number | null;
     lesson_label?: string;
+    replace_all?: boolean;
   },
 ): Promise<Book> {
   return jsonRequest<Book>(`/api/books/${bookId}/regenerate/`, {

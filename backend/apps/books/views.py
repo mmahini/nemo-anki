@@ -67,6 +67,10 @@ class RegenerateSerializer(serializers.Serializer):
     pages_per_unit = serializers.IntegerField(required=False, allow_null=True, default=None)
     start_page = serializers.IntegerField(required=False, allow_null=True, default=None)
     lesson_label = serializers.CharField(max_length=40, required=False, allow_blank=True, default="Unit")
+    # Whole-book split: drop ALL existing lessons first (so the book can be
+    # re-split into smaller chunks). Default keeps the per-lesson behaviour of
+    # replacing only the units in [from..to].
+    replace_all = serializers.BooleanField(required=False, default=False)
 
 
 class BookAnalyzeSerializer(serializers.Serializer):
@@ -130,7 +134,13 @@ class BookListView(APIView):
         has_range = from_n is not None and to_n is not None
         page_map_raw = (d.get("page_map") or "").strip()
 
+        # Splitting a PDF into lessons is now a separate step (on the book page),
+        # so a plain PDF upload just stores the book + its source PDF with no
+        # lessons yet. Splitting params are still honoured if supplied (legacy /
+        # one-shot uploads). Text/.txt has no stored PDF to re-split later, so it
+        # is still segmented by headings here.
         capped = False
+        lessons = None  # None → don't touch lessons (PDF, split deferred)
         if is_pdf and (page_map_raw or has_range):
             page_map = None
             if page_map_raw:
@@ -147,7 +157,7 @@ class BookListView(APIView):
                 int(to_n) if to_n is not None else 1,
                 int(start_page), ppu, page_map,
             )
-        else:
+        elif not is_pdf:
             text = processing.bytes_to_text(data, fname) or d.get("text", "")
             if not text.strip():
                 return Response(
@@ -170,11 +180,12 @@ class BookListView(APIView):
             color=_color_for(d["title"]),
             note=(f"Only the first {processing.MAX_LESSONS} lessons were kept." if capped else ""),
         )
-        # Keep the original PDF so lessons can be re-generated later.
+        # Keep the original PDF so it can be split (and re-split) later.
         if is_pdf and data:
             book.pdf.save(f"book{book.id}_src.pdf", ContentFile(data), save=True)
         del data  # free the source bytes before streaming sub-PDFs
-        _create_lessons(book, lessons)
+        if lessons is not None:
+            _create_lessons(book, lessons)
         return Response(_book_data(book, request), status=status.HTTP_201_CREATED)
 
 
@@ -264,11 +275,15 @@ class BookRegenerateView(APIView):
             from_n, to_n, int(v.get("start_page") or 1), v.get("pages_per_unit"), None,
         )
 
-        # Replace ONLY the units in [from..to]; keep every other lesson intact.
-        replace = set(range(from_n, to_n + 1))
-        for l in list(book.lessons.all()):
-            if _title_num(l.title) in replace:
-                l.delete()
+        if v.get("replace_all"):
+            # Whole-book (re-)split: clear every existing lesson first.
+            book.lessons.all().delete()
+        else:
+            # Replace ONLY the units in [from..to]; keep every other lesson intact.
+            replace = set(range(from_n, to_n + 1))
+            for l in list(book.lessons.all()):
+                if _title_num(l.title) in replace:
+                    l.delete()
         for l in new_lessons:
             bl = BookLesson(
                 book=book, title=l["title"], position=0, raw_text=l["raw_text"],

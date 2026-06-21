@@ -8,7 +8,9 @@ export default function LandingPage() {
     <main className="landing">
       <nav className="landing__nav">
         <span className="landing__brand">Nemo&nbsp;Anki</span>
-        <Link to={user ? "/app" : "/auth/sign-in"} className="btn btn--ghost">
+        {/* Always go to /app — ProtectedRoute sends guests to sign-in, so a
+            signed-in user is never asked to log in again. */}
+        <Link to="/app" className="btn btn--ghost">
           {user ? "Open app" : "Sign in"}
         </Link>
       </nav>
@@ -23,7 +25,7 @@ export default function LandingPage() {
           grammar, with readings and article colours that make sense.
         </p>
         <div className="landing__cta">
-          <Link to={user ? "/app" : "/auth/sign-in"} className="btn btn--primary btn--lg">
+          <Link to="/app" className="btn btn--primary btn--lg">
             {user ? "Go to your decks" : "Start studying"}
           </Link>
         </div>
