@@ -31,7 +31,10 @@ export default function Verify() {
     setSubmitting(true);
     try {
       const r = await verifyOtp(state.otpId, code.trim());
-      signIn({ access: r.access, refresh: r.refresh, user: r.user });
+      signIn(
+        { access: r.access, refresh: r.refresh, user: r.user },
+        { isNewUser: r.is_new_user },
+      );
       navigate("/app", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed.");

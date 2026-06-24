@@ -74,9 +74,15 @@ class VerifyOTPView(APIView):
             )
 
         otp.mark_used()
-        user, _created = User.objects.get_or_create(email=otp.email)
+        user, created = User.objects.get_or_create(email=otp.email)
         return Response(
-            {**_tokens_for(user), "user": UserSerializer(user).data},
+            {
+                **_tokens_for(user),
+                "user": UserSerializer(user).data,
+                # First-ever verification creates the account; the client uses
+                # this to emit a one-time Wiser CDP `signup` event.
+                "is_new_user": created,
+            },
             status=status.HTTP_200_OK,
         )
 
