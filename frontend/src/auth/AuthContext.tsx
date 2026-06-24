@@ -26,7 +26,7 @@ type StoredAuth = AuthTokens & { user: AuthUser };
 type AuthContextValue = {
   user: AuthUser | null;
   isLoading: boolean;
-  signIn: (payload: StoredAuth) => void;
+  signIn: (payload: StoredAuth, opts?: { isNewUser?: boolean }) => void;
   signOut: () => void;
   refreshUser: () => Promise<void>;
 };
@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(
-    (payload: StoredAuth) => {
+    (payload: StoredAuth, opts?: { isNewUser?: boolean }) => {
       saveStored(payload);
       configureAuth({
         tokens: { access: payload.access, refresh: payload.refresh },
@@ -68,8 +68,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         onAuthFailed: () => signOut(),
       });
       setUser(payload.user);
-      // Wiser CDP: an explicit OTP sign-in is a `login` (identify is handled by the
-      // user effect below, covering both sign-in and session restore).
+      // Wiser CDP: a first-ever verification is a one-time `signup`; every explicit
+      // OTP sign-in (first or returning) is also a `login`. identify is handled by
+      // the user effect below, covering both sign-in and session restore.
+      if (opts?.isNewUser) cdpTrack("signup");
       cdpTrack("login");
     },
     [signOut],

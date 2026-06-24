@@ -185,7 +185,7 @@ export type RequestOtpResponse = {
   dev_code?: string;
 };
 
-export type VerifyOtpResponse = AuthTokens & { user: AuthUser };
+export type VerifyOtpResponse = AuthTokens & { user: AuthUser; is_new_user: boolean };
 
 export type CardType = "vocab" | "sentence" | "grammar";
 export type Article = "none" | "der" | "die" | "das" | "plural";
