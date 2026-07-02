@@ -13,16 +13,17 @@ import re
 import requests
 from django.conf import settings
 
-ALLOWED_TYPES = {"vocab", "sentence", "grammar"}
+ALLOWED_TYPES = {"vocab", "sentence", "grammar", "verb"}
 ALLOWED_ARTICLES = {"none", "der", "die", "das", "plural"}
 
 _PROMPT = """You are a language-learning flashcard generator. Convert the text \
 below (a section of a {language_name} coursebook) into spaced-repetition cards.
 
 Return ONLY a JSON array. Each element has these keys:
-- "card_type": one of "vocab", "sentence", "grammar". Default to "{default_type}" \
-when unsure. Single words/phrases -> "vocab"; full example sentences -> \
-"sentence"; rules/patterns/conjugations -> "grammar".
+- "card_type": one of "vocab", "sentence", "grammar", "verb". Default to \
+"{default_type}" when unsure. Single words/phrases -> "vocab"; full example \
+sentences -> "sentence"; rules/patterns -> "grammar"; a verb worth learning \
+across tenses -> "verb".
 - "front": the prompt shown first (the {language_name} term/sentence, or for \
 grammar a cloze prompt using ___ for the gap).
 - "back": the answer (English translation, or the form that fills the grammar gap).
@@ -122,6 +123,63 @@ def _detect_article(front: str) -> str:
 def _enrich_fallback(front: str) -> dict:
     """No LLM: at least pull a leading der/die/das so the colour works."""
     return {"back": "", "reading": "", "article": _detect_article(front), "plural": "", "example": ""}
+
+
+_CONJUGATE_PROMPT = """You are a language teacher. Conjugate the {language_name} \
+verb below across the situations/tenses a learner needs. Return ONLY a JSON \
+object (no markdown, no commentary):
+- "back": a concise meaning of the verb written in {back_language} (e.g. \
+"to make / to do"), or "".
+- "conjugations": an ordered JSON array. Each element is an object:
+  - "tense": the name of the situation/tense (e.g. "Infinitiv", "Präsens", \
+"Präteritum", "Perfekt", "Futur", "Imperativ"). For English use "base form", \
+"present (3rd person)", "past simple", "past participle", "-ing form".
+  - "form": the {language_name} conjugated form, using a natural example \
+subject where helpful (e.g. "er macht", "er hat gemacht").
+  - "meaning": the {back_language} equivalent of that exact form (e.g. \
+"he makes", "he has made").
+Cover the most useful forms for a learner (aim for 4-6). Be accurate.
+
+VERB: {front}
+"""
+
+
+def conjugate_verb(front: str, language: str = "", back_language: str = "English") -> dict:
+    """Return conjugations for a verb card (the "Fill conjugations" button).
+
+    ``{"back": str, "conjugations": [{"tense","form","meaning"}]}``. Degrades to
+    an empty result if no key is configured or the call fails.
+    """
+    front = (front or "").strip()
+    if not front or not settings.GEMINI_API_KEY:
+        return {"back": "", "conjugations": []}
+    try:
+        prompt = _CONJUGATE_PROMPT.format(
+            language_name=_LANG_NAMES.get(language, "the target language"),
+            back_language=(back_language or "English").strip(),
+            front=front[:200],
+        )
+        obj = _extract_json_object(_gemini_text(prompt, timeout=45))
+    except Exception:  # noqa: BLE001 — degrade gracefully
+        return {"back": "", "conjugations": []}
+    return {"back": str(obj.get("back", "")).strip(), "conjugations": _clean_conjugations(obj.get("conjugations"))}
+
+
+def _clean_conjugations(raw) -> list[dict]:
+    """Coerce an LLM conjugation array into clean {tense, form, meaning} rows."""
+    out: list[dict] = []
+    if not isinstance(raw, list):
+        return out
+    for it in raw:
+        if not isinstance(it, dict):
+            continue
+        tense = str(it.get("tense", "")).strip()
+        form = str(it.get("form", "")).strip()
+        meaning = str(it.get("meaning", "")).strip()
+        if not (tense or form or meaning):
+            continue
+        out.append({"tense": tense, "form": form, "meaning": meaning})
+    return out
 
 
 _ANALYZE_PROMPT = """Analyse the German sentence below. For every noun, in order \
@@ -427,6 +485,7 @@ def _normalise(item: dict, language: str, default_type: str) -> dict:
         "example": str(item.get("example", "")).strip(),
         "notes": str(item.get("notes", "")).strip(),
         "table": item.get("table") if isinstance(item.get("table"), dict) else None,
+        "conjugations": _clean_conjugations(item.get("conjugations")),
         "tags": [str(t).strip() for t in tags if str(t).strip()],
     }
 

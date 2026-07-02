@@ -187,8 +187,12 @@ export type RequestOtpResponse = {
 
 export type VerifyOtpResponse = AuthTokens & { user: AuthUser; is_new_user: boolean };
 
-export type CardType = "vocab" | "sentence" | "grammar";
+export type CardType = "vocab" | "sentence" | "grammar" | "verb";
 export type Article = "none" | "der" | "die" | "das" | "plural";
+
+/** One row of a verb card's conjugation table: a tense/situation, the
+ * conjugated form in the card's language, and its meaning. */
+export type Conjugation = { tense: string; form: string; meaning: string };
 export type CardState = "new" | "learning" | "review" | "relearning" | "suspended";
 
 export type GrammarTable = {
@@ -245,6 +249,7 @@ export type Card = {
   notes: string;
   table: GrammarTable | null;
   genders: NounGender[];
+  conjugations: Conjugation[];
   tags: string[];
   state: CardState;
   due: string;
@@ -271,6 +276,7 @@ export type DraftCard = {
   notes: string;
   table: GrammarTable | null;
   genders: NounGender[];
+  conjugations: Conjugation[];
   tags: string[];
 };
 
@@ -462,6 +468,20 @@ export function enrichCard(payload: {
   back_language?: string;
 }): Promise<EnrichResult> {
   return jsonRequest<EnrichResult>("/api/import/enrich/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export type ConjugateResult = { back: string; conjugations: Conjugation[] };
+
+/** Conjugate a verb across the tenses a learner needs (the Fill button). */
+export function conjugateVerb(payload: {
+  front: string;
+  language?: "de" | "en" | "";
+  back_language?: string;
+}): Promise<ConjugateResult> {
+  return jsonRequest<ConjugateResult>("/api/import/conjugate/", {
     method: "POST",
     body: JSON.stringify(payload),
   });

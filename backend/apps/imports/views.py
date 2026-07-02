@@ -12,14 +12,21 @@ from apps.cards.models import Card, CardImage
 from apps.decks.models import Deck, DeckConfig
 
 from . import anki
-from .gemini import analyze_german, enrich_card, parse_text, writing_check, writing_topic
+from .gemini import (
+    analyze_german,
+    conjugate_verb,
+    enrich_card,
+    parse_text,
+    writing_check,
+    writing_topic,
+)
 
 
 class ParseRequestSerializer(serializers.Serializer):
     text = serializers.CharField(max_length=20000)
     language = serializers.ChoiceField(choices=["de", "en", ""], required=False, default="")
     default_type = serializers.ChoiceField(
-        choices=["vocab", "sentence", "grammar"], required=False, default="vocab"
+        choices=["vocab", "sentence", "grammar", "verb"], required=False, default="vocab"
     )
 
 
@@ -27,9 +34,16 @@ class EnrichRequestSerializer(serializers.Serializer):
     front = serializers.CharField(max_length=500)
     language = serializers.ChoiceField(choices=["de", "en", ""], required=False, default="")
     card_type = serializers.ChoiceField(
-        choices=["vocab", "sentence", "grammar"], required=False, default="vocab"
+        choices=["vocab", "sentence", "grammar", "verb"], required=False, default="vocab"
     )
     # Language the translation ("back") should be written in.
+    back_language = serializers.CharField(max_length=40, required=False, default="English")
+
+
+class ConjugateRequestSerializer(serializers.Serializer):
+    front = serializers.CharField(max_length=200)
+    language = serializers.ChoiceField(choices=["de", "en", ""], required=False, default="")
+    # Language the per-form meaning ("back") should be written in.
     back_language = serializers.CharField(max_length=40, required=False, default="English")
 
 
@@ -67,6 +81,23 @@ class EnrichView(APIView):
             serializer.validated_data["front"],
             serializer.validated_data["language"],
             serializer.validated_data["card_type"],
+            serializer.validated_data["back_language"],
+        )
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class ConjugateView(APIView):
+    """Conjugate a verb across the tenses a learner needs (the "Fill
+    conjugations" button on a verb card)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ConjugateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = conjugate_verb(
+            serializer.validated_data["front"],
+            serializer.validated_data["language"],
             serializer.validated_data["back_language"],
         )
         return Response(result, status=status.HTTP_200_OK)

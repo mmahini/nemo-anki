@@ -195,6 +195,7 @@ export default function ImportPage() {
                   <option value="vocab">vocab</option>
                   <option value="sentence">sentence</option>
                   <option value="grammar">grammar</option>
+                  <option value="verb">verb</option>
                 </select>
               </label>
             </div>
