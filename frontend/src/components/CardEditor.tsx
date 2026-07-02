@@ -2,10 +2,12 @@ import { useState } from "react";
 
 import {
   analyzeGerman,
+  conjugateVerb,
   enrichCard,
   type Article,
   type Card,
   type CardType,
+  type Conjugation,
   type DraftCard,
 } from "../auth/api";
 import { detectArticle } from "../lib/article";
@@ -13,7 +15,7 @@ import { getTranslateLang, setTranslateLang, TRANSLATE_LANGS } from "../lib/tran
 import CaseTable from "./CaseTable";
 import SpeakButton from "./SpeakButton";
 
-const CARD_TYPES: CardType[] = ["vocab", "sentence", "grammar"];
+const CARD_TYPES: CardType[] = ["vocab", "sentence", "grammar", "verb"];
 const ARTICLES: Article[] = ["none", "der", "die", "das", "plural"];
 
 export function emptyDraft(language: "de" | "en" | "" = "", card_type: CardType = "vocab"): DraftCard {
@@ -29,6 +31,7 @@ export function emptyDraft(language: "de" | "en" | "" = "", card_type: CardType 
     notes: "",
     table: null,
     genders: [],
+    conjugations: [],
     tags: [],
   };
 }
@@ -47,6 +50,7 @@ export function cardToDraft(c: Card): DraftCard {
     notes: c.notes,
     table: c.table,
     genders: c.genders,
+    conjugations: c.conjugations ?? [],
     tags: c.tags,
   };
 }
@@ -61,6 +65,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
   const [translating, setTranslating] = useState(false);
   const [translateErr, setTranslateErr] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [conjugating, setConjugating] = useState(false);
   // Language the translation (back) is written in — defaults to the last used.
   const [backLang, setBackLang] = useState(getTranslateLang);
 
@@ -69,10 +74,11 @@ export default function CardEditor({ value, onChange, compact }: Props) {
 
   const isGerman = value.language === "de";
   const isSentence = value.card_type === "sentence";
-  const hasReading = value.card_type === "vocab" || isSentence;
+  const isVerb = value.card_type === "verb";
+  const hasReading = value.card_type === "vocab" || isSentence || isVerb;
   const showArticle = isGerman && value.card_type === "vocab";
-  // Accurate colouring only matters for multi-word German cards.
-  const showColourGenders = isGerman && value.card_type !== "vocab";
+  // Accurate colouring only matters for multi-word German noun/sentence cards.
+  const showColourGenders = isGerman && value.card_type !== "vocab" && !isVerb;
 
   // Editing the front invalidates a previous gender analysis.
   function onFrontChange(v: string) {
@@ -127,6 +133,35 @@ export default function CardEditor({ value, onChange, compact }: Props) {
       setAnalyzing(false);
     }
   }
+
+  // AI-fill the verb's conjugations (and the meaning if it's still empty).
+  async function fillConjugations() {
+    if (!value.front.trim()) return;
+    setConjugating(true);
+    setTranslateErr(null);
+    try {
+      const r = await conjugateVerb({
+        front: value.front.trim(),
+        language: (value.language as any) || undefined,
+        back_language: backLang,
+      });
+      onChange({
+        ...value,
+        conjugations: r.conjugations.length ? r.conjugations : value.conjugations,
+        back: value.back || r.back,
+      });
+    } catch (err) {
+      setTranslateErr(err instanceof Error ? err.message : "Couldn't conjugate the verb.");
+    } finally {
+      setConjugating(false);
+    }
+  }
+
+  const setConj = (rows: Conjugation[]) => set("conjugations", rows);
+  const addConjRow = () => setConj([...value.conjugations, { tense: "", form: "", meaning: "" }]);
+  const updateConjRow = (i: number, key: keyof Conjugation, v: string) =>
+    setConj(value.conjugations.map((r, j) => (j === i ? { ...r, [key]: v } : r)));
+  const removeConjRow = (i: number) => setConj(value.conjugations.filter((_, j) => j !== i));
 
   return (
     <div className={`cardeditor ${compact ? "cardeditor--compact" : ""}`}>
@@ -253,11 +288,79 @@ export default function CardEditor({ value, onChange, compact }: Props) {
 
       {!compact && (
         <>
+          {isVerb && (
+            <div className="cardeditor__field">
+              <div className="cardeditor__conjhead">
+                <span>Conjugations</span>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={fillConjugations}
+                  disabled={conjugating || !value.front.trim()}
+                  title="Fill the verb's forms for each tense/situation with AI"
+                >
+                  {conjugating ? "Filling…" : "🪄 Fill conjugations"}
+                </button>
+              </div>
+              {value.conjugations.length > 0 && (
+                <div className="conjeditor">
+                  {value.conjugations.map((row, i) => (
+                    <div key={i} className="conjeditor__row">
+                      <input
+                        className="input input--sm conjeditor__tense"
+                        value={row.tense}
+                        onChange={(e) => updateConjRow(i, "tense", e.target.value)}
+                        placeholder="Tense"
+                      />
+                      <div className="conjeditor__form">
+                        <input
+                          className="input input--sm"
+                          value={row.form}
+                          onChange={(e) => updateConjRow(i, "form", e.target.value)}
+                          placeholder="Form"
+                        />
+                        <SpeakButton text={row.form} lang={value.language} small title="Hear this form" />
+                      </div>
+                      <input
+                        className="input input--sm conjeditor__meaning"
+                        dir="auto"
+                        value={row.meaning}
+                        onChange={(e) => updateConjRow(i, "meaning", e.target.value)}
+                        placeholder="Meaning"
+                      />
+                      <button
+                        type="button"
+                        className="conjeditor__del"
+                        onClick={() => removeConjRow(i)}
+                        title="Remove this row"
+                        aria-label="Remove row"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button type="button" className="btn btn--ghost btn--sm conjeditor__add" onClick={addConjRow}>
+                + Add row
+              </button>
+            </div>
+          )}
           {/* A sentence card is itself the example — no separate Example field. */}
           {!isSentence && (
             <label className="cardeditor__field">
               <span>Example</span>
-              <input className="input" value={value.example} onChange={(e) => set("example", e.target.value)} />
+              <div className="cardeditor__inline cardeditor__inline--top">
+                <textarea
+                  className="input cardeditor__text"
+                  rows={2}
+                  dir="auto"
+                  value={value.example}
+                  onChange={(e) => set("example", e.target.value)}
+                  placeholder="One example per line"
+                />
+                <SpeakButton text={value.example} lang={value.language} title="Hear the example" />
+              </div>
             </label>
           )}
           {value.card_type === "grammar" && (

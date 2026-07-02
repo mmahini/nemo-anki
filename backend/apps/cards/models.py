@@ -6,6 +6,7 @@ class CardType(models.TextChoices):
     VOCAB = "vocab", "Vocabulary"
     SENTENCE = "sentence", "Sentence"
     GRAMMAR = "grammar", "Grammar"
+    VERB = "verb", "Verb"
 
 
 class CardState(models.TextChoices):
@@ -39,7 +40,7 @@ class CardDirection(models.TextChoices):
 # deliberately excluded — each direction keeps its own track.
 CONTENT_FIELDS = [
     "card_type", "language", "front", "back", "reading", "article",
-    "plural", "example", "notes", "table", "genders", "tags",
+    "plural", "example", "notes", "table", "genders", "conjugations", "tags",
 ]
 
 
@@ -61,6 +62,11 @@ class Card(models.Model):
     # [{"noun": "Frau", "gender": "die"}]. Populated by the "Colour genders"
     # button so sentence colouring is grammatically correct (case-independent).
     genders = models.JSONField(default=list, blank=True)
+    # Verb conjugations for verb cards: an ordered list of situations/tenses,
+    # each with the conjugated form in the card's language and its English
+    # meaning: [{"tense": "Perfekt", "form": "er hat gemacht", "meaning":
+    # "he has made"}]. Filled in the editor (manually or via the AI button).
+    conjugations = models.JSONField(default=list, blank=True)
     tags = models.JSONField(default=list, blank=True)
 
     # ---- Direction (two-sided review) ----

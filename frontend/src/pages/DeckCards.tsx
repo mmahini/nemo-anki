@@ -16,7 +16,7 @@ import {
   type DraftCard,
 } from "../auth/api";
 
-const CARD_TYPES: CardType[] = ["vocab", "sentence", "grammar"];
+const CARD_TYPES: CardType[] = ["vocab", "sentence", "grammar", "verb"];
 import CardEditor from "../components/CardEditor";
 import CardImages from "../components/CardImages";
 import GermanText from "../components/GermanText";
@@ -46,6 +46,7 @@ function toDraft(c: Card): DraftCard {
     notes: c.notes,
     table: c.table,
     genders: c.genders,
+    conjugations: c.conjugations ?? [],
     tags: c.tags,
   };
 }

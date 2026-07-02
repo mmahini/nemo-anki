@@ -384,7 +384,8 @@ kbd {
 .speak:active { transform: translateY(1px); }
 .speak--sm { width: 26px; height: 26px; font-size: 0.85rem; }
 .face__notes { color: var(--ink-soft); font-size: 0.95rem; max-width: 44ch; }
-.face__example { color: var(--ink-soft); font-style: italic; max-width: 44ch; }
+.face__examplerow { display: flex; align-items: flex-start; gap: 6px; justify-content: center; max-width: 46ch; }
+.face__example { color: var(--ink-soft); font-style: italic; white-space: pre-line; }
 .face__images { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
 .face__img { max-height: 180px; max-width: 100%; border-radius: 8px; border: 1px solid var(--line); object-fit: contain; }
 /* card editor photo manager */
@@ -409,6 +410,7 @@ kbd {
 .cardtype--vocab { border-color: var(--art-der, #3b82f6); }
 .cardtype--sentence { border-color: var(--art-die, #ef4444); }
 .cardtype--grammar { border-color: var(--art-das, #22c55e); }
+.cardtype--verb { border-color: var(--art-plural, #a855f7); }
 .face__tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 .tag { font-size: 0.72rem; background: var(--line-soft); color: var(--ink-soft); padding: 2px 8px; border-radius: 999px; }
 
@@ -416,6 +418,26 @@ kbd {
 .gtable th, .gtable td { border: 1px solid var(--line); padding: 5px 12px; text-align: left; }
 .gtable th { background: var(--line-soft); font-weight: 700; }
 .gtable__hl { background: rgba(76, 110, 245, 0.16); font-weight: 700; }
+
+/* Verb conjugation table (read-only, on the card back) */
+.conjtable { border-collapse: collapse; margin: 4px auto; font-size: 0.92rem; max-width: 100%; }
+.conjtable th, .conjtable td { border: 1px solid var(--line); padding: 5px 12px; text-align: left; vertical-align: top; }
+.conjtable__tense { background: var(--line-soft); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); white-space: nowrap; }
+.conjtable__form { font-weight: 600; }
+.conjtable__form span { margin-right: 6px; }
+.conjtable__meaning { color: var(--ink-soft); }
+
+/* Verb conjugation editor (in the card editor) */
+.cardeditor__conjhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.conjeditor { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.conjeditor__row { display: flex; align-items: center; gap: 6px; }
+.conjeditor__tense { flex: 0 0 26%; min-width: 0; }
+.conjeditor__form { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.conjeditor__form .input { min-width: 0; }
+.conjeditor__meaning { flex: 1; min-width: 0; }
+.conjeditor__del { flex: none; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 0.9rem; padding: 4px; }
+.conjeditor__del:hover { color: var(--again, #d33); }
+.conjeditor__add { align-self: flex-start; }
 
 .face__plural { color: var(--ink-soft); font-size: 0.95rem; display: inline-flex; align-items: center; gap: 6px; }
 .face__plural .art-plural { font-weight: 700; }
