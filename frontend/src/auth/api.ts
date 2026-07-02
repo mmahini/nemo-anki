@@ -346,8 +346,25 @@ export function autotypeDeck(
 
 // ====== Cards ======
 
-export function fetchCards(deckId: number): Promise<Card[]> {
-  return jsonRequest<Card[]>(`/api/cards/?deck=${deckId}`, { method: "GET" });
+export type Paginated<T> = {
+  results: T[];
+  count: number;
+  page: number;
+  page_size: number;
+  num_pages: number;
+};
+
+/** A page of a deck's cards, optionally filtered by a search term / type. */
+export function fetchCards(
+  deckId: number,
+  opts?: { page?: number; pageSize?: number; q?: string; type?: CardType },
+): Promise<Paginated<Card>> {
+  const p = new URLSearchParams({ deck: String(deckId) });
+  if (opts?.page) p.set("page", String(opts.page));
+  if (opts?.pageSize) p.set("page_size", String(opts.pageSize));
+  if (opts?.q) p.set("q", opts.q);
+  if (opts?.type) p.set("type", opts.type);
+  return jsonRequest<Paginated<Card>>(`/api/cards/?${p.toString()}`, { method: "GET" });
 }
 
 export function createCard(payload: Partial<Card> & { deck: number; front: string }): Promise<Card> {

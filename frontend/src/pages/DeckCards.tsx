@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
@@ -51,12 +51,19 @@ function toDraft(c: Card): DraftCard {
   };
 }
 
+const PAGE_SIZE = 25;
+
 export default function DeckCards() {
   const { deckId } = useParams();
   const navigate = useNavigate();
   const id = Number(deckId);
   const [deck, setDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<Card[]>([]);
+  const [count, setCount] = useState(0);
+  const [numPages, setNumPages] = useState(1);
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState(""); // what's typed in the search box
+  const [search, setSearch] = useState(""); // debounced term actually applied
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState<DraftCard | null>(null);
@@ -67,17 +74,43 @@ export default function DeckCards() {
   const [colourCard, setColourCard] = useState<number | null>(null);
   const [findCard, setFindCard] = useState<number | null>(null);
 
-  async function load() {
+  // Switching decks (same component instance) resets paging + search.
+  useEffect(() => {
+    setPage(1);
+    setQuery("");
+    setSearch("");
+  }, [id]);
+
+  // Debounce the search box; a new term always restarts at page 1.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearch(query.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const load = useCallback(async () => {
     setLoading(true);
-    const [decks, cs] = await Promise.all([fetchDecks(), fetchCards(id)]);
+    const [decks, res] = await Promise.all([
+      fetchDecks(),
+      fetchCards(id, { page, pageSize: PAGE_SIZE, q: search || undefined }),
+    ]);
     setDeck(decks.find((d) => d.id === id) ?? null);
-    setCards(cs);
+    // A delete can empty the last page — step back so we're never stranded.
+    if (res.results.length === 0 && res.count > 0 && page > 1) {
+      setPage((p) => Math.max(1, Math.min(p - 1, res.num_pages)));
+      return;
+    }
+    setCards(res.results);
+    setCount(res.count);
+    setNumPages(res.num_pages || 1);
     setLoading(false);
-  }
+  }, [id, page, search]);
 
   useEffect(() => {
     load();
-  }, [id]);
+  }, [load]);
 
   function startEdit(c: Card) {
     setEditing(c.id);
@@ -124,9 +157,10 @@ export default function DeckCards() {
     await updateCard(cardId, { card_type: type });
   }
 
+  // Applies to the cards currently listed (this page / search results).
   async function setAllTypes(type: CardType) {
     const targets = cards.filter((c) => c.card_type !== type);
-    if (!targets.length || !window.confirm(`Set all ${targets.length} card(s) to "${type}"?`)) return;
+    if (!targets.length || !window.confirm(`Set the ${targets.length} listed card(s) to "${type}"?`)) return;
     setCards((cs) => cs.map((c) => ({ ...c, card_type: type })));
     for (const c of targets) await updateCard(c.id, { card_type: type });
   }
@@ -170,7 +204,9 @@ export default function DeckCards() {
     }
   }
 
-  if (loading) return <div className="panel">Loading…</div>;
+  // Only the very first paint shows the full-page loader; later loads (paging /
+  // searching) keep the UI mounted so the search box doesn't lose focus.
+  if (loading && !deck) return <div className="panel">Loading…</div>;
 
   return (
     <div className="browse">
@@ -178,7 +214,7 @@ export default function DeckCards() {
         <div>
           <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app")}>← Decks</button>
           <h1>{deck?.full_name ?? "Deck"}</h1>
-          <p className="browse__sub">{cards.length} cards</p>
+          <p className="browse__sub">{count} cards</p>
         </div>
         <div className="browse__actions">
           <Link to={`/app/decks/${id}/add`} className="btn btn--ghost">+ Add card</Link>
@@ -197,6 +233,24 @@ export default function DeckCards() {
           </button>
         </div>
       </div>
+
+      {(count > 0 || search) && (
+        <div className="browse__search">
+          <input
+            className="input"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search cards — front, translation, or reading…"
+            aria-label="Search cards"
+          />
+          {search && (
+            <span className="browse__searchcount">
+              {count} result{count === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
+      )}
 
       {colourMsg && <div className="panel browse__note">{colourMsg}</div>}
 
@@ -235,10 +289,14 @@ export default function DeckCards() {
       )}
 
       {cards.length === 0 ? (
-        <div className="panel">
-          No cards yet. <Link to={`/app/decks/${id}/add`}>Add one</Link> or use{" "}
-          <Link to="/app/import">Import</Link>.
-        </div>
+        search ? (
+          <div className="panel">No cards match “{search}”.</div>
+        ) : (
+          <div className="panel">
+            No cards yet. <Link to={`/app/decks/${id}/add`}>Add one</Link> or use{" "}
+            <Link to="/app/import">Import</Link>.
+          </div>
+        )
       ) : (
         <ul className="cardrows">
           {cards.map((c) => (
@@ -310,6 +368,28 @@ export default function DeckCards() {
             </li>
           ))}
         </ul>
+      )}
+
+      {numPages > 1 && (
+        <div className="pager">
+          <button
+            className="btn btn--ghost btn--sm"
+            disabled={page <= 1 || loading}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            ← Prev
+          </button>
+          <span className="pager__info">
+            Page {page} of {numPages}
+          </span>
+          <button
+            className="btn btn--ghost btn--sm"
+            disabled={page >= numPages || loading}
+            onClick={() => setPage((p) => Math.min(numPages, p + 1))}
+          >
+            Next →
+          </button>
+        </div>
       )}
     </div>
   );

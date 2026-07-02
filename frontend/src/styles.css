@@ -509,6 +509,11 @@ kbd {
 .browse__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .browse__sub { color: var(--ink-faint); margin: 0; }
 .browse__actions { display: flex; gap: 8px; }
+.browse__search { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.browse__search .input { flex: 1; }
+.browse__searchcount { color: var(--ink-faint); font-size: 0.85rem; white-space: nowrap; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+.pager__info { color: var(--ink-soft); font-size: 0.85rem; min-width: 9ch; text-align: center; }
 .cardrows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .cardrow { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .cardrow__view { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; }
