@@ -713,10 +713,17 @@ export type WritingPrompt = {
   lesson_title?: string;
 };
 
+export type WritingBook = { id: number; title: string };
+
+export function writingBooks(): Promise<WritingBook[]> {
+  return jsonRequest("/api/writing/books/", { method: "GET" });
+}
+
 export function writingPrompt(payload: {
   language: string;
   translation_language: string;
   source: "books" | "auto";
+  book_id?: number;
 }): Promise<WritingPrompt> {
   return jsonRequest("/api/writing/prompt/", { method: "POST", body: JSON.stringify(payload) });
 }

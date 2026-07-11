@@ -584,6 +584,8 @@ kbd {
 .issue__why { color: var(--ink-soft); font-size: 0.9rem; }
 .writing__hint { color: var(--ink-faint); font-size: 0.85rem; margin-top: 14px; }
 .writing__source-toggle { display: flex; gap: 4px; align-items: center; }
+.writing__book-selector { margin: 0 0 10px; }
+.writing__no-books { margin: 0 0 10px; font-size: 0.9rem; }
 .writing__prompt { margin: 0 0 14px; display: flex; flex-direction: column; gap: 10px; min-height: 64px; }
 .writing__prompt-text { margin: 0; font-size: 1.08rem; line-height: 1.7; }
 .writing__prompt-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

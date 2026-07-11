@@ -161,7 +161,9 @@
     "newText": "متن جدید",
     "promptLoading": "در حال بارگذاری متن…",
     "promptFrom": "از: {{source}}",
-    "translatePlaceholder": "ترجمه {{lang}} خود را اینجا بنویسید…"
+    "translatePlaceholder": "ترجمه {{lang}} خود را اینجا بنویسید…",
+    "selectBook": "انتخاب کتاب",
+    "noBooksHint": "هنوز کتابی پردازش نشده — ابتدا به صفحه کتاب‌ها بروید و یک کتاب را پردازش کنید."
   },
   "deckCards": {
     "loading": "در حال بارگذاری…",

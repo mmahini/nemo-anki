@@ -285,27 +285,51 @@ class AnkiImportView(APIView):
 
 # Writing practice -----------------------------------------------------------
 
-def _pick_lesson_for_user(user):
-    """Return {lesson, vocab} for a random processed lesson the user can access, or None."""
-    own_qs = (
+def _books_with_processed_lessons(user):
+    """Return queryset of books (own + shared) that have at least one processed lesson."""
+    from apps.books.models import Book
+    from django.db.models import Q
+
+    book_ids = (
         BookLesson.objects
-        .filter(book__user=user, processed=True)
+        .filter(processed=True)
+        .filter(Q(book__user=user) | Q(book__shares__user=user))
+        .values_list("book_id", flat=True)
+        .distinct()
+    )
+    return Book.objects.filter(id__in=book_ids).order_by("title")
+
+
+def _pick_lesson_for_book(user, book_id):
+    """Return {lesson, vocab} for a random processed lesson from a specific book, or None."""
+    from apps.books.models import Book
+    from django.db.models import Q
+
+    # Verify the user can access this book
+    accessible = (
+        BookLesson.objects
+        .filter(book_id=book_id, processed=True)
+        .filter(Q(book__user=user) | Q(book__shares__user=user))
         .select_related("book")
         .order_by("?")
     )
-    shared_qs = (
-        BookLesson.objects
-        .filter(book__shares__user=user, processed=True)
-        .select_related("book")
-        .order_by("?")
-    )
-    for lesson in list(own_qs[:10]) + list(shared_qs[:5]):
+    for lesson in list(accessible[:10]):
         cards = list(BookCard.objects.filter(lesson=lesson).exclude(back="")[:15])
         if len(cards) >= 3:
             random.shuffle(cards)
             vocab = [{"front": c.front, "back": c.back} for c in cards[:8]]
             return {"lesson": lesson, "vocab": vocab}
     return None
+
+
+class WritingBooksView(APIView):
+    """Return the list of books (own + shared) that have at least one processed lesson."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        books = _books_with_processed_lessons(request.user)
+        return Response([{"id": b.id, "title": b.title} for b in books])
 
 
 class WritingPromptView(APIView):
@@ -317,10 +341,16 @@ class WritingPromptView(APIView):
         language = (request.data.get("language") or "").strip()
         translation_language = (request.data.get("translation_language") or "English").strip()
         source = (request.data.get("source") or "auto").strip()
+        book_id = request.data.get("book_id")
 
         lesson_info = None
-        if source == "books":
-            lesson_info = _pick_lesson_for_user(request.user)
+        if source == "books" and book_id:
+            lesson_info = _pick_lesson_for_book(request.user, book_id)
+            if lesson_info is None:
+                return Response(
+                    {"detail": "No processed lessons found in this book."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         return Response(writing_prompt(language, translation_language, lesson_info), status=status.HTTP_200_OK)
 
