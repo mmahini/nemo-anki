@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import {
   autotypeDeck,
@@ -16,7 +17,7 @@ import {
   type DraftCard,
 } from "../auth/api";
 
-const CARD_TYPES: CardType[] = ["vocab", "sentence", "grammar"];
+const CARD_TYPES: CardType[] = ["vocab", "sentence", "grammar", "verb"];
 import CardEditor from "../components/CardEditor";
 import CardImages from "../components/CardImages";
 import GermanText from "../components/GermanText";
@@ -46,16 +47,25 @@ function toDraft(c: Card): DraftCard {
     notes: c.notes,
     table: c.table,
     genders: c.genders,
+    conjugations: c.conjugations ?? [],
     tags: c.tags,
   };
 }
 
+const PAGE_SIZE = 25;
+
 export default function DeckCards() {
   const { deckId } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const id = Number(deckId);
   const [deck, setDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<Card[]>([]);
+  const [count, setCount] = useState(0);
+  const [numPages, setNumPages] = useState(1);
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState<DraftCard | null>(null);
@@ -66,17 +76,40 @@ export default function DeckCards() {
   const [colourCard, setColourCard] = useState<number | null>(null);
   const [findCard, setFindCard] = useState<number | null>(null);
 
-  async function load() {
+  useEffect(() => {
+    setPage(1);
+    setQuery("");
+    setSearch("");
+  }, [id]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearch(query.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const load = useCallback(async () => {
     setLoading(true);
-    const [decks, cs] = await Promise.all([fetchDecks(), fetchCards(id)]);
+    const [decks, res] = await Promise.all([
+      fetchDecks(),
+      fetchCards(id, { page, pageSize: PAGE_SIZE, q: search || undefined }),
+    ]);
     setDeck(decks.find((d) => d.id === id) ?? null);
-    setCards(cs);
+    if (res.results.length === 0 && res.count > 0 && page > 1) {
+      setPage((p) => Math.max(1, Math.min(p - 1, res.num_pages)));
+      return;
+    }
+    setCards(res.results);
+    setCount(res.count);
+    setNumPages(res.num_pages || 1);
     setLoading(false);
-  }
+  }, [id, page, search]);
 
   useEffect(() => {
     load();
-  }, [id]);
+  }, [load]);
 
   function startEdit(c: Card) {
     setEditing(c.id);
@@ -110,9 +143,9 @@ export default function DeckCards() {
     setFindCard(cardId);
     try {
       await findCardImage(cardId);
-      await load(); // refresh — regenerate replaces the previous auto image
+      await load();
     } catch {
-      window.alert("Couldn't find an image for this card.");
+      window.alert(t("common.error"));
     } finally {
       setFindCard(null);
     }
@@ -125,7 +158,7 @@ export default function DeckCards() {
 
   async function setAllTypes(type: CardType) {
     const targets = cards.filter((c) => c.card_type !== type);
-    if (!targets.length || !window.confirm(`Set all ${targets.length} card(s) to "${type}"?`)) return;
+    if (!targets.length || !window.confirm(`Set the ${targets.length} listed card(s) to "${type}"?`)) return;
     setCards((cs) => cs.map((c) => ({ ...c, card_type: type })));
     for (const c of targets) await updateCard(c.id, { card_type: type });
   }
@@ -146,14 +179,13 @@ export default function DeckCards() {
 
   async function colourise() {
     setColourBusy(true);
-    setColourMsg("Colourising…");
+    setColourMsg(t("deckCards.colouring"));
     try {
       let total = 0;
-      // Process batch after batch until nothing colourable remains.
       for (let i = 0; i < 400; i++) {
         const res = await colourizeDeck(id);
         total += res.colourized;
-        setColourMsg(`Colourising… ${total} done${res.remaining ? `, ~${res.remaining} left` : ""}`);
+        setColourMsg(`${t("deckCards.colouring")} ${total} done${res.remaining ? `, ~${res.remaining} left` : ""}`);
         if (res.remaining === 0 || res.colourized === 0) break;
       }
       setColourMsg(
@@ -163,55 +195,73 @@ export default function DeckCards() {
       );
       await load();
     } catch (e) {
-      setColourMsg(e instanceof Error ? e.message : "Colourise failed.");
+      setColourMsg(e instanceof Error ? e.message : t("common.error"));
     } finally {
       setColourBusy(false);
     }
   }
 
-  if (loading) return <div className="panel">Loading…</div>;
+  if (loading && !deck) return <div className="panel">{t("deckCards.loading")}</div>;
 
   return (
     <div className="browse">
       <div className="browse__head">
         <div>
-          <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app")}>← Decks</button>
+          <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app")}>{t("decks.backBtn")}</button>
           <h1>{deck?.full_name ?? "Deck"}</h1>
-          <p className="browse__sub">{cards.length} cards</p>
+          <p className="browse__sub">{t("deckCards.cardCount", { count })}</p>
         </div>
         <div className="browse__actions">
-          <Link to={`/app/decks/${id}/add`} className="btn btn--ghost">+ Add card</Link>
+          <Link to={`/app/decks/${id}/add`} className="btn btn--ghost">{t("deckCards.addCard")}</Link>
           <button className={`btn btn--ghost ${typePanel ? "btn--on" : ""}`} onClick={() => setTypePanel((v) => !v)}>
-            Card types
+            {t("deckCards.cardTypes")}
           </button>
           <button className="btn btn--ghost" onClick={colourise} disabled={colourBusy} title="Run German gender colouring on every sentence/grammar card in this deck">
-            {colourBusy ? "🎨 Colourising…" : "🎨 Colourise German"}
+            {colourBusy ? t("deckCards.colouring") : t("deckCards.colouringBtn")}
           </button>
           <button
             className="btn btn--primary"
             disabled={!deck || deck.counts.new + deck.counts.learning + deck.counts.due === 0}
             onClick={() => navigate(`/app/study/${id}`)}
           >
-            Study
+            {t("deckCards.studyBtn")}
           </button>
         </div>
       </div>
+
+      {(count > 0 || search) && (
+        <div className="browse__search">
+          <input
+            className="input"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("deckCards.searchPlaceholder")}
+            aria-label={t("deckCards.searchPlaceholder")}
+          />
+          {search && (
+            <span className="browse__searchcount">
+              {t("deckCards.searchResults_other", { count })}
+            </span>
+          )}
+        </div>
+      )}
 
       {colourMsg && <div className="panel browse__note">{colourMsg}</div>}
 
       {typePanel && cards.length > 0 && (
         <div className="panel typepanel">
           <div className="typepanel__bar">
-            <strong>Card types</strong>
+            <strong>{t("deckCards.cardTypes")}</strong>
             <div className="typepanel__tools">
               <button className="btn btn--primary btn--sm" onClick={autoDetectTypes} disabled={autoBusy} title="Check every card and set its type automatically from its content">
-                {autoBusy ? "Detecting…" : "✨ Auto-detect types"}
+                {autoBusy ? t("deckCards.detecting") : t("deckCards.autoDetect")}
               </button>
               <label className="typepanel__all">
-                Set all to
+                {t("deckCards.setAllTo")}
                 <select className="input input--sm" defaultValue="" onChange={(e) => { if (e.target.value) { setAllTypes(e.target.value as CardType); e.target.value = ""; } }}>
                   <option value="">…</option>
-                  {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {CARD_TYPES.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
                 </select>
               </label>
             </div>
@@ -225,7 +275,7 @@ export default function DeckCards() {
                   value={c.card_type}
                   onChange={(e) => changeType(c.id, e.target.value as CardType)}
                 >
-                  {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {CARD_TYPES.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
                 </select>
               </li>
             ))}
@@ -234,10 +284,14 @@ export default function DeckCards() {
       )}
 
       {cards.length === 0 ? (
-        <div className="panel">
-          No cards yet. <Link to={`/app/decks/${id}/add`}>Add one</Link> or use{" "}
-          <Link to="/app/import">Import</Link>.
-        </div>
+        search ? (
+          <div className="panel">{t("deckCards.noMatch", { search })}</div>
+        ) : (
+          <div className="panel">
+            {t("deckCards.noCards")} <Link to={`/app/decks/${id}/add`}>{t("deckCards.addCard")}</Link> or use{" "}
+            <Link to="/app/import">{t("nav.import")}</Link>.
+          </div>
+        )
       ) : (
         <ul className="cardrows">
           {cards.map((c) => (
@@ -247,8 +301,8 @@ export default function DeckCards() {
                   <CardEditor value={draft} onChange={setDraft} />
                   <CardImages card={c} onChange={load} />
                   <div className="cardrow__editactions">
-                    <button className="btn btn--primary btn--sm" onClick={() => saveEdit(c.id)}>Save</button>
-                    <button className="btn btn--ghost btn--sm" onClick={() => setEditing(null)}>Cancel</button>
+                    <button className="btn btn--primary btn--sm" onClick={() => saveEdit(c.id)}>{t("deckCards.saveBtn")}</button>
+                    <button className="btn btn--ghost btn--sm" onClick={() => setEditing(null)}>{t("deckCards.cancelBtn")}</button>
                   </div>
                 </div>
               ) : (
@@ -263,13 +317,13 @@ export default function DeckCards() {
                   <span className={`state state--${c.state}`}>{c.state}</span>
                   <button
                     className="cardrow__review"
-                    title="Review just this card"
+                    title={t("deckCards.reviewBtn")}
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/app/study/card/${c.id}`);
                     }}
                   >
-                    ▶ Review
+                    {t("deckCards.reviewBtn")}
                   </button>
                   {c.card_type === "vocab" && (
                     <button
@@ -309,6 +363,28 @@ export default function DeckCards() {
             </li>
           ))}
         </ul>
+      )}
+
+      {numPages > 1 && (
+        <div className="pager">
+          <button
+            className="btn btn--ghost btn--sm"
+            disabled={page <= 1 || loading}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            {t("deckCards.prevBtn")}
+          </button>
+          <span className="pager__info">
+            {t("deckCards.pageInfo", { page, total: numPages })}
+          </span>
+          <button
+            className="btn btn--ghost btn--sm"
+            disabled={page >= numPages || loading}
+            onClick={() => setPage((p) => Math.min(numPages, p + 1))}
+          >
+            {t("deckCards.nextBtn")}
+          </button>
+        </div>
       )}
     </div>
   );

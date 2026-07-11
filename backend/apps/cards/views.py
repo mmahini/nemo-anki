@@ -1,8 +1,9 @@
 import datetime
+import math
 
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from rest_framework import status
@@ -18,25 +19,72 @@ from .queue import study_queue
 from .serializers import AnswerSerializer, BulkCardSerializer, CardSerializer
 
 
+DEFAULT_PAGE_SIZE = 25
+MAX_PAGE_SIZE = 100
+
+
+def _empty_page(page_size: int) -> dict:
+    return {"results": [], "count": 0, "page": 1, "page_size": page_size, "num_pages": 1}
+
+
 class CardListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         # Management list shows one row per note (the forward/primary card);
         # the reverse companion is hidden here but still studied & edited in sync.
-        qs = Card.objects.filter(
-            deck__user=request.user, reverse_of__isnull=True
-        ).select_related("deck")
+        # Paginated + searchable so heavy decks stay fast. prefetch avoids an
+        # N+1 on images / reverse lookups when serializing the page.
+        qs = (
+            Card.objects.filter(deck__user=request.user, reverse_of__isnull=True)
+            .select_related("deck")
+            .prefetch_related("images", "reverses")
+        )
+
+        page_size = self._int_param(request, "page_size", DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE)
+
         deck_id = request.query_params.get("deck")
         if deck_id:
             deck = Deck.objects.filter(id=deck_id, user=request.user).first()
             if not deck:
-                return Response([], status=status.HTTP_200_OK)
+                return Response(_empty_page(page_size), status=status.HTTP_200_OK)
             qs = qs.filter(deck_id__in=deck.descendant_ids())
+
         card_type = request.query_params.get("type")
         if card_type:
             qs = qs.filter(card_type=card_type)
-        return Response(CardSerializer(qs, many=True).data)
+
+        search = (request.query_params.get("q") or "").strip()
+        if search:
+            qs = qs.filter(
+                Q(front__icontains=search)
+                | Q(back__icontains=search)
+                | Q(reading__icontains=search)
+            )
+
+        count = qs.count()
+        num_pages = max(1, math.ceil(count / page_size))
+        page = self._int_param(request, "page", 1, 1, num_pages)
+        offset = (page - 1) * page_size
+        rows = qs[offset : offset + page_size]
+
+        return Response(
+            {
+                "results": CardSerializer(rows, many=True).data,
+                "count": count,
+                "page": page,
+                "page_size": page_size,
+                "num_pages": num_pages,
+            }
+        )
+
+    @staticmethod
+    def _int_param(request, name: str, default: int, lo: int, hi: int) -> int:
+        try:
+            val = int(request.query_params.get(name, default))
+        except (TypeError, ValueError):
+            val = default
+        return max(lo, min(hi, val))
 
     @transaction.atomic
     def post(self, request):

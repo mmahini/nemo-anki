@@ -175,6 +175,7 @@ export type AuthUser = {
   id: number;
   email: string;
   display_name: string;
+  ui_language: "en" | "fa";
   date_joined: string;
 };
 
@@ -187,8 +188,12 @@ export type RequestOtpResponse = {
 
 export type VerifyOtpResponse = AuthTokens & { user: AuthUser; is_new_user: boolean };
 
-export type CardType = "vocab" | "sentence" | "grammar";
+export type CardType = "vocab" | "sentence" | "grammar" | "verb";
 export type Article = "none" | "der" | "die" | "das" | "plural";
+
+/** One row of a verb card's conjugation table: a tense/situation, the
+ * conjugated form in the card's language, and its meaning. */
+export type Conjugation = { tense: string; form: string; meaning: string };
 export type CardState = "new" | "learning" | "review" | "relearning" | "suspended";
 
 export type GrammarTable = {
@@ -245,6 +250,7 @@ export type Card = {
   notes: string;
   table: GrammarTable | null;
   genders: NounGender[];
+  conjugations: Conjugation[];
   tags: string[];
   state: CardState;
   due: string;
@@ -271,6 +277,7 @@ export type DraftCard = {
   notes: string;
   table: GrammarTable | null;
   genders: NounGender[];
+  conjugations: Conjugation[];
   tags: string[];
 };
 
@@ -292,6 +299,13 @@ export function verifyOtp(otpId: string, code: string): Promise<VerifyOtpRespons
 
 export function fetchMe(): Promise<AuthUser> {
   return jsonRequest<AuthUser>("/api/me", { method: "GET" });
+}
+
+export function updateMe(payload: Partial<Pick<AuthUser, "display_name" | "ui_language">>): Promise<AuthUser> {
+  return jsonRequest<AuthUser>("/api/me", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 // ====== Decks ======
@@ -340,8 +354,25 @@ export function autotypeDeck(
 
 // ====== Cards ======
 
-export function fetchCards(deckId: number): Promise<Card[]> {
-  return jsonRequest<Card[]>(`/api/cards/?deck=${deckId}`, { method: "GET" });
+export type Paginated<T> = {
+  results: T[];
+  count: number;
+  page: number;
+  page_size: number;
+  num_pages: number;
+};
+
+/** A page of a deck's cards, optionally filtered by a search term / type. */
+export function fetchCards(
+  deckId: number,
+  opts?: { page?: number; pageSize?: number; q?: string; type?: CardType },
+): Promise<Paginated<Card>> {
+  const p = new URLSearchParams({ deck: String(deckId) });
+  if (opts?.page) p.set("page", String(opts.page));
+  if (opts?.pageSize) p.set("page_size", String(opts.pageSize));
+  if (opts?.q) p.set("q", opts.q);
+  if (opts?.type) p.set("type", opts.type);
+  return jsonRequest<Paginated<Card>>(`/api/cards/?${p.toString()}`, { method: "GET" });
 }
 
 export function createCard(payload: Partial<Card> & { deck: number; front: string }): Promise<Card> {
@@ -462,6 +493,20 @@ export function enrichCard(payload: {
   back_language?: string;
 }): Promise<EnrichResult> {
   return jsonRequest<EnrichResult>("/api/import/enrich/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export type ConjugateResult = { back: string; conjugations: Conjugation[] };
+
+/** Conjugate a verb across the tenses a learner needs (the Fill button). */
+export function conjugateVerb(payload: {
+  front: string;
+  language?: "de" | "en" | "";
+  back_language?: string;
+}): Promise<ConjugateResult> {
+  return jsonRequest<ConjugateResult>("/api/import/conjugate/", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -660,6 +705,28 @@ export type WritingIssue = {
   type: string;
   explanation: string;
 };
+
+export type WritingPrompt = {
+  text: string;
+  source: "books" | "auto";
+  book_title?: string;
+  lesson_title?: string;
+};
+
+export type WritingBook = { id: number; title: string };
+
+export function writingBooks(): Promise<WritingBook[]> {
+  return jsonRequest("/api/writing/books/", { method: "GET" });
+}
+
+export function writingPrompt(payload: {
+  language: string;
+  translation_language: string;
+  source: "books" | "auto";
+  book_id?: number;
+}): Promise<WritingPrompt> {
+  return jsonRequest("/api/writing/prompt/", { method: "POST", body: JSON.stringify(payload) });
+}
 
 export function writingTopic(language: string): Promise<{ topic: string; en: string }> {
   return jsonRequest("/api/writing/topic/", { method: "POST", body: JSON.stringify({ language }) });

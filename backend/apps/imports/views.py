@@ -1,3 +1,4 @@
+import random
 from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.core.files.base import ContentFile
@@ -8,18 +9,27 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.books.models import BookCard, BookLesson
 from apps.cards.models import Card, CardImage
 from apps.decks.models import Deck, DeckConfig
 
 from . import anki
-from .gemini import analyze_german, enrich_card, parse_text, writing_check, writing_topic
+from .gemini import (
+    analyze_german,
+    conjugate_verb,
+    enrich_card,
+    parse_text,
+    writing_check,
+    writing_prompt,
+    writing_topic,
+)
 
 
 class ParseRequestSerializer(serializers.Serializer):
     text = serializers.CharField(max_length=20000)
     language = serializers.ChoiceField(choices=["de", "en", ""], required=False, default="")
     default_type = serializers.ChoiceField(
-        choices=["vocab", "sentence", "grammar"], required=False, default="vocab"
+        choices=["vocab", "sentence", "grammar", "verb"], required=False, default="vocab"
     )
 
 
@@ -27,9 +37,16 @@ class EnrichRequestSerializer(serializers.Serializer):
     front = serializers.CharField(max_length=500)
     language = serializers.ChoiceField(choices=["de", "en", ""], required=False, default="")
     card_type = serializers.ChoiceField(
-        choices=["vocab", "sentence", "grammar"], required=False, default="vocab"
+        choices=["vocab", "sentence", "grammar", "verb"], required=False, default="vocab"
     )
     # Language the translation ("back") should be written in.
+    back_language = serializers.CharField(max_length=40, required=False, default="English")
+
+
+class ConjugateRequestSerializer(serializers.Serializer):
+    front = serializers.CharField(max_length=200)
+    language = serializers.ChoiceField(choices=["de", "en", ""], required=False, default="")
+    # Language the per-form meaning ("back") should be written in.
     back_language = serializers.CharField(max_length=40, required=False, default="English")
 
 
@@ -67,6 +84,23 @@ class EnrichView(APIView):
             serializer.validated_data["front"],
             serializer.validated_data["language"],
             serializer.validated_data["card_type"],
+            serializer.validated_data["back_language"],
+        )
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class ConjugateView(APIView):
+    """Conjugate a verb across the tenses a learner needs (the "Fill
+    conjugations" button on a verb card)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ConjugateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = conjugate_verb(
+            serializer.validated_data["front"],
+            serializer.validated_data["language"],
             serializer.validated_data["back_language"],
         )
         return Response(result, status=status.HTTP_200_OK)
@@ -250,6 +284,77 @@ class AnkiImportView(APIView):
 
 
 # Writing practice -----------------------------------------------------------
+
+def _books_with_processed_lessons(user):
+    """Return queryset of books (own + shared) that have at least one processed lesson."""
+    from apps.books.models import Book
+    from django.db.models import Q
+
+    book_ids = (
+        BookLesson.objects
+        .filter(processed=True)
+        .filter(Q(book__user=user) | Q(book__shares__user=user))
+        .values_list("book_id", flat=True)
+        .distinct()
+    )
+    return Book.objects.filter(id__in=book_ids).order_by("title")
+
+
+def _pick_lesson_for_book(user, book_id):
+    """Return {lesson, vocab} for a random processed lesson from a specific book, or None."""
+    from apps.books.models import Book
+    from django.db.models import Q
+
+    # Verify the user can access this book
+    accessible = (
+        BookLesson.objects
+        .filter(book_id=book_id, processed=True)
+        .filter(Q(book__user=user) | Q(book__shares__user=user))
+        .select_related("book")
+        .order_by("?")
+    )
+    for lesson in list(accessible[:10]):
+        cards = list(BookCard.objects.filter(lesson=lesson).exclude(back="")[:15])
+        if len(cards) >= 3:
+            random.shuffle(cards)
+            vocab = [{"front": c.front, "back": c.back} for c in cards[:8]]
+            return {"lesson": lesson, "vocab": vocab}
+    return None
+
+
+class WritingBooksView(APIView):
+    """Return the list of books (own + shared) that have at least one processed lesson."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        books = _books_with_processed_lessons(request.user)
+        return Response([{"id": b.id, "title": b.title} for b in books])
+
+
+class WritingPromptView(APIView):
+    """Return a short native-language passage for the user to translate into the target language."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        language = (request.data.get("language") or "").strip()
+        translation_language = (request.data.get("translation_language") or "English").strip()
+        source = (request.data.get("source") or "auto").strip()
+        book_id = request.data.get("book_id")
+
+        lesson_info = None
+        if source == "books" and book_id:
+            lesson_info = _pick_lesson_for_book(request.user, book_id)
+            if lesson_info is None:
+                return Response(
+                    {"detail": "No processed lessons found in this book."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return Response(writing_prompt(language, translation_language, lesson_info), status=status.HTTP_200_OK)
+
+
 class WritingTopicView(APIView):
     """Suggest one short writing-practice topic for a chosen language."""
 

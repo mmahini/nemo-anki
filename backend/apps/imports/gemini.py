@@ -8,21 +8,23 @@ reviews/edits them on the Import page and then commits via /api/cards/bulk/.
 from __future__ import annotations
 
 import json
+import random
 import re
 
 import requests
 from django.conf import settings
 
-ALLOWED_TYPES = {"vocab", "sentence", "grammar"}
+ALLOWED_TYPES = {"vocab", "sentence", "grammar", "verb"}
 ALLOWED_ARTICLES = {"none", "der", "die", "das", "plural"}
 
 _PROMPT = """You are a language-learning flashcard generator. Convert the text \
 below (a section of a {language_name} coursebook) into spaced-repetition cards.
 
 Return ONLY a JSON array. Each element has these keys:
-- "card_type": one of "vocab", "sentence", "grammar". Default to "{default_type}" \
-when unsure. Single words/phrases -> "vocab"; full example sentences -> \
-"sentence"; rules/patterns/conjugations -> "grammar".
+- "card_type": one of "vocab", "sentence", "grammar", "verb". Default to \
+"{default_type}" when unsure. Single words/phrases -> "vocab"; full example \
+sentences -> "sentence"; rules/patterns -> "grammar"; a verb worth learning \
+across tenses -> "verb".
 - "front": the prompt shown first (the {language_name} term/sentence, or for \
 grammar a cloze prompt using ___ for the gap).
 - "back": the answer (English translation, or the form that fills the grammar gap).
@@ -124,6 +126,63 @@ def _enrich_fallback(front: str) -> dict:
     return {"back": "", "reading": "", "article": _detect_article(front), "plural": "", "example": ""}
 
 
+_CONJUGATE_PROMPT = """You are a language teacher. Conjugate the {language_name} \
+verb below across the situations/tenses a learner needs. Return ONLY a JSON \
+object (no markdown, no commentary):
+- "back": a concise meaning of the verb written in {back_language} (e.g. \
+"to make / to do"), or "".
+- "conjugations": an ordered JSON array. Each element is an object:
+  - "tense": the name of the situation/tense (e.g. "Infinitiv", "Präsens", \
+"Präteritum", "Perfekt", "Futur", "Imperativ"). For English use "base form", \
+"present (3rd person)", "past simple", "past participle", "-ing form".
+  - "form": the {language_name} conjugated form, using a natural example \
+subject where helpful (e.g. "er macht", "er hat gemacht").
+  - "meaning": the {back_language} equivalent of that exact form (e.g. \
+"he makes", "he has made").
+Cover the most useful forms for a learner (aim for 4-6). Be accurate.
+
+VERB: {front}
+"""
+
+
+def conjugate_verb(front: str, language: str = "", back_language: str = "English") -> dict:
+    """Return conjugations for a verb card (the "Fill conjugations" button).
+
+    ``{"back": str, "conjugations": [{"tense","form","meaning"}]}``. Degrades to
+    an empty result if no key is configured or the call fails.
+    """
+    front = (front or "").strip()
+    if not front or not settings.GEMINI_API_KEY:
+        return {"back": "", "conjugations": []}
+    try:
+        prompt = _CONJUGATE_PROMPT.format(
+            language_name=_LANG_NAMES.get(language, "the target language"),
+            back_language=(back_language or "English").strip(),
+            front=front[:200],
+        )
+        obj = _extract_json_object(_gemini_text(prompt, timeout=45))
+    except Exception:  # noqa: BLE001 — degrade gracefully
+        return {"back": "", "conjugations": []}
+    return {"back": str(obj.get("back", "")).strip(), "conjugations": _clean_conjugations(obj.get("conjugations"))}
+
+
+def _clean_conjugations(raw) -> list[dict]:
+    """Coerce an LLM conjugation array into clean {tense, form, meaning} rows."""
+    out: list[dict] = []
+    if not isinstance(raw, list):
+        return out
+    for it in raw:
+        if not isinstance(it, dict):
+            continue
+        tense = str(it.get("tense", "")).strip()
+        form = str(it.get("form", "")).strip()
+        meaning = str(it.get("meaning", "")).strip()
+        if not (tense or form or meaning):
+            continue
+        out.append({"tense": tense, "form": form, "meaning": meaning})
+    return out
+
+
 _ANALYZE_PROMPT = """Analyse the German sentence below. For every noun, in order \
 of appearance, return ONLY a JSON array; each element is an object with:
 - "noun": the noun exactly as written in the sentence.
@@ -206,16 +265,17 @@ def _writing_lang_name(code: str) -> str:
     return _WRITING_LANGS.get(code, code or "the target language")
 
 
-def _gemini_text(prompt: str, timeout: int = 30) -> str:
+def _gemini_text(prompt: str, timeout: int = 30, temperature: float = 0.4) -> str:
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
         f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
     )
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json"},
+        "generationConfig": {"temperature": temperature, "responseMimeType": "application/json"},
     }
-    res = requests.post(url, json=payload, timeout=timeout)
+    verify = getattr(settings, "GEMINI_VERIFY_SSL", True)
+    res = requests.post(url, json=payload, timeout=timeout, verify=verify)
     res.raise_for_status()
     return res.json()["candidates"][0]["content"]["parts"][0]["text"]
 
@@ -289,6 +349,143 @@ def writing_check(text: str, language: str) -> dict:
             }
         )
     return {"feedback": str(obj.get("feedback", "")).strip(), "issues": issues}
+
+
+_PROMPT_FALLBACKS = {
+    "Persian": [
+        "امروز صبح زود بیدار شدم. بعد از صبحانه به سر کار رفتم. عصر با یک دوست قهوه خوردیم و درباره تعطیلات تابستان صحبت کردیم.",
+        "آخر هفته گذشته با خانواده‌ام به بازار رفتیم. میوه و سبزیجات تازه خریدیم. بعد از ناهار در پارک قدم زدیم.",
+        "دیروز هوا خیلی خوب بود. دوستم زنگ زد و پیشنهاد داد که دوچرخه‌سواری برویم. یک ساعت در کنار رودخانه رکاب زدیم.",
+        "این هفته کلاس زبان جدیدی شروع کردم. معلم خیلی صبور است و تمرین‌های جالبی می‌دهد. هر روز یک ساعت مطالعه می‌کنم.",
+        "دیشب یک فیلم خوب دیدم. داستان درباره سفر یک خانواده به کوهستان بود. صحنه‌های طبیعت بسیار زیبا بودند.",
+        "امروز در رستوران غذای جدیدی امتحان کردم. طعم آن خیلی متفاوت بود اما دوست داشتم. حتماً دوباره می‌روم.",
+        "هفته پیش برای اولین بار آشپزی کردم. یک سوپ ساده با سبزیجات درست کردم. همه از آن تعریف کردند.",
+        "دیروز با قطار به شهر دیگری رفتم. از پنجره منظره زیبای مزارع را تماشا کردم. شب دیروقت برگشتم.",
+        "امروز صبح بارندگی شدیدی بود. یک فنجان چای دم کردم و کنار پنجره نشستم. کتابی که چند وقت بود شروع نکرده بودم را برداشتم.",
+        "این ماه تصمیم گرفتم هر روز نیم ساعت پیاده‌روی کنم. دیروز از خیابان‌های قدیمی شهر گذشتم. منظره مغازه‌های کوچک خیلی دلنشین بود.",
+        "دوستم تولدش بود و برایش سورپرایز کوچکی ترتیب دادیم. یک کیک خانگی پختم و چند نفر از دوستان مشترکمان را دعوت کردم. خیلی خوش گذشت.",
+        "دیروز به کتابخانه رفتم تا کتاب جدیدی پیدا کنم. کتابدار یک رمان تاریخی پیشنهاد داد. همان شب شروع به خواندن آن کردم.",
+        "آخر هفته در خانه ماندم و خانه را مرتب کردم. چند جعبه قدیمی را باز کردم و چیزهای جالبی پیدا کردم. از دیدن عکس‌های قدیمی خیلی خوشحال شدم.",
+        "امروز با همکارانم در کافه‌ای نزدیک محل کار ناهار خوردیم. از پروژه‌های جدید حرف زدیم. فضای کافه خیلی دنج و آرام بود.",
+        "دیروز اولین برف زمستان بارید. بچه‌های همسایه در حیاط آدم‌برفی درست می‌کردند. من هم یک کاکائوی گرم درست کردم و از پنجره تماشا کردم.",
+    ],
+    "French": [
+        "Je me suis réveillé tôt ce matin. Après le petit-déjeuner, je suis allé au travail. Le soir, j'ai retrouvé un ami pour boire un café.",
+        "Le week-end dernier, j'ai visité un musée avec ma famille. Les expositions étaient très intéressantes. Nous avons mangé dans un petit restaurant après.",
+        "Hier, le temps était magnifique. J'ai décidé de me promener dans le parc. J'ai rencontré des voisins et nous avons parlé longtemps.",
+        "Ce matin, il pleuvait fort. J'ai préparé un thé chaud et j'ai lu un livre près de la fenêtre. C'était une matinée très agréable.",
+        "La semaine dernière, j'ai commencé à apprendre une nouvelle recette. J'ai fait une soupe de légumes simple mais délicieuse. Toute la famille a aimé.",
+    ],
+    "Spanish": [
+        "Me desperté temprano esta mañana. Después del desayuno, fui al trabajo. Por la tarde, tomé un café con un amigo.",
+        "El fin de semana pasado fui al mercado con mi familia. Compramos frutas y verduras frescas. Después almorzamos juntos en casa.",
+        "Ayer hizo muy buen tiempo. Salí a caminar por el parque y me encontré con unos vecinos. Charlamos durante un buen rato.",
+        "Esta mañana llovía mucho. Preparé un té caliente y leí un libro junto a la ventana. Fue una mañana muy agradable.",
+        "La semana pasada empecé a aprender una nueva receta. Hice una sopa de verduras sencilla pero deliciosa. A toda la familia le encantó.",
+    ],
+    "Arabic": [
+        "استيقظت مبكرًا هذا الصباح. بعد الفطور، ذهبت إلى العمل. في المساء، تناولت القهوة مع صديق.",
+        "في عطلة نهاية الأسبوع، ذهبت مع عائلتي إلى السوق. اشترينا الخضروات والفواكه الطازجة. ثم تناولنا الغداء معًا.",
+        "أمس كان الطقس جميلًا. قررت التنزه في الحديقة. التقيت بجيران لطيفين وتحدثنا طويلًا.",
+        "في الصباح كانت الأمطار غزيرة. أعددت كوبًا من الشاي الساخن وقرأت كتابًا بجانب النافذة. كان صباحًا هادئًا جدًا.",
+        "الأسبوع الماضي بدأت تعلم وصفة جديدة. صنعت حساء خضار بسيطًا ولذيذًا. أحب الجميع الطعم.",
+    ],
+    "Russian": [
+        "Сегодня я проснулся рано утром. После завтрака я пошёл на работу. Вечером встретился с другом за кофе.",
+        "В прошлые выходные мы ходили с семьёй на рынок. Купили свежие овощи и фрукты. Потом вместе пообедали дома.",
+        "Вчера была отличная погода. Я решил погулять в парке. Встретил соседей и мы долго разговаривали.",
+        "Утром шёл сильный дождь. Я заварил чай и читал книгу у окна. Это было очень приятное утро.",
+        "На прошлой неделе я начал учить новый рецепт. Приготовил простой овощной суп. Всей семье очень понравилось.",
+    ],
+    "Turkish": [
+        "Bu sabah erken uyandım. Kahvaltının ardından işe gittim. Akşam bir arkadaşımla kahve içtik.",
+        "Geçen hafta sonu ailемle pazara gittik. Taze sebze ve meyve aldık. Sonra birlikte öğle yemeği yedik.",
+        "Dün hava çok güzeldi. Parkta yürüyüş yapmaya karar verdim. Komşularımla karşılaştık ve uzun süre sohbet ettik.",
+        "Sabah çok yağmur yağıyordu. Sıcak bir çay hazırladım ve pencere kenarında kitap okudum. Çok huzurlu bir sabah geçirdim.",
+        "Geçen hafta yeni bir tarif öğrenmeye başladım. Basit ama lezzetli bir sebze çorbası yaptım. Ailем çok beğendi.",
+    ],
+}
+
+_PROMPT_TOPICS = [
+    "a morning routine or daily schedule",
+    "a visit to a market, shop, or restaurant",
+    "a walk in a park or a trip to nature",
+    "meeting a friend or family gathering",
+    "a hobby or leisure activity",
+    "a recent journey or short trip",
+    "the weather and outdoor plans",
+    "learning something new or a school/work day",
+    "cooking a meal or trying new food",
+    "a favourite book, film, or song",
+]
+
+
+def writing_prompt(language: str, translation_language: str, lesson_info: dict | None) -> dict:
+    """Generate a short passage in *translation_language* for the learner to
+    translate into *language*.  If *lesson_info* is given (dict with
+    ``lesson`` and ``vocab``), tries to build the text around those words."""
+    target_lang = _writing_lang_name(language)
+    native_lang = (translation_language or "English").strip()
+
+    if not settings.GEMINI_API_KEY:
+        pool = _PROMPT_FALLBACKS.get(native_lang)
+        if pool:
+            fallback = random.choice(pool)
+        else:
+            fallback = random.choice([
+                "I woke up early this morning. After breakfast, I went to work. In the evening, I had coffee with a friend.",
+                "Last weekend I visited a market with my family. We bought fresh vegetables and fruit. We had lunch together afterwards.",
+                "Yesterday the weather was beautiful. I decided to take a walk in the park. I met some neighbours and we chatted for a while.",
+                "This week I started a new language class. The teacher is very patient and gives interesting exercises. I study for an hour every day.",
+                "Last night I watched a good film. The story was about a family travelling in the mountains. The nature scenes were stunning.",
+            ])
+        return {"text": fallback, "source": "auto"}
+
+    try:
+        if lesson_info:
+            vocab_lines = "\n".join(
+                f"- {v['front']}: {v['back']}"
+                for v in (lesson_info.get("vocab") or [])
+                if v.get("front") and v.get("back")
+            )
+            if vocab_lines:
+                prompt = (
+                    f"You are helping a {target_lang} learner practise translation. "
+                    f"Using 4-6 of the vocabulary words below, write a short, natural paragraph "
+                    f"(3-5 sentences) in {native_lang} about everyday life. "
+                    f"Make it feel like a real text, not a word list. "
+                    f'Return ONLY JSON: {{"text": "<paragraph in {native_lang}>"}}. No markdown.\n\n'
+                    f"Vocabulary ({target_lang} → {native_lang}):\n{vocab_lines}"
+                )
+                obj = _extract_json_object(_gemini_text(prompt, timeout=30, temperature=0.9))
+                text = str(obj.get("text", "")).strip()
+                if text:
+                    lesson = lesson_info["lesson"]
+                    return {
+                        "text": text,
+                        "source": "books",
+                        "book_title": lesson.book.title,
+                        "lesson_title": lesson.title,
+                    }
+
+        topic = random.choice(_PROMPT_TOPICS)
+        prompt = (
+            f"You are helping a {target_lang} learner practise translation. "
+            f"Write a short, natural paragraph (3-5 sentences) in {native_lang} about: {topic}. "
+            f"Use A2-B1 vocabulary — accessible but not trivial. "
+            f"Write something specific and vivid, not generic. "
+            f'Return ONLY JSON: {{"text": "<paragraph in {native_lang}>"}}. No markdown.'
+        )
+        obj = _extract_json_object(_gemini_text(prompt, timeout=30, temperature=0.9))
+        text = str(obj.get("text", "")).strip()
+        if not text:
+            raise ValueError("empty")
+        return {"text": text, "source": "auto"}
+
+    except Exception:  # noqa: BLE001
+        pool = _PROMPT_FALLBACKS.get(native_lang)
+        fallback = random.choice(pool) if pool else "I woke up early this morning. After breakfast, I went to work."
+        return {"text": fallback, "source": "auto"}
 
 
 _BATCH_PROMPT = """You are a German teacher. For each item in the INPUT JSON array \
@@ -429,6 +626,7 @@ def _normalise(item: dict, language: str, default_type: str) -> dict:
         "notes": str(item.get("notes", "")).strip(),
         "table": item.get("table") if isinstance(item.get("table"), dict) else None,
         "genders": [],
+        "conjugations": _clean_conjugations(item.get("conjugations")),
         "tags": [str(t).strip() for t in tags if str(t).strip()],
     }
 

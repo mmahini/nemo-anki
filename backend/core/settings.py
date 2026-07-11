@@ -189,7 +189,8 @@ SIMPLE_JWT = {
 # Gemini — powers the Import flow (paste book text -> draft cards).
 # When unset, the import endpoint falls back to a deterministic line parser.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_VERIFY_SSL = os.getenv("GEMINI_VERIFY_SSL", "1") != "0"
 
 # Resend — transactional email for sign-in OTP codes. When RESEND_API_KEY is
 # set the code is emailed (and never returned in the API response); otherwise

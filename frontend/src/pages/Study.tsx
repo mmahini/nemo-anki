@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import {
   answerCard,
@@ -16,16 +17,17 @@ import { speak } from "../lib/tts";
 
 type Rating = 1 | 2 | 3 | 4;
 
-const RATING_META: { rating: Rating; label: string; key: string; cls: string }[] = [
-  { rating: 1, label: "Again", key: "1", cls: "grade grade--again" },
-  { rating: 2, label: "Hard", key: "2", cls: "grade grade--hard" },
-  { rating: 3, label: "Good", key: "3", cls: "grade grade--good" },
-  { rating: 4, label: "Easy", key: "4", cls: "grade grade--easy" },
+const RATING_KEYS: { rating: Rating; key: string; cls: string }[] = [
+  { rating: 1, key: "study.again", cls: "grade grade--again" },
+  { rating: 2, key: "study.hard", cls: "grade grade--hard" },
+  { rating: 3, key: "study.good", cls: "grade grade--good" },
+  { rating: 4, key: "study.easy", cls: "grade grade--easy" },
 ];
 
 export default function Study() {
   const { deckId } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [queue, setQueue] = useState<Card[]>([]);
   const [flipped, setFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,7 @@ export default function Study() {
       const q = await fetchStudyQueue(id);
       setQueue(q);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load cards.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setLoading(false);
     }
@@ -59,7 +61,6 @@ export default function Study() {
     shownAt.current = Date.now();
   }, [current?.id, flipped]);
 
-  // Auto-read the front (prompt) aloud whenever a new card appears.
   useEffect(() => {
     if (!current) return;
     const s = promptSpeech(current);
@@ -76,14 +77,13 @@ export default function Study() {
         setFlipped(false);
         setQueue((q) => {
           const rest = q.slice(1);
-          // Learning/relearning cards come back later in the session.
           if (updated.state === "learning" || updated.state === "relearning") {
             return [...rest, updated];
           }
           return rest;
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not save answer.");
+        setError(err instanceof Error ? err.message : t("common.error"));
       } finally {
         setBusy(false);
       }
@@ -106,7 +106,6 @@ export default function Study() {
     }
   }, [busy]);
 
-  // Per-card actions available while reviewing (keep the interval preview).
   const patchCurrent = (patch: Partial<Card>) =>
     setQueue((q) => q.map((c, i) => (i === 0 ? { ...c, ...patch } : c)));
 
@@ -134,7 +133,6 @@ export default function Study() {
     }
   }, [current, cardBusy]);
 
-  // When the working queue empties, try to pull more (learning steps may be due).
   useEffect(() => {
     if (!loading && queue.length === 0) {
       (async () => {
@@ -146,7 +144,7 @@ export default function Study() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (editing) return; // let the editor own the keyboard
+      if (editing) return;
       if (e.key === "Escape") return void navigate("/app");
       if (e.key === "u" || e.key === "U") return void undo();
       if (e.key === "e" || e.key === "E") {
@@ -178,19 +176,19 @@ export default function Study() {
     due: queue.filter((c) => c.state === "review").length,
   };
 
-  if (loading) return <div className="study"><div className="panel">Loading…</div></div>;
+  if (loading) return <div className="study"><div className="panel">{t("study.loading")}</div></div>;
 
   return (
     <div className="study">
       <header className="study__bar">
-        <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app")}>← Decks</button>
+        <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app")}>{t("study.backToDecks")}</button>
         <div className="study__progress">
           <span className="count count--new">{counts.new}</span>
           <span className="count count--learn">{counts.learning}</span>
           <span className="count count--due">{counts.due}</span>
         </div>
         <button className="btn btn--ghost btn--sm" onClick={undo} disabled={!canUndo}>
-          ↶ Undo
+          {t("study.undo")}
         </button>
       </header>
 
@@ -199,9 +197,9 @@ export default function Study() {
       {!current ? (
         <div className="study__done">
           <div className="study__done-emoji">🎉</div>
-          <h2>All done for now</h2>
-          <p>No more cards due in this deck. Come back later — or add more.</p>
-          <button className="btn btn--primary" onClick={() => navigate("/app")}>Back to decks</button>
+          <h2>{t("study.allDone")}</h2>
+          <p>{t("study.allDoneHint")}</p>
+          <button className="btn btn--primary" onClick={() => navigate("/app")}>{t("study.backToDecksBtn")}</button>
         </div>
       ) : (
         <div className="study__stage">
@@ -218,20 +216,20 @@ export default function Study() {
 
           {!flipped ? (
             <button className="btn btn--primary btn--lg study__show" onClick={() => setFlipped(true)}>
-              Show answer <kbd>Space</kbd>
+              {t("study.showAnswer")} <kbd>Space</kbd>
             </button>
           ) : (
             <div className="grades">
-              {RATING_META.map((m) => (
+              {RATING_KEYS.map((m) => (
                 <button
                   key={m.rating}
                   className={m.cls}
                   disabled={busy}
                   onClick={() => grade(m.rating)}
                 >
-                  <span className="grade__label">{m.label}</span>
+                  <span className="grade__label">{t(m.key)}</span>
                   <span className="grade__interval">{current.intervals?.[String(m.rating)] ?? ""}</span>
-                  <kbd>{m.key}</kbd>
+                  <kbd>{m.rating}</kbd>
                 </button>
               ))}
             </div>

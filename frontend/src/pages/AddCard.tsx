@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { createCard, fetchDecks, type Deck } from "../auth/api";
 import CardEditor, { emptyDraft } from "../components/CardEditor";
@@ -8,6 +9,7 @@ import { CardBack, CardFront } from "../components/CardFace";
 export default function AddCard() {
   const { deckId } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const id = Number(deckId);
   const [deck, setDeck] = useState<Deck | null>(null);
   const [draft, setDraft] = useState(emptyDraft());
@@ -25,7 +27,7 @@ export default function AddCard() {
 
   async function save(addAnother: boolean) {
     if (!draft.front.trim()) {
-      setError("Front can't be empty.");
+      setError(t("addCard.errorFrontEmpty"));
       return;
     }
     setSaving(true);
@@ -39,7 +41,7 @@ export default function AddCard() {
         navigate(`/app/decks/${id}`);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save card.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -49,10 +51,10 @@ export default function AddCard() {
     <div className="addcard">
       <div className="addcard__head">
         <button className="btn btn--ghost btn--sm" onClick={() => navigate(`/app/decks/${id}`)}>
-          ← {deck?.full_name ?? "Deck"}
+          {t("addCard.backBtn", { name: deck?.full_name ?? "Deck" })}
         </button>
-        <h1>Add a card</h1>
-        {savedCount > 0 && <span className="addcard__saved">{savedCount} added</span>}
+        <h1>{t("addCard.title")}</h1>
+        {savedCount > 0 && <span className="addcard__saved">{t("addCard.savedCount", { count: savedCount })}</span>}
       </div>
 
       <div className="addcard__grid">
@@ -61,16 +63,16 @@ export default function AddCard() {
           {error && <p className="auth__error">{error}</p>}
           <div className="addcard__actions">
             <button className="btn btn--primary" disabled={saving} onClick={() => save(true)}>
-              Save &amp; add another
+              {t("addCard.saveAndAnother")}
             </button>
             <button className="btn btn--ghost" disabled={saving} onClick={() => save(false)}>
-              Save &amp; done
+              {t("addCard.saveAndDone")}
             </button>
           </div>
         </div>
 
         <div className="addcard__preview">
-          <div className="preview-label">Preview</div>
+          <div className="preview-label">{t("addCard.preview")}</div>
           <div className="reviewcard reviewcard--static">
             <CardFront card={draft} />
             <hr className="reviewcard__rule" />

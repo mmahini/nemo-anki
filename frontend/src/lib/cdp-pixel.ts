@@ -4,7 +4,7 @@
  *
  * Config (Vite build-time env, set in Vercel):
  *   VITE_CDP_WRITE_KEY   — nemo-anki's public CDP write-key (e.g. wcdp_nemo_anki_public_key)
- *   VITE_CDP_INGEST_URL  — full ingest URL (e.g. https://api.wiserstudio.ai/cdp/ingest)
+ *   VITE_CDP_INGEST_URL  — full ingest URL (e.g. https://cdp-api.wisry.ai/cdp/ingest)
  *
  * No-ops unless BOTH are set, so dev/preview builds without them emit nothing.
  *

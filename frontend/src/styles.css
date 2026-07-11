@@ -384,7 +384,8 @@ kbd {
 .speak:active { transform: translateY(1px); }
 .speak--sm { width: 26px; height: 26px; font-size: 0.85rem; }
 .face__notes { color: var(--ink-soft); font-size: 0.95rem; max-width: 44ch; }
-.face__example { color: var(--ink-soft); font-style: italic; max-width: 44ch; }
+.face__examplerow { display: flex; align-items: flex-start; gap: 6px; justify-content: center; max-width: 46ch; }
+.face__example { color: var(--ink-soft); font-style: italic; white-space: pre-line; }
 .face__images { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
 .face__img { max-height: 180px; max-width: 100%; border-radius: 8px; border: 1px solid var(--line); object-fit: contain; }
 /* card editor photo manager */
@@ -409,6 +410,7 @@ kbd {
 .cardtype--vocab { border-color: var(--art-der, #3b82f6); }
 .cardtype--sentence { border-color: var(--art-die, #ef4444); }
 .cardtype--grammar { border-color: var(--art-das, #22c55e); }
+.cardtype--verb { border-color: var(--art-plural, #a855f7); }
 .face__tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 .tag { font-size: 0.72rem; background: var(--line-soft); color: var(--ink-soft); padding: 2px 8px; border-radius: 999px; }
 
@@ -416,6 +418,26 @@ kbd {
 .gtable th, .gtable td { border: 1px solid var(--line); padding: 5px 12px; text-align: left; }
 .gtable th { background: var(--line-soft); font-weight: 700; }
 .gtable__hl { background: rgba(76, 110, 245, 0.16); font-weight: 700; }
+
+/* Verb conjugation table (read-only, on the card back) */
+.conjtable { border-collapse: collapse; margin: 4px auto; font-size: 0.92rem; max-width: 100%; }
+.conjtable th, .conjtable td { border: 1px solid var(--line); padding: 5px 12px; text-align: left; vertical-align: top; }
+.conjtable__tense { background: var(--line-soft); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); white-space: nowrap; }
+.conjtable__form { font-weight: 600; }
+.conjtable__form span { margin-right: 6px; }
+.conjtable__meaning { color: var(--ink-soft); }
+
+/* Verb conjugation editor (in the card editor) */
+.cardeditor__conjhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.conjeditor { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.conjeditor__row { display: flex; align-items: center; gap: 6px; }
+.conjeditor__tense { flex: 0 0 26%; min-width: 0; }
+.conjeditor__form { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.conjeditor__form .input { min-width: 0; }
+.conjeditor__meaning { flex: 1; min-width: 0; }
+.conjeditor__del { flex: none; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 0.9rem; padding: 4px; }
+.conjeditor__del:hover { color: var(--again, #d33); }
+.conjeditor__add { align-self: flex-start; }
 
 .face__plural { color: var(--ink-soft); font-size: 0.95rem; display: inline-flex; align-items: center; gap: 6px; }
 .face__plural .art-plural { font-weight: 700; }
@@ -487,6 +509,11 @@ kbd {
 .browse__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .browse__sub { color: var(--ink-faint); margin: 0; }
 .browse__actions { display: flex; gap: 8px; }
+.browse__search { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.browse__search .input { flex: 1; }
+.browse__searchcount { color: var(--ink-faint); font-size: 0.85rem; white-space: nowrap; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+.pager__info { color: var(--ink-soft); font-size: 0.85rem; min-width: 9ch; text-align: center; }
 .cardrows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .cardrow { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .cardrow__view { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; }
@@ -556,6 +583,16 @@ kbd {
 .issue__good { color: var(--good); font-weight: 700; }
 .issue__why { color: var(--ink-soft); font-size: 0.9rem; }
 .writing__hint { color: var(--ink-faint); font-size: 0.85rem; margin-top: 14px; }
+.writing__source-toggle { display: flex; gap: 4px; align-items: center; }
+.writing__book-selector { margin: 0 0 10px; }
+.writing__no-books { margin: 0 0 10px; font-size: 0.9rem; }
+.writing__prompt { margin: 0 0 14px; display: flex; flex-direction: column; gap: 10px; min-height: 64px; }
+.writing__prompt-text { margin: 0; font-size: 1.08rem; line-height: 1.7; }
+.writing__prompt-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.writing__prompt-source { font-size: 0.8rem; color: var(--ink-faint); }
+.writing__prompt-newbtn { margin-inline-start: auto; }
+.writing__prompt-loading { color: var(--ink-faint); font-size: 0.9rem; margin: 0; }
+.writing__prompt-empty { display: flex; align-items: center; justify-content: center; padding: 8px 0; }
 
 /* Tabs */
 .tabs { display: flex; gap: 4px; margin-top: 10px; }
@@ -758,4 +795,55 @@ kbd {
   .lessonview__head .btn { margin-left: 0; }
 
   .panel { padding: 16px; margin: 16px auto; }
+}
+
+/* ============================================================
+   RTL — Persian UI
+   ============================================================ */
+[dir="rtl"] {
+  --font: "IRANSans", "General Sans", system-ui, sans-serif;
+}
+[dir="rtl"] body {
+  font-family: var(--font);
+}
+[dir="rtl"] .shell__bar {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .shell__nav {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .shell__user {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .decks__head {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .decklist__row {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .decklist__name {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .decks__new {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .import__reviewbar {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .import__commit {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .import__head {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .study__grade {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .activity__stats {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3,
+[dir="rtl"] p, [dir="rtl"] label,
+[dir="rtl"] .panel, [dir="rtl"] button {
+  text-align: right;
 }

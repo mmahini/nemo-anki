@@ -1,6 +1,7 @@
 import type { Card, DraftCard } from "../auth/api";
 import { articleClass, articlePillClass, articleLabel } from "../lib/article";
 import CaseTable from "./CaseTable";
+import ConjTable from "./ConjTable";
 import GermanText from "./GermanText";
 import GrammarTable from "./GrammarTable";
 import SpeakButton from "./SpeakButton";
@@ -107,12 +108,18 @@ export function CardBack({ card }: { card: AnyCard }) {
       )}
       {card.notes && <div className="face__notes">{card.notes}</div>}
       {card.table && <GrammarTable table={card.table} />}
+      {card.card_type === "verb" && card.conjugations?.length > 0 && (
+        <ConjTable rows={card.conjugations} lang={cardLang(card)} />
+      )}
       {card.card_type === "sentence" && card.genders.length > 0 && (
         <CaseTable items={card.genders} />
       )}
       {card.example && (
-        <div className="face__example">
-          “<GermanText text={card.example} lang={cardLang(card)} />”
+        <div className="face__examplerow">
+          <div className="face__example">
+            <GermanText text={card.example} lang={cardLang(card)} />
+          </div>
+          <SpeakButton text={card.example} lang={cardLang(card)} small title="Hear the example" />
         </div>
       )}
       {card.tags.length > 0 && (

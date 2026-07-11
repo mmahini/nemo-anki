@@ -34,6 +34,7 @@ class CardSerializer(serializers.ModelSerializer):
             "notes",
             "table",
             "genders",
+            "conjugations",
             "tags",
             "state",
             "due",
