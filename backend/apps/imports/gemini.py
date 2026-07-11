@@ -274,7 +274,8 @@ def _gemini_text(prompt: str, timeout: int = 30, temperature: float = 0.4) -> st
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": temperature, "responseMimeType": "application/json"},
     }
-    res = requests.post(url, json=payload, timeout=timeout)
+    verify = getattr(settings, "GEMINI_VERIFY_SSL", True)
+    res = requests.post(url, json=payload, timeout=timeout, verify=verify)
     res.raise_for_status()
     return res.json()["candidates"][0]["content"]["parts"][0]["text"]
 
