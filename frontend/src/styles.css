@@ -786,3 +786,54 @@ kbd {
 
   .panel { padding: 16px; margin: 16px auto; }
 }
+
+/* ============================================================
+   RTL — Persian UI
+   ============================================================ */
+[dir="rtl"] {
+  --font: "IRANSans", "General Sans", system-ui, sans-serif;
+}
+[dir="rtl"] body {
+  font-family: var(--font);
+}
+[dir="rtl"] .shell__bar {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .shell__nav {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .shell__user {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .decks__head {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .decklist__row {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .decklist__name {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .decks__new {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .import__reviewbar {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .import__commit {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .import__head {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .study__grade {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] .activity__stats {
+  flex-direction: row-reverse;
+}
+[dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3,
+[dir="rtl"] p, [dir="rtl"] label,
+[dir="rtl"] .panel, [dir="rtl"] button {
+  text-align: right;
+}

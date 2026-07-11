@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import {
   deleteBook,
@@ -14,6 +15,7 @@ type Tab = "mine" | "shared";
 
 export default function Books() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("mine");
   const [mine, setMine] = useState<Book[]>([]);
   const [shared, setShared] = useState<Book[]>([]);
@@ -43,14 +45,12 @@ export default function Books() {
   async function onUpload(e: FormEvent) {
     e.preventDefault();
     if (!title.trim() || !file) {
-      setError("Add a title and choose a file (.txt / .pdf).");
+      setError(t("books.errorUpload"));
       return;
     }
     setUploading(true);
     setError(null);
     try {
-      // Just create the book + store the file. Splitting a PDF into lessons is
-      // a separate step on the book page (and can be re-run for smaller chunks).
       const book = await uploadBook({
         title: title.trim(),
         source_language: sourceLang,
@@ -61,14 +61,14 @@ export default function Books() {
       setFile(null);
       navigate(`/app/books/${book.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setUploading(false);
     }
   }
 
   async function onDelete(b: Book) {
-    if (!window.confirm(`Delete the book "${b.title}"? (Decks you already imported stay.)`)) return;
+    if (!window.confirm(t("books.confirmDelete", { title: b.title }))) return;
     await deleteBook(b.id);
     load();
   }
@@ -85,15 +85,15 @@ export default function Books() {
         >
           <span className="bookcard__title">{b.title}</span>
           <span className="bookcard__langs">
-            {(b.source_language || "?").toUpperCase()} → {b.translation_language} · {b.lesson_count} lessons
-            {!b.is_owner && ` · by ${b.owner_email}`}
+            {(b.source_language || "?").toUpperCase()} → {b.translation_language} · {b.lesson_count} {t("books.lessons")}
+            {!b.is_owner && ` ${t("books.sharedBy", { email: b.owner_email })}`}
           </span>
         </button>
         <div className="bookcard__body">
-          <span className="bookcard__meta">{b.card_count} vocab extracted</span>
+          <span className="bookcard__meta">{t("books.vocabCount", { count: b.card_count })}</span>
           <div className="bookcard__actions">
-            <button className="btn btn--primary btn--sm" onClick={() => navigate(`/app/books/${b.id}`)}>Open →</button>
-            {b.is_owner && <button className="btn btn--ghost btn--sm" onClick={() => onDelete(b)}>Delete</button>}
+            <button className="btn btn--primary btn--sm" onClick={() => navigate(`/app/books/${b.id}`)}>{t("books.openBtn")}</button>
+            {b.is_owner && <button className="btn btn--ghost btn--sm" onClick={() => onDelete(b)}>{t("books.deleteBtn")}</button>}
           </div>
         </div>
       </li>
@@ -102,52 +102,51 @@ export default function Books() {
 
   return (
     <div className="books">
-      <h1>Books</h1>
+      <h1>{t("books.title")}</h1>
 
       <form className="books__upload panel" onSubmit={onUpload}>
         <div className="books__row">
           <label className="cardeditor__field" style={{ flex: 2 }}>
-            <span>Book title</span>
-            <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Oxford Word Skills Intermediate" />
+            <span>{t("books.bookTitle")}</span>
+            <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("books.bookTitlePlaceholder")} />
           </label>
           <label className="cardeditor__field">
-            <span>Book language</span>
+            <span>{t("books.bookLanguage")}</span>
             <select className="input" value={sourceLang} onChange={(e) => setSourceLang(e.target.value as any)}>
-              <option value="en">English</option>
-              <option value="de">German</option>
-              <option value="">Other</option>
+              <option value="en">{t("common.english")}</option>
+              <option value="de">{t("common.german")}</option>
+              <option value="">{t("common.other")}</option>
             </select>
           </label>
           <label className="cardeditor__field">
-            <span>Translate into</span>
+            <span>{t("books.translateInto")}</span>
             <select className="input" value={transLang} onChange={(e) => setTransLang(e.target.value)}>
               {TRANSLATE_LANGS.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </label>
         </div>
         <div className="books__row books__row--file">
-          <span className="books__or">Book file (.txt / .pdf)</span>
+          <span className="books__or">{t("books.bookFile")}</span>
           <input type="file" accept=".txt,.pdf,text/plain,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         </div>
         <span className="books__hint">
-          Upload the book first — then open it to split the PDF into lessons (and
-          re-split into smaller chunks whenever you like).
+          {t("books.uploadHint")}
         </span>
         {error && <p className="auth__error">{error}</p>}
         <button className="btn btn--primary btn--lg" disabled={uploading}>
-          {uploading ? "Uploading…" : "Create book"}
+          {uploading ? t("books.uploading") : t("books.createBtn")}
         </button>
       </form>
 
       <div className="tabs books__tabs">
-        <button className={`tab ${tab === "mine" ? "tab--on" : ""}`} onClick={() => setTab("mine")}>My books ({mine.length})</button>
-        <button className={`tab ${tab === "shared" ? "tab--on" : ""}`} onClick={() => setTab("shared")}>Shared with me ({shared.length})</button>
+        <button className={`tab ${tab === "mine" ? "tab--on" : ""}`} onClick={() => setTab("mine")}>{t("books.myBooks", { count: mine.length })}</button>
+        <button className={`tab ${tab === "shared" ? "tab--on" : ""}`} onClick={() => setTab("shared")}>{t("books.sharedWithMe", { count: shared.length })}</button>
       </div>
 
       {loading ? (
-        <div className="panel">Loading…</div>
+        <div className="panel">{t("books.loading")}</div>
       ) : list.length === 0 ? (
-        <div className="panel">{tab === "mine" ? "No books yet — upload one above." : "No books shared with you yet."}</div>
+        <div className="panel">{tab === "mine" ? t("books.noBooks") : t("books.noShared")}</div>
       ) : (
         <ul className="books__list">{list.map(bookCard)}</ul>
       )}

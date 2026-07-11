@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import {
   autotypeDeck,
@@ -56,14 +57,15 @@ const PAGE_SIZE = 25;
 export default function DeckCards() {
   const { deckId } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const id = Number(deckId);
   const [deck, setDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<Card[]>([]);
   const [count, setCount] = useState(0);
   const [numPages, setNumPages] = useState(1);
   const [page, setPage] = useState(1);
-  const [query, setQuery] = useState(""); // what's typed in the search box
-  const [search, setSearch] = useState(""); // debounced term actually applied
+  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState<DraftCard | null>(null);
@@ -74,14 +76,12 @@ export default function DeckCards() {
   const [colourCard, setColourCard] = useState<number | null>(null);
   const [findCard, setFindCard] = useState<number | null>(null);
 
-  // Switching decks (same component instance) resets paging + search.
   useEffect(() => {
     setPage(1);
     setQuery("");
     setSearch("");
   }, [id]);
 
-  // Debounce the search box; a new term always restarts at page 1.
   useEffect(() => {
     const t = setTimeout(() => {
       setSearch(query.trim());
@@ -97,7 +97,6 @@ export default function DeckCards() {
       fetchCards(id, { page, pageSize: PAGE_SIZE, q: search || undefined }),
     ]);
     setDeck(decks.find((d) => d.id === id) ?? null);
-    // A delete can empty the last page — step back so we're never stranded.
     if (res.results.length === 0 && res.count > 0 && page > 1) {
       setPage((p) => Math.max(1, Math.min(p - 1, res.num_pages)));
       return;
@@ -144,9 +143,9 @@ export default function DeckCards() {
     setFindCard(cardId);
     try {
       await findCardImage(cardId);
-      await load(); // refresh — regenerate replaces the previous auto image
+      await load();
     } catch {
-      window.alert("Couldn't find an image for this card.");
+      window.alert(t("common.error"));
     } finally {
       setFindCard(null);
     }
@@ -157,7 +156,6 @@ export default function DeckCards() {
     await updateCard(cardId, { card_type: type });
   }
 
-  // Applies to the cards currently listed (this page / search results).
   async function setAllTypes(type: CardType) {
     const targets = cards.filter((c) => c.card_type !== type);
     if (!targets.length || !window.confirm(`Set the ${targets.length} listed card(s) to "${type}"?`)) return;
@@ -181,14 +179,13 @@ export default function DeckCards() {
 
   async function colourise() {
     setColourBusy(true);
-    setColourMsg("Colourising…");
+    setColourMsg(t("deckCards.colouring"));
     try {
       let total = 0;
-      // Process batch after batch until nothing colourable remains.
       for (let i = 0; i < 400; i++) {
         const res = await colourizeDeck(id);
         total += res.colourized;
-        setColourMsg(`Colourising… ${total} done${res.remaining ? `, ~${res.remaining} left` : ""}`);
+        setColourMsg(`${t("deckCards.colouring")} ${total} done${res.remaining ? `, ~${res.remaining} left` : ""}`);
         if (res.remaining === 0 || res.colourized === 0) break;
       }
       setColourMsg(
@@ -198,38 +195,36 @@ export default function DeckCards() {
       );
       await load();
     } catch (e) {
-      setColourMsg(e instanceof Error ? e.message : "Colourise failed.");
+      setColourMsg(e instanceof Error ? e.message : t("common.error"));
     } finally {
       setColourBusy(false);
     }
   }
 
-  // Only the very first paint shows the full-page loader; later loads (paging /
-  // searching) keep the UI mounted so the search box doesn't lose focus.
-  if (loading && !deck) return <div className="panel">Loading…</div>;
+  if (loading && !deck) return <div className="panel">{t("deckCards.loading")}</div>;
 
   return (
     <div className="browse">
       <div className="browse__head">
         <div>
-          <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app")}>← Decks</button>
+          <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app")}>{t("decks.backBtn")}</button>
           <h1>{deck?.full_name ?? "Deck"}</h1>
-          <p className="browse__sub">{count} cards</p>
+          <p className="browse__sub">{t("deckCards.cardCount", { count })}</p>
         </div>
         <div className="browse__actions">
-          <Link to={`/app/decks/${id}/add`} className="btn btn--ghost">+ Add card</Link>
+          <Link to={`/app/decks/${id}/add`} className="btn btn--ghost">{t("deckCards.addCard")}</Link>
           <button className={`btn btn--ghost ${typePanel ? "btn--on" : ""}`} onClick={() => setTypePanel((v) => !v)}>
-            Card types
+            {t("deckCards.cardTypes")}
           </button>
           <button className="btn btn--ghost" onClick={colourise} disabled={colourBusy} title="Run German gender colouring on every sentence/grammar card in this deck">
-            {colourBusy ? "🎨 Colourising…" : "🎨 Colourise German"}
+            {colourBusy ? t("deckCards.colouring") : t("deckCards.colouringBtn")}
           </button>
           <button
             className="btn btn--primary"
             disabled={!deck || deck.counts.new + deck.counts.learning + deck.counts.due === 0}
             onClick={() => navigate(`/app/study/${id}`)}
           >
-            Study
+            {t("deckCards.studyBtn")}
           </button>
         </div>
       </div>
@@ -241,12 +236,12 @@ export default function DeckCards() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search cards — front, translation, or reading…"
-            aria-label="Search cards"
+            placeholder={t("deckCards.searchPlaceholder")}
+            aria-label={t("deckCards.searchPlaceholder")}
           />
           {search && (
             <span className="browse__searchcount">
-              {count} result{count === 1 ? "" : "s"}
+              {t("deckCards.searchResults_other", { count })}
             </span>
           )}
         </div>
@@ -257,16 +252,16 @@ export default function DeckCards() {
       {typePanel && cards.length > 0 && (
         <div className="panel typepanel">
           <div className="typepanel__bar">
-            <strong>Card types</strong>
+            <strong>{t("deckCards.cardTypes")}</strong>
             <div className="typepanel__tools">
               <button className="btn btn--primary btn--sm" onClick={autoDetectTypes} disabled={autoBusy} title="Check every card and set its type automatically from its content">
-                {autoBusy ? "Detecting…" : "✨ Auto-detect types"}
+                {autoBusy ? t("deckCards.detecting") : t("deckCards.autoDetect")}
               </button>
               <label className="typepanel__all">
-                Set all to
+                {t("deckCards.setAllTo")}
                 <select className="input input--sm" defaultValue="" onChange={(e) => { if (e.target.value) { setAllTypes(e.target.value as CardType); e.target.value = ""; } }}>
                   <option value="">…</option>
-                  {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {CARD_TYPES.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
                 </select>
               </label>
             </div>
@@ -280,7 +275,7 @@ export default function DeckCards() {
                   value={c.card_type}
                   onChange={(e) => changeType(c.id, e.target.value as CardType)}
                 >
-                  {CARD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {CARD_TYPES.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
                 </select>
               </li>
             ))}
@@ -290,11 +285,11 @@ export default function DeckCards() {
 
       {cards.length === 0 ? (
         search ? (
-          <div className="panel">No cards match “{search}”.</div>
+          <div className="panel">{t("deckCards.noMatch", { search })}</div>
         ) : (
           <div className="panel">
-            No cards yet. <Link to={`/app/decks/${id}/add`}>Add one</Link> or use{" "}
-            <Link to="/app/import">Import</Link>.
+            {t("deckCards.noCards")} <Link to={`/app/decks/${id}/add`}>{t("deckCards.addCard")}</Link> or use{" "}
+            <Link to="/app/import">{t("nav.import")}</Link>.
           </div>
         )
       ) : (
@@ -306,8 +301,8 @@ export default function DeckCards() {
                   <CardEditor value={draft} onChange={setDraft} />
                   <CardImages card={c} onChange={load} />
                   <div className="cardrow__editactions">
-                    <button className="btn btn--primary btn--sm" onClick={() => saveEdit(c.id)}>Save</button>
-                    <button className="btn btn--ghost btn--sm" onClick={() => setEditing(null)}>Cancel</button>
+                    <button className="btn btn--primary btn--sm" onClick={() => saveEdit(c.id)}>{t("deckCards.saveBtn")}</button>
+                    <button className="btn btn--ghost btn--sm" onClick={() => setEditing(null)}>{t("deckCards.cancelBtn")}</button>
                   </div>
                 </div>
               ) : (
@@ -322,13 +317,13 @@ export default function DeckCards() {
                   <span className={`state state--${c.state}`}>{c.state}</span>
                   <button
                     className="cardrow__review"
-                    title="Review just this card"
+                    title={t("deckCards.reviewBtn")}
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/app/study/card/${c.id}`);
                     }}
                   >
-                    ▶ Review
+                    {t("deckCards.reviewBtn")}
                   </button>
                   {c.card_type === "vocab" && (
                     <button
@@ -377,17 +372,17 @@ export default function DeckCards() {
             disabled={page <= 1 || loading}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
-            ← Prev
+            {t("deckCards.prevBtn")}
           </button>
           <span className="pager__info">
-            Page {page} of {numPages}
+            {t("deckCards.pageInfo", { page, total: numPages })}
           </span>
           <button
             className="btn btn--ghost btn--sm"
             disabled={page >= numPages || loading}
             onClick={() => setPage((p) => Math.min(numPages, p + 1))}
           >
-            Next →
+            {t("deckCards.nextBtn")}
           </button>
         </div>
       )}

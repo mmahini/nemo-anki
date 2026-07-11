@@ -43,8 +43,11 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+    UI_LANGUAGE_CHOICES = [("en", "English"), ("fa", "Persian")]
+
     email = models.EmailField(unique=True)
     display_name = models.CharField(max_length=80, blank=True, default="")
+    ui_language = models.CharField(max_length=4, choices=UI_LANGUAGE_CHOICES, default="en")
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)

@@ -175,6 +175,7 @@ export type AuthUser = {
   id: number;
   email: string;
   display_name: string;
+  ui_language: "en" | "fa";
   date_joined: string;
 };
 
@@ -298,6 +299,13 @@ export function verifyOtp(otpId: string, code: string): Promise<VerifyOtpRespons
 
 export function fetchMe(): Promise<AuthUser> {
   return jsonRequest<AuthUser>("/api/me", { method: "GET" });
+}
+
+export function updateMe(payload: Partial<Pick<AuthUser, "display_name" | "ui_language">>): Promise<AuthUser> {
+  return jsonRequest<AuthUser>("/api/me", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 // ====== Decks ======
