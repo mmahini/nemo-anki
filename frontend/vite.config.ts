@@ -9,11 +9,11 @@ export default defineConfig({
     watch: { usePolling: true },
     proxy: {
       "/api": {
-        target: "http://backend:8000",
+        target: process.env.VITE_BACKEND_URL ?? "http://backend:8000",
         changeOrigin: true,
       },
       "/media": {
-        target: "http://backend:8000",
+        target: process.env.VITE_BACKEND_URL ?? "http://backend:8000",
         changeOrigin: true,
       },
     },
