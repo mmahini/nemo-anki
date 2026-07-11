@@ -621,9 +621,11 @@ def _normalise(item: dict, language: str, default_type: str) -> dict:
         "back": str(item.get("back", "")).strip(),
         "reading": str(item.get("reading", "")).strip(),
         "article": article,
+        "plural": str(item.get("plural", "")).strip(),
         "example": str(item.get("example", "")).strip(),
         "notes": str(item.get("notes", "")).strip(),
         "table": item.get("table") if isinstance(item.get("table"), dict) else None,
+        "genders": [],
         "conjugations": _clean_conjugations(item.get("conjugations")),
         "tags": [str(t).strip() for t in tags if str(t).strip()],
     }
@@ -654,9 +656,11 @@ def _parse_fallback(text: str, default_type: str) -> list[dict]:
                 "back": back,
                 "reading": "",
                 "article": "none",
+                "plural": "",
                 "example": "",
                 "notes": "",
                 "table": None,
+                "genders": [],
                 "tags": [],
             }
         )
