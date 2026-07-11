@@ -349,6 +349,60 @@ def writing_check(text: str, language: str) -> dict:
     return {"feedback": str(obj.get("feedback", "")).strip(), "issues": issues}
 
 
+def writing_prompt(language: str, translation_language: str, lesson_info: dict | None) -> dict:
+    """Generate a short passage in *translation_language* for the learner to
+    translate into *language*.  If *lesson_info* is given (dict with
+    ``lesson`` and ``vocab``), tries to build the text around those words."""
+    target_lang = _writing_lang_name(language)
+    native_lang = (translation_language or "English").strip()
+
+    if not settings.GEMINI_API_KEY:
+        return {"text": "Write about a typical day in your life.", "source": "auto"}
+
+    try:
+        if lesson_info:
+            vocab_lines = "\n".join(
+                f"- {v['front']}: {v['back']}"
+                for v in (lesson_info.get("vocab") or [])
+                if v.get("front") and v.get("back")
+            )
+            if vocab_lines:
+                prompt = (
+                    f"You are helping a {target_lang} learner practise translation. "
+                    f"Using 4-6 of the vocabulary words below, write a short, natural paragraph "
+                    f"(3-5 sentences) in {native_lang} about everyday life. "
+                    f"Make it feel like a real text, not a word list. "
+                    f'Return ONLY JSON: {{"text": "<paragraph in {native_lang}>"}}. No markdown.\n\n'
+                    f"Vocabulary ({target_lang} → {native_lang}):\n{vocab_lines}"
+                )
+                obj = _extract_json_object(_gemini_text(prompt, timeout=30))
+                text = str(obj.get("text", "")).strip()
+                if text:
+                    lesson = lesson_info["lesson"]
+                    return {
+                        "text": text,
+                        "source": "books",
+                        "book_title": lesson.book.title,
+                        "lesson_title": lesson.title,
+                    }
+
+        prompt = (
+            f"You are helping a {target_lang} learner practise translation. "
+            f"Write a short, natural paragraph (3-5 sentences) in {native_lang} about "
+            f"everyday life (daily routine, travel, food, family, weather, hobbies). "
+            f"Use A2-B1 vocabulary — accessible but not trivial. "
+            f'Return ONLY JSON: {{"text": "<paragraph in {native_lang}>"}}. No markdown.'
+        )
+        obj = _extract_json_object(_gemini_text(prompt, timeout=30))
+        text = str(obj.get("text", "")).strip()
+        if not text:
+            raise ValueError("empty")
+        return {"text": text, "source": "auto"}
+
+    except Exception:  # noqa: BLE001
+        return {"text": f"Write a short paragraph in {target_lang} about your day.", "source": "auto"}
+
+
 _BATCH_PROMPT = """You are a German teacher. For each item in the INPUT JSON array \
 decide the noun gender(s). Return ONLY a JSON array with exactly one object per \
 input item, keeping the same "i" index:

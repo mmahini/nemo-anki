@@ -583,6 +583,13 @@ kbd {
 .issue__good { color: var(--good); font-weight: 700; }
 .issue__why { color: var(--ink-soft); font-size: 0.9rem; }
 .writing__hint { color: var(--ink-faint); font-size: 0.85rem; margin-top: 14px; }
+.writing__prompt-bar { display: flex; align-items: flex-end; gap: 10px; margin: 0 0 10px; flex-wrap: wrap; }
+.writing__source-toggle { display: flex; gap: 4px; align-items: center; }
+.writing__prompt { margin: 0 0 14px; display: flex; flex-direction: column; gap: 8px; }
+.writing__prompt-text { margin: 0; font-size: 1.05rem; line-height: 1.65; }
+.writing__prompt-meta { display: flex; flex-direction: column; gap: 3px; }
+.writing__prompt-source { font-size: 0.8rem; color: var(--ink-faint); }
+.writing__prompt-hint { font-size: 0.82rem; color: var(--ink-soft); font-style: italic; }
 
 /* Tabs */
 .tabs { display: flex; gap: 4px; margin-top: 10px; }

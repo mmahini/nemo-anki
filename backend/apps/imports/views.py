@@ -1,3 +1,4 @@
+import random
 from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.core.files.base import ContentFile
@@ -8,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.books.models import BookCard, BookLesson
 from apps.cards.models import Card, CardImage
 from apps.decks.models import Deck, DeckConfig
 
@@ -18,6 +20,7 @@ from .gemini import (
     enrich_card,
     parse_text,
     writing_check,
+    writing_prompt,
     writing_topic,
 )
 
@@ -281,6 +284,47 @@ class AnkiImportView(APIView):
 
 
 # Writing practice -----------------------------------------------------------
+
+def _pick_lesson_for_user(user):
+    """Return {lesson, vocab} for a random processed lesson the user can access, or None."""
+    own_qs = (
+        BookLesson.objects
+        .filter(book__user=user, processed=True)
+        .select_related("book")
+        .order_by("?")
+    )
+    shared_qs = (
+        BookLesson.objects
+        .filter(book__shares__user=user, processed=True)
+        .select_related("book")
+        .order_by("?")
+    )
+    for lesson in list(own_qs[:10]) + list(shared_qs[:5]):
+        cards = list(BookCard.objects.filter(lesson=lesson).exclude(back="")[:15])
+        if len(cards) >= 3:
+            random.shuffle(cards)
+            vocab = [{"front": c.front, "back": c.back} for c in cards[:8]]
+            return {"lesson": lesson, "vocab": vocab}
+    return None
+
+
+class WritingPromptView(APIView):
+    """Return a short native-language passage for the user to translate into the target language."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        language = (request.data.get("language") or "").strip()
+        translation_language = (request.data.get("translation_language") or "English").strip()
+        source = (request.data.get("source") or "auto").strip()
+
+        lesson_info = None
+        if source == "books":
+            lesson_info = _pick_lesson_for_user(request.user)
+
+        return Response(writing_prompt(language, translation_language, lesson_info), status=status.HTTP_200_OK)
+
+
 class WritingTopicView(APIView):
     """Suggest one short writing-practice topic for a chosen language."""
 

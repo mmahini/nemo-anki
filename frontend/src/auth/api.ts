@@ -706,6 +706,21 @@ export type WritingIssue = {
   explanation: string;
 };
 
+export type WritingPrompt = {
+  text: string;
+  source: "books" | "auto";
+  book_title?: string;
+  lesson_title?: string;
+};
+
+export function writingPrompt(payload: {
+  language: string;
+  translation_language: string;
+  source: "books" | "auto";
+}): Promise<WritingPrompt> {
+  return jsonRequest("/api/writing/prompt/", { method: "POST", body: JSON.stringify(payload) });
+}
+
 export function writingTopic(language: string): Promise<{ topic: string; en: string }> {
   return jsonRequest("/api/writing/topic/", { method: "POST", body: JSON.stringify({ language }) });
 }
