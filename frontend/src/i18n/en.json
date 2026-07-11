@@ -159,9 +159,9 @@
     "promptSourceAuto": "🤖 Auto",
     "promptSourceBooks": "📚 From books",
     "newText": "New text",
-    "promptLoading": "Loading…",
+    "promptLoading": "Loading text…",
     "promptFrom": "From: {{source}}",
-    "promptHint": "Translate the text above into {{lang}} in the box below."
+    "translatePlaceholder": "Write your {{lang}} translation here…"
   },
   "deckCards": {
     "loading": "Loading…",

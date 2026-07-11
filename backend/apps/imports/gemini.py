@@ -349,6 +349,16 @@ def writing_check(text: str, language: str) -> dict:
     return {"feedback": str(obj.get("feedback", "")).strip(), "issues": issues}
 
 
+_PROMPT_FALLBACKS = {
+    "Persian": "امروز صبح زود بیدار شدم. بعد از صبحانه به سر کار رفتم. عصر با یک دوست قهوه خوردیم و درباره تعطیلات تابستان صحبت کردیم.",
+    "French": "Je me suis réveillé tôt ce matin. Après le petit-déjeuner, je suis allé au travail. Le soir, j'ai retrouvé un ami pour boire un café.",
+    "Spanish": "Me desperté temprano esta mañana. Después del desayuno, fui al trabajo. Por la tarde, tomé un café con un amigo.",
+    "Arabic": "استيقظت مبكرًا هذا الصباح. بعد الفطور، ذهبت إلى العمل. في المساء، تناولت القهوة مع صديق.",
+    "Russian": "Сегодня я проснулся рано утром. После завтрака я пошёл на работу. Вечером встретился с другом за кофе.",
+    "Turkish": "Bu sabah erken uyandım. Kahvaltının ardından işe gittim. Akşam bir arkadaşımla kahve içtik.",
+}
+
+
 def writing_prompt(language: str, translation_language: str, lesson_info: dict | None) -> dict:
     """Generate a short passage in *translation_language* for the learner to
     translate into *language*.  If *lesson_info* is given (dict with
@@ -357,7 +367,11 @@ def writing_prompt(language: str, translation_language: str, lesson_info: dict |
     native_lang = (translation_language or "English").strip()
 
     if not settings.GEMINI_API_KEY:
-        return {"text": "Write about a typical day in your life.", "source": "auto"}
+        fallback = _PROMPT_FALLBACKS.get(
+            native_lang,
+            "I woke up early this morning. After breakfast, I went to work. In the evening, I had coffee with a friend.",
+        )
+        return {"text": fallback, "source": "auto"}
 
     try:
         if lesson_info:

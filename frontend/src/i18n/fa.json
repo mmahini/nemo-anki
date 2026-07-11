@@ -159,9 +159,9 @@
     "promptSourceAuto": "🤖 خودکار",
     "promptSourceBooks": "📚 از کتاب‌ها",
     "newText": "متن جدید",
-    "promptLoading": "در حال بارگذاری…",
+    "promptLoading": "در حال بارگذاری متن…",
     "promptFrom": "از: {{source}}",
-    "promptHint": "متن بالا را به {{lang}} در کادر زیر ترجمه کنید."
+    "translatePlaceholder": "ترجمه {{lang}} خود را اینجا بنویسید…"
   },
   "deckCards": {
     "loading": "در حال بارگذاری…",
