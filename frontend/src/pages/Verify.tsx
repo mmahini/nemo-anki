@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { verifyOtp } from "../auth/api";
 import { useAuth } from "../auth/AuthContext";
@@ -14,6 +15,7 @@ export default function Verify() {
   const location = useLocation();
   const navigate = useNavigate();
   const { signIn } = useAuth();
+  const { t } = useTranslation();
   const state = (location.state as VerifyLocationState | null) ?? {};
 
   const [code, setCode] = useState("");
@@ -46,7 +48,7 @@ export default function Verify() {
   return (
     <main className="auth">
       <div className="auth__card">
-        <h1>Enter your code</h1>
+        <h1>{t("verify.title")}</h1>
         <p className="auth__sub">
           {state.devCode
             ? `We generated a 5-digit code${state.email ? ` for ${state.email}` : ""}.`
@@ -58,14 +60,14 @@ export default function Verify() {
             <span className="dev-banner__label">DEV — your code is</span>
             <span className="dev-banner__code">{state.devCode}</span>
             <span className="dev-banner__note">
-              No email key configured here, so we're showing it for local testing.
+              No email key configured here, so we&apos;re showing it for local testing.
             </span>
           </div>
         )}
 
         <form onSubmit={onSubmit} className="auth__form">
           <label className="auth__label">
-            Code
+            {t("verify.codeLabel")}
             <input
               type="text"
               inputMode="numeric"
@@ -86,7 +88,7 @@ export default function Verify() {
             type="submit"
             disabled={submitting || code.length !== 5}
           >
-            {submitting ? "Verifying…" : "Verify"}
+            {submitting ? t("verify.verifying") : t("verify.verifyBtn")}
           </button>
         </form>
         <button
@@ -94,7 +96,7 @@ export default function Verify() {
           className="auth__link"
           onClick={() => navigate("/auth/sign-in")}
         >
-          ← Use a different email
+          {t("verify.backBtn")}
         </button>
       </div>
     </main>

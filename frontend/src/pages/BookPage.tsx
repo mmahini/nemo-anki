@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import {
   deleteBook,
@@ -18,12 +19,12 @@ import {
 import { articleClass } from "../lib/article";
 import { TRANSLATE_LANGS } from "../lib/translateLang";
 
-function lessonNum(t: string): number {
-  const m = /(\d+)/.exec(t || "");
+function lessonNum(title: string): number {
+  const m = /(\d+)/.exec(title || "");
   return m ? Number(m[1]) : 0;
 }
-function lessonLabel(t: string): string {
-  const m = /^(.*?)\s*\d+/.exec(t || "");
+function lessonLabel(title: string): string {
+  const m = /^(.*?)\s*\d+/.exec(title || "");
   return (m && m[1].trim()) || "Unit";
 }
 
@@ -33,6 +34,7 @@ export default function BookPage() {
   const { bookId } = useParams();
   const id = Number(bookId);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [book, setBook] = useState<Book | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,8 +46,6 @@ export default function BookPage() {
   const [regenLessonId, setRegenLessonId] = useState<number | null>(null);
   const [regenL, setRegenL] = useState({ start: "", ppu: "" });
 
-  // Whole-book split (separate from per-lesson "Re-split"). Re-runnable, so the
-  // user can break the book into smaller chunks at any time.
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitting, setSplitting] = useState(false);
   const [split, setSplit] = useState({ label: "Unit", from: "1", to: "", start: "", ppu: "" });
@@ -61,7 +61,7 @@ export default function BookPage() {
     try {
       setBook(await fetchBook(id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't load the book.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setLoading(false);
     }
@@ -71,8 +71,8 @@ export default function BookPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (loading) return <div className="panel">Loading…</div>;
-  if (!book) return <div className="panel panel--error">{error ?? "Book not found."}</div>;
+  if (loading) return <div className="panel">{t("common.loading")}</div>;
+  if (!book) return <div className="panel panel--error">{error ?? t("common.error")}</div>;
   const owner = book.is_owner;
 
   async function process(lesson: BookLesson) {
@@ -82,7 +82,7 @@ export default function BookPage() {
       await processBookLesson(book!.id, lesson.id);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Processing failed.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setWorking((w) => {
         const n = new Set(w);
@@ -104,8 +104,6 @@ export default function BookPage() {
       setError("Enter a valid range — e.g. From 1, To 20.");
       return;
     }
-    // Only lessons whose unit number falls in [from..to] are replaced; the rest
-    // are kept. Warn if any existing lesson sits in that range (its vocab clears).
     const overlap = book!.lessons.filter((l) => {
       const n = lessonNum(l.title);
       return n >= from && n <= to;
@@ -126,7 +124,7 @@ export default function BookPage() {
       setBook(updated);
       setSplitOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Split failed.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setSplitting(false);
     }
@@ -154,7 +152,7 @@ export default function BookPage() {
       setBook(updated);
       setRegenLessonId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Re-generate failed.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setRegenerating(false);
     }
@@ -166,7 +164,7 @@ export default function BookPage() {
     try {
       setLessonView(await fetchBookLesson(book!.id, lesson.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't open the lesson.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setLoadingLesson(null);
     }
@@ -180,7 +178,7 @@ export default function BookPage() {
       const res = await importBookLesson(book!.id, lessonView.id, null);
       navigate(`/app/study/${res.lesson_deck}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't start review.");
+      setError(err instanceof Error ? err.message : t("common.error"));
       setReviewing(false);
     }
   }
@@ -189,12 +187,12 @@ export default function BookPage() {
     try {
       setBook(await updateBook(book!.id, patch as any));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't update the book.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     }
   }
 
   async function onDelete() {
-    if (!window.confirm(`Delete the book "${book!.title}"? (Decks you already imported stay.)`)) return;
+    if (!window.confirm(t("books.confirmDelete", { title: book!.title }))) return;
     await deleteBook(book!.id);
     navigate("/app/books");
   }
@@ -208,7 +206,7 @@ export default function BookPage() {
       setBook(await shareBook(book!.id, email));
       setShareEmail("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't share.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     }
   }
 
@@ -216,10 +214,14 @@ export default function BookPage() {
     setBook(await unshareBook(book!.id, email));
   }
 
+  const splitCount = split.to && Number(split.to) >= (Number(split.from) || 1)
+    ? Number(split.to) - (Number(split.from) || 1) + 1
+    : 0;
+
   return (
     <div className="bookpage">
       <div className="bookpage__top">
-        <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app/books")}>← Books</button>
+        <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app/books")}>{t("bookPage.backBtn")}</button>
       </div>
 
       <div className="bookblock__banner bookpage__banner" style={{ background: book.color }}>
@@ -228,38 +230,38 @@ export default function BookPage() {
           <span className="bookcard__langs bookblock__langedit">
             {owner ? (
               <>
-                <select value={book.source_language} onChange={(e) => setLang({ source_language: e.target.value as any })} title="Book language">
-                  <option value="en">English</option>
-                  <option value="de">German</option>
-                  <option value="">Other</option>
+                <select value={book.source_language} onChange={(e) => setLang({ source_language: e.target.value as any })} title={t("books.bookLanguage")}>
+                  <option value="en">{t("common.english")}</option>
+                  <option value="de">{t("common.german")}</option>
+                  <option value="">{t("common.other")}</option>
                 </select>
                 →
-                <select value={book.translation_language} onChange={(e) => setLang({ translation_language: e.target.value })} title="Translate into">
+                <select value={book.translation_language} onChange={(e) => setLang({ translation_language: e.target.value })} title={t("books.translateInto")}>
                   {TRANSLATE_LANGS.map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               </>
             ) : (
-              <>{(book.source_language || "?").toUpperCase()} → {book.translation_language} · shared by {book.owner_email}</>
+              <>{(book.source_language || "?").toUpperCase()} → {book.translation_language} · {t("bookPage.sharedBy", { email: book.owner_email })}</>
             )}
-            · {book.lesson_count} lessons
+            · {book.lesson_count} {t("bookPage.lessons")}
           </span>
         </div>
         {owner && (
           <div className="bookblock__banneractions">
             {book.lessons.some((l) => !l.processed) && (
               <button className="btn btn--ghost btn--sm" onClick={processAll}>
-                Process all ({book.lessons.filter((l) => !l.processed).length})
+                {t("bookPage.processAll", { count: book.lessons.filter((l) => !l.processed).length })}
               </button>
             )}
-            <button className="btn btn--ghost btn--sm" onClick={onDelete}>Delete</button>
+            <button className="btn btn--ghost btn--sm" onClick={onDelete}>{t("bookPage.deleteBtn")}</button>
           </div>
         )}
       </div>
       {book.note && <div className="bookblock__note">{book.note}</div>}
 
       <div className="tabs bookpage__tabs">
-        <button className={`tab ${tab === "lessons" ? "tab--on" : ""}`} onClick={() => setTab("lessons")}>Lessons</button>
-        {owner && <button className={`tab ${tab === "share" ? "tab--on" : ""}`} onClick={() => setTab("share")}>Share</button>}
+        <button className={`tab ${tab === "lessons" ? "tab--on" : ""}`} onClick={() => setTab("lessons")}>{t("bookPage.lessonsTab")}</button>
+        {owner && <button className={`tab ${tab === "share" ? "tab--on" : ""}`} onClick={() => setTab("share")}>{t("bookPage.shareTab")}</button>}
       </div>
 
       {error && <div className="panel panel--error">{error}</div>}
@@ -269,10 +271,10 @@ export default function BookPage() {
           {owner && book.has_pdf && (
             <div className="panel booksplit">
               <div className="booksplit__head">
-                <strong>Split into lessons</strong>
+                <strong>{t("bookPage.splitTitle")}</strong>
                 {book.lessons.length > 0 && (
                   <button className="btn btn--ghost btn--sm" onClick={() => setSplitOpen((o) => !o)}>
-                    {splitOpen ? "Cancel" : "Split more lessons"}
+                    {splitOpen ? t("bookPage.cancelSplit") : t("bookPage.splitMore")}
                   </button>
                 )}
               </div>
@@ -287,35 +289,35 @@ export default function BookPage() {
                   </span>
                   <div className="books__row">
                     <label className="cardeditor__field">
-                      <span>Lesson label</span>
+                      <span>{t("bookPage.lessonLabel")}</span>
                       <input className="input" list="lesson-labels" value={split.label} onChange={(e) => setSplit({ ...split, label: e.target.value })} placeholder="Unit" />
                       <datalist id="lesson-labels">
                         <option value="Unit" /><option value="Lesson" /><option value="Lektion" /><option value="Kapitel" /><option value="Chapter" />
                       </datalist>
                     </label>
                     <label className="cardeditor__field">
-                      <span>From</span>
+                      <span>{t("bookPage.fromLabel")}</span>
                       <input className="input" type="number" min={1} value={split.from} onChange={(e) => setSplit({ ...split, from: e.target.value })} placeholder="1" />
                     </label>
                     <label className="cardeditor__field">
-                      <span>To</span>
+                      <span>{t("bookPage.toLabel")}</span>
                       <input className="input" type="number" min={1} value={split.to} onChange={(e) => setSplit({ ...split, to: e.target.value })} placeholder="100" />
                     </label>
                     <label className="cardeditor__field">
-                      <span>First unit page</span>
+                      <span>{t("bookPage.firstPageLabel")}</span>
                       <input className="input" type="number" min={1} value={split.start} onChange={(e) => setSplit({ ...split, start: e.target.value })} placeholder="e.g. 6" />
                     </label>
                     <label className="cardeditor__field">
-                      <span>Pages / unit</span>
+                      <span>{t("bookPage.pagesPerUnit")}</span>
                       <input className="input" type="number" min={1} value={split.ppu} onChange={(e) => setSplit({ ...split, ppu: e.target.value })} placeholder="e.g. 2" />
                     </label>
                   </div>
                   <button className="btn btn--primary" disabled={splitting}>
                     {splitting
-                      ? "Splitting…"
-                      : split.to && Number(split.to) >= (Number(split.from) || 1)
-                        ? `Split into ${Number(split.to) - (Number(split.from) || 1) + 1} lessons`
-                        : "Split into lessons"}
+                      ? t("bookPage.splitting")
+                      : splitCount > 0
+                        ? t("bookPage.splitBtn", { count: splitCount })
+                        : t("bookPage.splitBtnGeneric")}
                   </button>
                 </form>
               )}
@@ -337,29 +339,29 @@ export default function BookPage() {
                   </button>
                 )}
                 {owner && book.has_pdf && (
-                  <button className="btn btn--ghost btn--sm" onClick={() => toggleLessonRegen(l)} title="Fix this lesson's pages (and optionally later ones)">Re-split</button>
+                  <button className="btn btn--ghost btn--sm" onClick={() => toggleLessonRegen(l)} title="Fix this lesson's pages">{t("bookPage.reSplit")}</button>
                 )}
-                <button className="btn btn--ghost btn--sm" disabled={loadingLesson === l.id} onClick={() => openLesson(l)} title="Open PDF + vocab for review">
-                  {loadingLesson === l.id ? "…" : "View"}
+                <button className="btn btn--ghost btn--sm" disabled={loadingLesson === l.id} onClick={() => openLesson(l)}>
+                  {loadingLesson === l.id ? "…" : t("bookPage.viewBtn")}
                 </button>
                 {owner && (
-                  <button className="btn btn--primary btn--sm" disabled={working.has(l.id)} onClick={() => process(l)} title={l.processed ? "Re-extract vocabulary" : "Extract vocabulary"}>
-                    {working.has(l.id) ? "…" : l.processed ? "↻" : "Process"}
+                  <button className="btn btn--primary btn--sm" disabled={working.has(l.id)} onClick={() => process(l)}>
+                    {working.has(l.id) ? "…" : l.processed ? "↻" : t("import.process")}
                   </button>
                 )}
               </div>
               {owner && regenLessonId === l.id && (
                 <div className="bookblock__lessonregen">
                   <span className="books__hint">
-                    Set where <strong>{l.title}</strong> really starts. “This lesson” fixes only it;
-                    “From here → end” re-splits this and every later lesson with the same page size.
+                    Set where <strong>{l.title}</strong> really starts. "This lesson" fixes only it;
+                    "From here → end" re-splits this and every later lesson with the same page size.
                   </span>
                   <div className="bookblock__regenrow">
                     <label>Start page<input className="input input--sm" type="number" min={1} value={regenL.start} onChange={(e) => setRegenL({ ...regenL, start: e.target.value })} /></label>
                     <label>Pages/unit<input className="input input--sm" type="number" min={1} value={regenL.ppu} onChange={(e) => setRegenL({ ...regenL, ppu: e.target.value })} placeholder="even" /></label>
                     <button className="btn btn--primary btn--sm" disabled={regenerating} onClick={() => doLessonRegen(l, false)}>{regenerating ? "…" : "This lesson"}</button>
                     <button className="btn btn--primary btn--sm" disabled={regenerating} onClick={() => doLessonRegen(l, true)}>{regenerating ? "…" : "From here → end"}</button>
-                    <button className="btn btn--ghost btn--sm" onClick={() => setRegenLessonId(null)}>Cancel</button>
+                    <button className="btn btn--ghost btn--sm" onClick={() => setRegenLessonId(null)}>{t("bookPage.cancelSplit")}</button>
                   </div>
                 </div>
               )}
@@ -369,20 +371,20 @@ export default function BookPage() {
         </>
       ) : (
         <div className="panel sharepanel">
-          <h2>Share this book</h2>
-          <p className="books__hint">Anyone you share with can view the lessons (PDF + vocab) and review them in their own decks. They can't edit or re-process.</p>
+          <h2>{t("bookPage.shareTitle")}</h2>
+          <p className="books__hint">{t("bookPage.shareHint")}</p>
           <form className="sharepanel__add" onSubmit={onShare}>
-            <input className="input" type="email" placeholder="person@example.com" value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} />
-            <button className="btn btn--primary">Share</button>
+            <input className="input" type="email" placeholder={t("bookPage.shareEmailPlaceholder")} value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} />
+            <button className="btn btn--primary">{t("bookPage.shareBtn")}</button>
           </form>
           {book.shared_with.length === 0 ? (
-            <p className="books__hint">Not shared with anyone yet.</p>
+            <p className="books__hint">{t("bookPage.notShared")}</p>
           ) : (
             <ul className="sharepanel__list">
               {book.shared_with.map((em) => (
                 <li key={em}>
                   <span>{em}</span>
-                  <button className="btn btn--ghost btn--sm" onClick={() => onUnshare(em)}>Remove</button>
+                  <button className="btn btn--ghost btn--sm" onClick={() => onUnshare(em)}>{t("bookPage.removeBtn")}</button>
                 </li>
               ))}
             </ul>
@@ -400,11 +402,11 @@ export default function BookPage() {
                   pp. {lessonView.page_start}{lessonView.page_end && lessonView.page_end !== lessonView.page_start ? `–${lessonView.page_end}` : ""}
                 </span>
               )}
-              {lessonView.pdf_url && <a className="btn btn--ghost btn--sm" href={lessonView.pdf_url} target="_blank" rel="noreferrer">Open PDF in tab</a>}
+              {lessonView.pdf_url && <a className="btn btn--ghost btn--sm" href={lessonView.pdf_url} target="_blank" rel="noreferrer">{t("bookPage.openPDF")}</a>}
               <button className="btn btn--primary btn--sm" disabled={reviewing || lessonView.cards.length === 0} onClick={reviewLesson}>
-                {reviewing ? "Starting…" : "Review these cards →"}
+                {reviewing ? t("bookPage.starting") : t("bookPage.reviewCards")}
               </button>
-              <button className="btn btn--ghost btn--sm" onClick={() => setLessonView(null)}>Close</button>
+              <button className="btn btn--ghost btn--sm" onClick={() => setLessonView(null)}>{t("bookPage.closeBtn")}</button>
             </div>
             <div className="lessonsplit">
               <div className="lessonsplit__pdf">
@@ -416,7 +418,7 @@ export default function BookPage() {
               </div>
               <div className="lessonsplit__vocab">
                 {lessonView.cards.length === 0 ? (
-                  <div className="lessonsplit__empty">No vocab yet — {owner ? "click Process on this lesson." : "the owner hasn't processed this lesson."}</div>
+                  <div className="lessonsplit__empty">{t("bookPage.noVocab")}</div>
                 ) : (
                   <ul className="vocablist">
                     {lessonView.cards.map((c, i) => (

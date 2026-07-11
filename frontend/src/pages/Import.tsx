@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import {
   bulkCreateCards,
@@ -24,10 +25,10 @@ type Tab = "paste" | "books" | "anki";
 
 export default function ImportPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("paste");
   const [decks, setDecks] = useState<Deck[]>([]);
 
-  // --- Paste-text flow ---
   const [stage, setStage] = useState<Stage>("input");
   const [deckId, setDeckId] = useState<number | "">("");
   const [text, setText] = useState("");
@@ -38,14 +39,12 @@ export default function ImportPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Books flow ---
   const [books, setBooks] = useState<Book[]>([]);
   const [bookParent, setBookParent] = useState<number | "">("");
   const [added, setAdded] = useState<Record<number, string>>({}); // lessonId -> message
   const [importingLesson, setImportingLesson] = useState<number | null>(null);
   const [processingLesson, setProcessingLesson] = useState<number | null>(null);
 
-  // --- Anki .apkg flow ---
   const [ankiFile, setAnkiFile] = useState<File | null>(null);
   const [ankiParent, setAnkiParent] = useState<number | "">("");
   const [ankiBusy, setAnkiBusy] = useState(false);
@@ -53,8 +52,6 @@ export default function ImportPage() {
 
   useEffect(() => {
     fetchDecks().then(setDecks);
-    // Owner's books + books shared with the user — same as the Books page,
-    // so a shared book is usable in Import just like one you own.
     Promise.all([fetchBooks(), fetchSharedBooks().catch(() => [] as Book[])])
       .then(([mine, shared]) => {
         const seen = new Set(mine.map((b) => b.id));
@@ -80,7 +77,7 @@ export default function ImportPage() {
       setSource(res.source);
       setStage("review");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not parse text.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setBusy(false);
     }
@@ -101,7 +98,7 @@ export default function ImportPage() {
       const res = await bulkCreateCards(Number(deckId), drafts);
       navigate(`/app/decks/${res.deck}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create cards.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setBusy(false);
     }
@@ -121,7 +118,7 @@ export default function ImportPage() {
     try {
       patchLesson(book.id, await processBookLesson(book.id, lessonId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not process the lesson.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setProcessingLesson(null);
     }
@@ -132,10 +129,10 @@ export default function ImportPage() {
     setError(null);
     try {
       const res = await importBookLesson(book.id, lessonId, bookParent === "" ? null : Number(bookParent));
-      setAdded((a) => ({ ...a, [lessonId]: `✓ Added ${res.cards} cards` }));
-      fetchDecks().then(setDecks); // refresh so the new deck shows as a parent option
+      setAdded((a) => ({ ...a, [lessonId]: t("import.addedCards", { count: res.cards }) }));
+      fetchDecks().then(setDecks);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add the lesson.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setImportingLesson(null);
     }
@@ -150,9 +147,9 @@ export default function ImportPage() {
       const res = await importAnki(ankiFile, ankiParent === "" ? null : Number(ankiParent));
       setAnkiResult(res);
       setAnkiFile(null);
-      fetchDecks().then(setDecks); // surface the new decks as parent options
+      fetchDecks().then(setDecks);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setAnkiBusy(false);
     }
@@ -161,16 +158,16 @@ export default function ImportPage() {
   return (
     <div className="import">
       <div className="import__head">
-        <h1>Import</h1>
+        <h1>{t("import.title")}</h1>
         <div className="tabs">
           <button className={`tab ${tab === "paste" ? "tab--on" : ""}`} onClick={() => setTab("paste")}>
-            Paste text
+            {t("import.tabs.paste")}
           </button>
           <button className={`tab ${tab === "books" ? "tab--on" : ""}`} onClick={() => setTab("books")}>
-            From books
+            {t("import.tabs.books")}
           </button>
           <button className={`tab ${tab === "anki" ? "tab--on" : ""}`} onClick={() => setTab("anki")}>
-            From Anki
+            {t("import.tabs.anki")}
           </button>
         </div>
       </div>
@@ -182,15 +179,15 @@ export default function ImportPage() {
           <div className="import__input">
             <div className="import__controls">
               <label>
-                Language
+                {t("import.languageLabel")}
                 <select className="input" value={language} onChange={(e) => setLanguage(e.target.value as any)}>
-                  <option value="">Auto / other</option>
-                  <option value="de">German</option>
-                  <option value="en">English</option>
+                  <option value="">{t("import.languageAuto")}</option>
+                  <option value="de">{t("common.german")}</option>
+                  <option value="en">{t("common.english")}</option>
                 </select>
               </label>
               <label>
-                Default type
+                {t("import.defaultType")}
                 <select className="input" value={defaultType} onChange={(e) => setDefaultType(e.target.value as CardType)}>
                   <option value="vocab">vocab</option>
                   <option value="sentence">sentence</option>
@@ -201,32 +198,32 @@ export default function ImportPage() {
             </div>
             <textarea
               className="import__textarea"
-              placeholder={"Paste a word list or passage, e.g.\nder Tisch — table\ndie Lampe — lamp"}
+              placeholder={t("import.textPlaceholder")}
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={14}
             />
             <button className="btn btn--primary btn--lg" disabled={busy || !text.trim()} onClick={onParse}>
-              {busy ? "Parsing…" : "Generate cards →"}
+              {busy ? t("import.generating") : t("import.generateBtn")}
             </button>
           </div>
         ) : (
           <div className="import__review">
             <div className="import__reviewbar">
               <div>
-                <strong>{drafts.length}</strong> draft cards
-                <span className="import__source"> · via {source}</span>
+                <strong>{drafts.length}</strong> {t("import.draftCards", { count: drafts.length })}
+                <span className="import__source"> {t("import.via", { source })}</span>
               </div>
               <div className="import__commit">
                 <select className="input" value={deckId} onChange={(e) => setDeckId(e.target.value ? Number(e.target.value) : "")}>
-                  <option value="">Choose a deck…</option>
+                  <option value="">{t("import.chooseDeck")}</option>
                   {leafDecks.map((d) => (
                     <option key={d.id} value={d.id}>{d.full_name}</option>
                   ))}
                 </select>
-                <button className="btn btn--ghost" onClick={() => setStage("input")}>← Back</button>
+                <button className="btn btn--ghost" onClick={() => setStage("input")}>{t("import.backBtn")}</button>
                 <button className="btn btn--primary" disabled={busy || !deckId || drafts.length === 0} onClick={onProceed}>
-                  Proceed — add {drafts.length} to {selectedDeck?.name ?? "deck"}
+                  {t("import.proceedBtn", { count: drafts.length, deck: selectedDeck?.name ?? "deck" })}
                 </button>
               </div>
             </div>
@@ -244,9 +241,9 @@ export default function ImportPage() {
         <div className="import__books">
           <div className="import__parentbar">
             <label>
-              Add book decks under
+              {t("import.addBookDecksUnder")}
               <select className="input" value={bookParent} onChange={(e) => setBookParent(e.target.value ? Number(e.target.value) : "")}>
-                <option value="">Top level (no parent)</option>
+                <option value="">{t("decks.topLevel")}</option>
                 {[...decks].sort((a, b) => a.full_name.localeCompare(b.full_name)).map((d) => (
                   <option key={d.id} value={d.id}>{d.full_name}</option>
                 ))}
@@ -256,7 +253,7 @@ export default function ImportPage() {
 
           {books.length === 0 ? (
             <div className="panel">
-              No processed books yet. Upload one on the <Link to="/app/books">Books</Link> page.
+              {t("import.noBooks")} <Link to="/app/books">{t("nav.books")}</Link>.
             </div>
           ) : (
             books.map((b) => (
@@ -264,8 +261,8 @@ export default function ImportPage() {
                 <div className="bookblock__banner" style={{ background: b.color }}>
                   <span className="bookcard__title">{b.title}</span>
                   <span className="bookcard__langs">
-                    {(b.source_language || "?").toUpperCase()} → {b.translation_language} · {b.lesson_count} lessons
-                    {!b.is_owner && ` · shared by ${b.owner_email}`}
+                    {(b.source_language || "?").toUpperCase()} → {b.translation_language} · {b.lesson_count} {t("books.lessons")}
+                    {!b.is_owner && ` · ${t("books.sharedBy", { email: b.owner_email })}`}
                   </span>
                 </div>
                 <ul className="bookblock__lessons">
@@ -273,9 +270,9 @@ export default function ImportPage() {
                     <li key={l.id} className="bookblock__lesson">
                       <span className="bookblock__ltitle">{l.title}</span>
                       {l.processed ? (
-                        <span className="bookblock__count">{l.card_count} vocab</span>
+                        <span className="bookblock__count">{l.card_count} {t("import.vocab")}</span>
                       ) : (
-                        <span className="bookblock__count bookblock__count--todo">not processed</span>
+                        <span className="bookblock__count bookblock__count--todo">{t("import.notProcessed")}</span>
                       )}
                       {added[l.id] ? (
                         <span className="bookblock__added">{added[l.id]}</span>
@@ -285,7 +282,7 @@ export default function ImportPage() {
                           disabled={importingLesson === l.id || l.card_count === 0}
                           onClick={() => addLesson(b, l.id)}
                         >
-                          {importingLesson === l.id ? "Adding…" : "+ Add"}
+                          {importingLesson === l.id ? t("import.adding") : t("import.add")}
                         </button>
                       ) : (
                         <button
@@ -293,7 +290,7 @@ export default function ImportPage() {
                           disabled={processingLesson === l.id}
                           onClick={() => processLesson(b, l.id)}
                         >
-                          {processingLesson === l.id ? "Processing…" : "Process"}
+                          {processingLesson === l.id ? t("import.processing") : t("import.process")}
                         </button>
                       )}
                     </li>
@@ -307,26 +304,23 @@ export default function ImportPage() {
         <div className="import__anki">
           <div className="panel import__ankiform">
             <p className="import__ankihelp">
-              AnkiWeb has no import link, so export your deck from Anki
-              (<strong>File → Export → Anki Deck Package</strong>) and upload the
-              <code> .apkg</code> here. Study progress is preserved; cloze notes
-              become grammar cards and reversed notes become two-sided vocab.
+              {t("import.ankiHelp")}
             </p>
             <label className="import__parentbar">
-              Add the imported decks under
+              {t("import.ankiParentLabel")}
               <select
                 className="input"
                 value={ankiParent}
                 onChange={(e) => setAnkiParent(e.target.value ? Number(e.target.value) : "")}
               >
-                <option value="">Top level (no parent)</option>
+                <option value="">{t("decks.topLevel")}</option>
                 {[...decks].sort((a, b) => a.full_name.localeCompare(b.full_name)).map((d) => (
                   <option key={d.id} value={d.id}>{d.full_name}</option>
                 ))}
               </select>
             </label>
             <div className="books__row books__row--file">
-              <span className="books__or">Anki package (.apkg / .colpkg)</span>
+              <span className="books__or">{t("import.ankiPackageLabel")}</span>
               <input
                 type="file"
                 accept=".apkg,.colpkg"
@@ -337,18 +331,24 @@ export default function ImportPage() {
               />
             </div>
             <button className="btn btn--primary btn--lg" disabled={ankiBusy || !ankiFile} onClick={onImportAnki}>
-              {ankiBusy ? "Importing…" : ankiFile ? `Import ${ankiFile.name}` : "Choose a file to import"}
+              {ankiBusy
+                ? t("import.ankiImporting")
+                : ankiFile
+                ? t("import.ankiImportBtn", { name: ankiFile.name })
+                : t("import.ankiChooseBtn")}
             </button>
             {ankiResult && (
               <div className="panel import__ankiresult">
-                ✓ Imported <strong>{ankiResult.cards}</strong> cards
-                ({ankiResult.notes} notes, {ankiResult.reversed} reversed) across{" "}
-                <strong>{ankiResult.decks}</strong> deck{ankiResult.decks === 1 ? "" : "s"}.{" "}
-                <Link to="/app">Go study →</Link>
+                {t("import.ankiSuccess", {
+                  cards: ankiResult.cards,
+                  notes: ankiResult.notes,
+                  reversed: ankiResult.reversed,
+                  decks: ankiResult.decks,
+                })}{" "}
+                <Link to="/app">{t("import.goStudy")}</Link>
                 {ankiResult.truncated && (
                   <div className="import__ankiwarn">
-                    Note: only the first {ankiResult.max_notes.toLocaleString()} notes were imported
-                    (the rest were skipped to stay within limits).
+                    {t("import.ankiTruncated", { max: ankiResult.max_notes.toLocaleString() })}
                   </div>
                 )}
               </div>

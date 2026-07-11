@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { answerCard, colourizeCard, fetchCardForReview, findCardImage, type Card } from "../auth/api";
 import { CardBack, CardFront } from "../components/CardFace";
@@ -9,17 +10,18 @@ import { speak } from "../lib/tts";
 
 type Rating = 1 | 2 | 3 | 4;
 
-const RATING_META: { rating: Rating; label: string; key: string; cls: string }[] = [
-  { rating: 1, label: "Again", key: "1", cls: "grade grade--again" },
-  { rating: 2, label: "Hard", key: "2", cls: "grade grade--hard" },
-  { rating: 3, label: "Good", key: "3", cls: "grade grade--good" },
-  { rating: 4, label: "Easy", key: "4", cls: "grade grade--easy" },
+const RATING_KEYS: { rating: Rating; key: string; cls: string }[] = [
+  { rating: 1, key: "study.again", cls: "grade grade--again" },
+  { rating: 2, key: "study.hard", cls: "grade grade--hard" },
+  { rating: 3, key: "study.good", cls: "grade grade--good" },
+  { rating: 4, key: "study.easy", cls: "grade grade--easy" },
 ];
 
 /** Study a single card on its own (the per-card Review button). */
 export default function StudyCard() {
   const { cardId } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const id = Number(cardId);
   const [card, setCard] = useState<Card | null>(null);
   const [flipped, setFlipped] = useState(false);
@@ -35,10 +37,10 @@ export default function StudyCard() {
       .then((c) => {
         setCard(c);
         shownAt.current = Date.now();
-        const s = promptSpeech(c); // auto-read the front aloud
+        const s = promptSpeech(c);
         if (s) speak(s.text, s.lang);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Couldn't load the card."))
+      .catch((e) => setError(e instanceof Error ? e.message : t("common.error")))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -78,7 +80,7 @@ export default function StudyCard() {
         await answerCard(card.id, rating, Date.now() - shownAt.current);
         setDone(true);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not save answer.");
+        setError(e instanceof Error ? e.message : t("common.error"));
       } finally {
         setBusy(false);
       }
@@ -88,7 +90,7 @@ export default function StudyCard() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (editing) return; // let the editor own the keyboard
+      if (editing) return;
       if (e.key === "Escape") return back();
       if (done || !card) return;
       if (!flipped) {
@@ -109,13 +111,13 @@ export default function StudyCard() {
     return () => window.removeEventListener("keydown", onKey);
   }, [card, flipped, done, grade, back, editing]);
 
-  if (loading) return <div className="study"><div className="panel">Loading…</div></div>;
+  if (loading) return <div className="study"><div className="panel">{t("study.loading")}</div></div>;
 
   return (
     <div className="study">
       <header className="study__bar">
-        <button className="btn btn--ghost btn--sm" onClick={back}>← Deck</button>
-        <span className="study__progress"><span className="count count--due">single card</span></span>
+        <button className="btn btn--ghost btn--sm" onClick={back}>{t("studyCard.backBtn")}</button>
+        <span className="study__progress"><span className="count count--due">{t("studyCard.singleCard")}</span></span>
         <span />
       </header>
 
@@ -124,9 +126,9 @@ export default function StudyCard() {
       {done || !card ? (
         <div className="study__done">
           <div className="study__done-emoji">✅</div>
-          <h2>Card reviewed</h2>
-          <p>Its schedule has been updated.</p>
-          <button className="btn btn--primary" onClick={back}>Back to deck</button>
+          <h2>{t("studyCard.done")}</h2>
+          <p>{t("studyCard.doneHint")}</p>
+          <button className="btn btn--primary" onClick={back}>{t("studyCard.backToDeck")}</button>
         </div>
       ) : (
         <div className="study__stage">
@@ -143,15 +145,15 @@ export default function StudyCard() {
 
           {!flipped ? (
             <button className="btn btn--primary btn--lg study__show" onClick={() => setFlipped(true)}>
-              Show answer <kbd>Space</kbd>
+              {t("study.showAnswer")} <kbd>Space</kbd>
             </button>
           ) : (
             <div className="grades">
-              {RATING_META.map((m) => (
+              {RATING_KEYS.map((m) => (
                 <button key={m.rating} className={m.cls} disabled={busy} onClick={() => grade(m.rating)}>
-                  <span className="grade__label">{m.label}</span>
+                  <span className="grade__label">{t(m.key)}</span>
                   <span className="grade__interval">{card.intervals?.[String(m.rating)] ?? ""}</span>
-                  <kbd>{m.key}</kbd>
+                  <kbd>{m.rating}</kbd>
                 </button>
               ))}
             </div>

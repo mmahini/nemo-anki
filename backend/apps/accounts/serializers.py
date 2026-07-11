@@ -15,5 +15,5 @@ class VerifyOTPSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "email", "display_name", "date_joined"]
+        fields = ["id", "email", "display_name", "ui_language", "date_joined"]
         read_only_fields = ["id", "email", "date_joined"]

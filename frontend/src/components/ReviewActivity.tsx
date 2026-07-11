@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { fetchActivity, type ReviewActivity as Activity } from "../auth/api";
 
@@ -17,19 +18,10 @@ function fmtTime(seconds: number): string {
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
-function message(a: Activity): string {
-  if (a.today.count > 0) {
-    const s = a.streak > 1 ? ` ${a.streak}-day streak 🔥` : "";
-    return `Great work today!${s} Keep the momentum going.`;
-  }
-  if (a.streak > 0) return `Don't break your ${a.streak}-day streak 🔥 — review a few cards today!`;
-  if (a.total_reviews > 0) return "Welcome back — a few reviews today restarts your streak.";
-  return "Study a deck to start your streak. A little every day goes a long way!";
-}
-
 /** Motivational activity panel: streak, today's effort, and a contribution-style
  * heatmap of reviews over the last ~17 weeks. */
 export default function ReviewActivity() {
+  const { t } = useTranslation();
   const [data, setData] = useState<Activity | null>(null);
 
   useEffect(() => {
@@ -39,6 +31,16 @@ export default function ReviewActivity() {
   }, []);
 
   if (!data) return null;
+
+  function message(a: Activity): string {
+    if (a.today.count > 0) {
+      const s = a.streak > 1 ? ` ${a.streak}-day streak 🔥` : "";
+      return t("activity.msgGreat", { streak: s });
+    }
+    if (a.streak > 0) return t("activity.msgStreak", { count: a.streak });
+    if (a.total_reviews > 0) return t("activity.msgWelcomeBack");
+    return t("activity.msgStart");
+  }
 
   // Pad so the first column starts on the right weekday (0 = Sunday).
   const firstDow = new Date(data.days[0].date + "T00:00:00").getDay();
@@ -52,19 +54,19 @@ export default function ReviewActivity() {
       <div className="activity__stats">
         <div className="activity__stat activity__stat--streak">
           <span className="activity__num">🔥 {data.streak}</span>
-          <span className="activity__lbl">day streak</span>
+          <span className="activity__lbl">{t("activity.dayStreak")}</span>
         </div>
         <div className="activity__stat">
           <span className="activity__num">{data.today.count}</span>
-          <span className="activity__lbl">today{data.today.count ? ` · ${fmtTime(data.today.seconds)}` : ""}</span>
+          <span className="activity__lbl">{t("activity.today")}{data.today.count ? ` · ${fmtTime(data.today.seconds)}` : ""}</span>
         </div>
         <div className="activity__stat">
           <span className="activity__num">{data.longest_streak}</span>
-          <span className="activity__lbl">best streak</span>
+          <span className="activity__lbl">{t("activity.bestStreak")}</span>
         </div>
         <div className="activity__stat">
           <span className="activity__num">{data.total_reviews.toLocaleString()}</span>
-          <span className="activity__lbl">reviews all-time</span>
+          <span className="activity__lbl">{t("activity.allTime")}</span>
         </div>
       </div>
 
@@ -86,13 +88,13 @@ export default function ReviewActivity() {
         </div>
       </div>
       <div className="activity__legend">
-        <span>Less</span>
+        <span>{t("activity.less")}</span>
         <span className="heatcell heat--0" />
         <span className="heatcell heat--1" />
         <span className="heatcell heat--2" />
         <span className="heatcell heat--3" />
         <span className="heatcell heat--4" />
-        <span>More</span>
+        <span>{t("activity.more")}</span>
       </div>
     </section>
   );

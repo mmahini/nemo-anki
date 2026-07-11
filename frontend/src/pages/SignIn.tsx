@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { requestOtp } from "../auth/api";
 
 export default function SignIn() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -29,29 +31,28 @@ export default function SignIn() {
     <main className="auth">
       <div className="auth__card">
         <Link to="/" className="auth__brand">← Nemo Anki</Link>
-        <h1>Sign in</h1>
-        <p className="auth__sub">Enter your email and we'll generate a 5-digit code.</p>
+        <h1>{t("signIn.title")}</h1>
         <form onSubmit={onSubmit} className="auth__form">
           <label className="auth__label">
-            Email
+            {t("signIn.emailLabel")}
             <input
               type="email"
               required
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={t("signIn.emailPlaceholder")}
               className="auth__input"
               disabled={submitting}
             />
           </label>
           {error && <p className="auth__error">{error}</p>}
           <button className="btn btn--primary" type="submit" disabled={submitting}>
-            {submitting ? "Sending…" : "Send code"}
+            {submitting ? t("signIn.sending") : t("signIn.continueBtn")}
           </button>
         </form>
         <p className="auth__hint">
-          New here? Same form — we'll create your account when you verify.
+          {t("signIn.hint")}
         </p>
       </div>
     </main>

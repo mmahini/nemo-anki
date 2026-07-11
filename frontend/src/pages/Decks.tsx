@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { createDeck, deleteDeck, fetchDecks, updateDeck, type Deck } from "../auth/api";
 import ReviewActivity from "../components/ReviewActivity";
@@ -11,6 +12,7 @@ function depth(d: Deck): number {
 
 export default function Decks() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export default function Decks() {
     try {
       setDecks(await fetchDecks());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load decks.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setLoading(false);
     }
@@ -42,7 +44,6 @@ export default function Decks() {
 
   async function onCreate() {
     if (!newName.trim()) return;
-    // A sub-deck inherits its parent's language unless one is chosen.
     const parent = newParent === "" ? null : newParent;
     const parentLang = decks.find((d) => d.id === parent)?.language ?? "";
     await createDeck({ name: newName.trim(), parent, language: newLang || parentLang });
@@ -56,7 +57,7 @@ export default function Decks() {
       await updateDeck(d.id, { parent });
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't move the deck.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     }
   }
 
@@ -68,7 +69,7 @@ export default function Decks() {
       await updateDeck(d.id, { name });
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't rename the deck.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     }
   }
 
@@ -79,11 +80,10 @@ export default function Decks() {
       await updateDeck(d.id, { language });
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't update the language.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     }
   }
 
-  // Decks that can be a parent for `d`: not itself, not its own descendants.
   function parentOptions(d: Deck): Deck[] {
     const banned = new Set(
       decks.filter((x) => x.id === d.id || x.full_name.startsWith(d.full_name + "::")).map((x) => x.id),
@@ -93,10 +93,10 @@ export default function Decks() {
 
   async function onDelete(d: Deck) {
     const childCount = decks.filter((x) => x.full_name.startsWith(d.full_name + "::")).length;
-    const extra = childCount ? ` and its ${childCount} sub-deck(s)` : "";
-    if (!window.confirm(`Delete "${d.full_name}"${extra} and all its cards? This can't be undone.`)) {
-      return;
-    }
+    const msg = childCount
+      ? t("decks.confirmDeleteWithChildren", { name: d.full_name, count: childCount })
+      : t("decks.confirmDelete", { name: d.full_name });
+    if (!window.confirm(msg)) return;
     await deleteDeck(d.id);
     load();
   }
@@ -109,7 +109,6 @@ export default function Decks() {
     });
   }
 
-  // Hide a deck if any ancestor is collapsed.
   const collapsedNames = new Set(
     decks.filter((d) => collapsed.has(d.id)).map((d) => d.full_name),
   );
@@ -120,17 +119,17 @@ export default function Decks() {
     return false;
   }
 
-  if (loading) return <div className="panel">Loading decks…</div>;
+  if (loading) return <div className="panel">{t("decks.loading")}</div>;
   if (error) return <div className="panel panel--error">{error}</div>;
 
   return (
     <div className="decks">
       <div className="decks__head">
-        <h1>Your decks</h1>
+        <h1>{t("decks.title")}</h1>
         <div className="legend">
-          <span className="legend__item"><i className="dot dot--new" /> new</span>
-          <span className="legend__item"><i className="dot dot--learn" /> learning</span>
-          <span className="legend__item"><i className="dot dot--due" /> due</span>
+          <span className="legend__item"><i className="dot dot--new" /> {t("decks.legend.new")}</span>
+          <span className="legend__item"><i className="dot dot--learn" /> {t("decks.legend.learning")}</span>
+          <span className="legend__item"><i className="dot dot--due" /> {t("decks.legend.due")}</span>
         </div>
       </div>
 
@@ -188,9 +187,9 @@ export default function Decks() {
                     onChange={(e) => onSetLang(d, e.target.value as "de" | "en" | "")}
                     onBlur={() => setLangDeck(null)}
                   >
-                    <option value="">No language</option>
-                    <option value="de">German</option>
-                    <option value="en">English</option>
+                    <option value="">{t("decks.noLanguage")}</option>
+                    <option value="de">{t("common.german")}</option>
+                    <option value="en">{t("common.english")}</option>
                   </select>
                 ) : movingDeck === d.id ? (
                   <select
@@ -200,9 +199,9 @@ export default function Decks() {
                     onChange={(e) => onMove(d, e.target.value ? Number(e.target.value) : null)}
                     onBlur={() => setMovingDeck(null)}
                   >
-                    <option value="">↪ Top level</option>
+                    <option value="">{t("decks.moveTop")}</option>
                     {parentOptions(d).map((p) => (
-                      <option key={p.id} value={p.id}>under {p.full_name}</option>
+                      <option key={p.id} value={p.id}>{t("decks.under", { name: p.full_name })}</option>
                     ))}
                   </select>
                 ) : (
@@ -212,7 +211,7 @@ export default function Decks() {
                       disabled={studyable === 0}
                       onClick={() => navigate(`/app/study/${d.id}`)}
                     >
-                      Study
+                      {t("decks.studyBtn")}
                     </button>
                     <div className="deckmenu-wrap">
                       <button
@@ -231,11 +230,11 @@ export default function Decks() {
                         <>
                           <div className="menu-overlay" onClick={() => setOpenMenu(null)} />
                           <div className="deckmenu" style={{ top: menuPos.top, right: menuPos.right }}>
-                            <button onClick={() => { setOpenMenu(null); setRenameVal(d.name); setRenamingDeck(d.id); }}>✎ Rename</button>
-                            <button onClick={() => { setOpenMenu(null); setLangDeck(d.id); }}>🌐 Language{d.language ? ` (${d.language.toUpperCase()})` : ""}</button>
-                            <button onClick={() => { setOpenMenu(null); setMovingDeck(d.id); }}>↪ Move</button>
-                            {isLeaf && <button onClick={() => { setOpenMenu(null); navigate(`/app/decks/${d.id}/add`); }}>＋ Add card</button>}
-                            <button className="deckmenu__danger" onClick={() => { setOpenMenu(null); onDelete(d); }}>🗑 Delete</button>
+                            <button onClick={() => { setOpenMenu(null); setRenameVal(d.name); setRenamingDeck(d.id); }}>{t("decks.rename")}</button>
+                            <button onClick={() => { setOpenMenu(null); setLangDeck(d.id); }}>{t("decks.language")}{d.language ? ` (${d.language.toUpperCase()})` : ""}</button>
+                            <button onClick={() => { setOpenMenu(null); setMovingDeck(d.id); }}>{t("decks.move")}</button>
+                            {isLeaf && <button onClick={() => { setOpenMenu(null); navigate(`/app/decks/${d.id}/add`); }}>{t("decks.addCard")}</button>}
+                            <button className="deckmenu__danger" onClick={() => { setOpenMenu(null); onDelete(d); }}>{t("decks.delete")}</button>
                           </div>
                         </>
                       )}
@@ -250,16 +249,15 @@ export default function Decks() {
 
       {decks.length === 0 && (
         <div className="panel decks__empty">
-          <h2>No decks yet</h2>
-          <p>Create your first deck below, then add cards or use Import. You can
-            nest decks (e.g. <code>German :: A1 :: Lektion 1</code>) by picking a parent.</p>
+          <h2>{t("decks.noDecks")}</h2>
+          <p>{t("decks.noDecksHint")}</p>
         </div>
       )}
 
       <div className="decks__new">
         <input
           className="input"
-          placeholder="New deck name"
+          placeholder={t("decks.newPlaceholder")}
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onCreate()}
@@ -269,19 +267,19 @@ export default function Decks() {
           value={newParent}
           onChange={(e) => setNewParent(e.target.value ? Number(e.target.value) : "")}
         >
-          <option value="">Top level (no parent)</option>
+          <option value="">{t("decks.topLevel")}</option>
           {[...decks]
             .sort((a, b) => a.full_name.localeCompare(b.full_name))
             .map((d) => (
-              <option key={d.id} value={d.id}>under {d.full_name}</option>
+              <option key={d.id} value={d.id}>{t("decks.under", { name: d.full_name })}</option>
             ))}
         </select>
         <select className="input" value={newLang} onChange={(e) => setNewLang(e.target.value as any)}>
-          <option value="">Language…</option>
-          <option value="de">German</option>
-          <option value="en">English</option>
+          <option value="">{t("decks.languageLabel")}</option>
+          <option value="de">{t("common.german")}</option>
+          <option value="en">{t("common.english")}</option>
         </select>
-        <button className="btn btn--primary" onClick={onCreate}>Add deck</button>
+        <button className="btn btn--primary" onClick={onCreate}>{t("decks.addBtn")}</button>
       </div>
     </div>
   );

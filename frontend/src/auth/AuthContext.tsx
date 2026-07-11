@@ -17,6 +17,7 @@ import {
   ServerError,
 } from "./api";
 import { cdpIdentify, cdpReset, cdpTrack } from "../lib/cdp-pixel";
+import { applyLanguage } from "../i18n";
 
 const STORAGE_KEY = "nemo-anki.auth";
 const PROACTIVE_REFRESH_MS = 10 * 60 * 1000;
@@ -140,6 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Apply saved UI language whenever the user object changes (login or session restore).
+  useEffect(() => {
+    if (!user) return;
+    applyLanguage(user.ui_language ?? "en");
+  }, [user]);
 
   // Wiser CDP: attach the signed-in user to events whenever it becomes available
   // (sign-in or restored session), so every event folds into one profile.
