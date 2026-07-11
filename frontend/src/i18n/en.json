@@ -154,7 +154,16 @@
     "addCard": "+ Add as card",
     "addingCard": "Adding…",
     "addedTo": "✓ added to {{deck}}",
-    "savedHint": "Saved cards live in your decks — open Decks to study them."
+    "savedHint": "Saved cards live in your decks — open Decks to study them.",
+    "promptNativeLang": "Source language",
+    "promptSourceAuto": "🤖 Auto",
+    "promptSourceBooks": "📚 From books",
+    "newText": "New text",
+    "promptLoading": "Loading text…",
+    "promptFrom": "From: {{source}}",
+    "translatePlaceholder": "Write your {{lang}} translation here…",
+    "selectBook": "Choose a book",
+    "noBooksHint": "No processed books yet — go to Books and process a book first, then come back here."
   },
   "deckCards": {
     "loading": "Loading…",

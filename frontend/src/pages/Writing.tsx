@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useAuth } from "../auth/AuthContext";
 import {
+  writingBooks,
   writingCheck,
+  writingPrompt,
   writingToCard,
-  writingTopic,
+  type WritingBook,
   type WritingIssue,
+  type WritingPrompt,
 } from "../auth/api";
 
 const LANGS = [
@@ -16,30 +20,90 @@ const LANGS = [
   { code: "it", name: "Italian" },
 ];
 
+const NATIVE_LANGS = [
+  { code: "English", label: "English" },
+  { code: "Persian", label: "Persian / فارسی" },
+  { code: "French", label: "French / Français" },
+  { code: "Spanish", label: "Spanish / Español" },
+  { code: "Italian", label: "Italian / Italiano" },
+  { code: "Arabic", label: "Arabic / العربية" },
+  { code: "Russian", label: "Russian / Русский" },
+  { code: "Chinese", label: "Chinese / 中文" },
+  { code: "Turkish", label: "Turkish / Türkçe" },
+];
+
 export default function Writing() {
   const { t } = useTranslation();
+  const { user } = useAuth();
+
   const [language, setLanguage] = useState("de");
-  const [topic, setTopic] = useState<{ topic: string; en: string } | null>(null);
   const [text, setText] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [issues, setIssues] = useState<WritingIssue[] | null>(null);
-  const [busyTopic, setBusyTopic] = useState(false);
   const [busyCheck, setBusyCheck] = useState(false);
   const [added, setAdded] = useState<Record<number, string>>({});
   const [adding, setAdding] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function suggestTopic() {
-    setBusyTopic(true);
+  const [promptSource, setPromptSource] = useState<"auto" | "books">("auto");
+  const [nativeLang, setNativeLang] = useState("English");
+  const [prompt, setPrompt] = useState<WritingPrompt | null>(null);
+  const [promptBusy, setPromptBusy] = useState(false);
+
+  // Books state
+  const [books, setBooks] = useState<WritingBook[]>([]);
+  const [booksBusy, setBooksBusy] = useState(false);
+  const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
+
+  const didInitialFetch = useRef(false);
+
+  // Load books list when switching to "books" source
+  useEffect(() => {
+    if (promptSource !== "books") return;
+    setBooksBusy(true);
+    writingBooks()
+      .then((list) => {
+        setBooks(list);
+        if (list.length > 0 && !selectedBookId) setSelectedBookId(list[0].id);
+      })
+      .catch(() => {})
+      .finally(() => setBooksBusy(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptSource]);
+
+  async function doFetchPrompt(lang: string, native: string, src: "auto" | "books", bookId?: number) {
+    setPromptBusy(true);
     setError(null);
     try {
-      setTopic(await writingTopic(language));
+      setPrompt(await writingPrompt({
+        language: lang,
+        translation_language: native,
+        source: src,
+        ...(src === "books" && bookId ? { book_id: bookId } : {}),
+      }));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.error"));
     } finally {
-      setBusyTopic(false);
+      setPromptBusy(false);
     }
   }
+
+  // Auto-load on first user load + detect native language
+  useEffect(() => {
+    if (!user) return;
+    const detected = user.ui_language === "fa" ? "Persian" : "English";
+    setNativeLang(detected);
+    if (!didInitialFetch.current) {
+      didInitialFetch.current = true;
+      doFetchPrompt(language, detected, "auto");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Clear prompt when key settings change
+  useEffect(() => {
+    if (didInitialFetch.current) setPrompt(null);
+  }, [language, nativeLang, promptSource, selectedBookId]);
 
   async function check() {
     if (!text.trim()) return;
@@ -77,14 +141,16 @@ export default function Writing() {
   }
 
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const langName = LANGS.find((l) => l.code === language)?.name ?? language;
+  const canFetchFromBooks = promptSource === "books" && books.length > 0 && !!selectedBookId;
+  const canFetch = promptSource === "auto" || canFetchFromBooks;
 
   return (
     <div className="writing">
       <h1>{t("writing.title")}</h1>
-      <p className="import__sub">
-        {t("writing.subtitle")}
-      </p>
+      <p className="import__sub">{t("writing.subtitle")}</p>
 
+      {/* Settings bar */}
       <div className="writing__bar">
         <label className="cardeditor__field">
           <span>{t("writing.languageLabel")}</span>
@@ -92,22 +158,91 @@ export default function Writing() {
             {LANGS.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}
           </select>
         </label>
-        <button className="btn btn--ghost" disabled={busyTopic} onClick={suggestTopic}>
-          {busyTopic ? t("writing.thinking") : t("writing.suggestTopic")}
-        </button>
+        <label className="cardeditor__field">
+          <span>{t("writing.promptNativeLang")}</span>
+          <select className="input" value={nativeLang} onChange={(e) => setNativeLang(e.target.value)}>
+            {NATIVE_LANGS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        </label>
+        <div className="writing__source-toggle">
+          <button
+            className={`btn btn--sm ${promptSource === "auto" ? "btn--primary" : "btn--ghost"}`}
+            onClick={() => setPromptSource("auto")}
+          >
+            {t("writing.promptSourceAuto")}
+          </button>
+          <button
+            className={`btn btn--sm ${promptSource === "books" ? "btn--primary" : "btn--ghost"}`}
+            onClick={() => setPromptSource("books")}
+          >
+            {t("writing.promptSourceBooks")}
+          </button>
+        </div>
       </div>
 
-      {topic && (
-        <div className="panel writing__topic">
-          <strong>{topic.topic}</strong>
-          {topic.en && <span className="writing__topicen">{topic.en}</span>}
+      {/* Book selector (only when "books" is active) */}
+      {promptSource === "books" && (
+        <div className="writing__book-selector">
+          {booksBusy ? (
+            <span className="writing__prompt-loading">{t("common.loading")}</span>
+          ) : books.length === 0 ? (
+            <div className="panel panel--error writing__no-books">
+              {t("writing.noBooksHint")}
+            </div>
+          ) : (
+            <label className="cardeditor__field">
+              <span>{t("writing.selectBook")}</span>
+              <select
+                className="input"
+                value={selectedBookId ?? ""}
+                onChange={(e) => setSelectedBookId(Number(e.target.value))}
+              >
+                {books.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
+              </select>
+            </label>
+          )}
         </div>
       )}
+
+      {/* Reference text panel */}
+      <div className="panel writing__prompt">
+        {promptBusy ? (
+          <p className="writing__prompt-loading">{t("writing.promptLoading")}</p>
+        ) : prompt ? (
+          <>
+            <p className="writing__prompt-text" dir="auto">{prompt.text}</p>
+            <div className="writing__prompt-footer">
+              {prompt.source === "books" && prompt.book_title && (
+                <span className="writing__prompt-source">
+                  📚 {[prompt.book_title, prompt.lesson_title].filter(Boolean).join(" — ")}
+                </span>
+              )}
+              <button
+                className="btn btn--ghost btn--sm writing__prompt-newbtn"
+                disabled={!canFetch}
+                onClick={() => doFetchPrompt(language, nativeLang, promptSource, selectedBookId ?? undefined)}
+              >
+                {t("writing.newText")}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="writing__prompt-empty">
+            <button
+              className="btn btn--primary btn--sm"
+              disabled={!canFetch}
+              onClick={() => doFetchPrompt(language, nativeLang, promptSource, selectedBookId ?? undefined)}
+            >
+              {t("writing.newText")}
+            </button>
+          </div>
+        )}
+      </div>
 
       <textarea
         className="import__textarea writing__textarea"
         rows={10}
-        placeholder={t("writing.placeholder")}
+        placeholder={prompt ? t("writing.translatePlaceholder", { lang: langName }) : t("writing.placeholder")}
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
@@ -153,9 +288,7 @@ export default function Writing() {
       )}
 
       {Object.keys(added).length > 0 && (
-        <p className="writing__hint">
-          {t("writing.savedHint")}
-        </p>
+        <p className="writing__hint">{t("writing.savedHint")}</p>
       )}
     </div>
   );

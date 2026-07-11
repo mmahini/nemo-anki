@@ -6,7 +6,9 @@ from .views import (
     ConjugateView,
     EnrichView,
     ImportParseView,
+    WritingBooksView,
     WritingCheckView,
+    WritingPromptView,
     WritingToCardView,
     WritingTopicView,
 )
@@ -20,4 +22,6 @@ urlpatterns = [
     path("writing/topic/", WritingTopicView.as_view(), name="writing-topic"),
     path("writing/check/", WritingCheckView.as_view(), name="writing-check"),
     path("writing/card/", WritingToCardView.as_view(), name="writing-card"),
+    path("writing/prompt/", WritingPromptView.as_view(), name="writing-prompt"),
+    path("writing/books/", WritingBooksView.as_view(), name="writing-books"),
 ]
