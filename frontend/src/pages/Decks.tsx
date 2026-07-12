@@ -144,7 +144,7 @@ export default function Decks() {
             <li
               key={d.id}
               className="decklist__row"
-              style={{ paddingLeft: `${depth(d) * 18 + 12}px` }}
+              style={{ paddingInlineStart: `${depth(d) * 18 + 12}px` }}
             >
               <div className="decklist__name">
                 {hasChildren ? (

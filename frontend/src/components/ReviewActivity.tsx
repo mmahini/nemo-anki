@@ -72,7 +72,7 @@ export default function ReviewActivity() {
 
       <p className="activity__msg">{message(data)}</p>
 
-      <div className="activity__heatwrap">
+      <div className="activity__heatwrap" dir="ltr">
         <div className="activity__heat" role="img" aria-label="Review activity over the last weeks">
           {cells.map((d, i) =>
             d ? (

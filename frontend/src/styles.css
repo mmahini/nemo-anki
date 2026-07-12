@@ -795,6 +795,13 @@ kbd {
   .lessonview__head .btn { margin-left: 0; }
 
   .panel { padding: 16px; margin: 16px auto; }
+
+  /* Writing */
+  .writing__bar { flex-direction: column; align-items: stretch; }
+  .writing__source-toggle .btn { flex: 1; }
+  .writing__prompt-footer { flex-wrap: wrap; }
+  .writing__actions { flex-wrap: wrap; gap: 8px; }
+  .writing__actions .btn { flex: 1 0 auto; }
 }
 
 /* ============================================================
@@ -812,38 +819,27 @@ kbd {
 [dir="rtl"] .shell__nav {
   flex-direction: row-reverse;
 }
-[dir="rtl"] .shell__user {
-  flex-direction: row-reverse;
-}
-[dir="rtl"] .decks__head {
-  flex-direction: row-reverse;
-}
-[dir="rtl"] .decklist__row {
-  flex-direction: row-reverse;
-}
-[dir="rtl"] .decklist__name {
-  flex-direction: row-reverse;
-}
-[dir="rtl"] .decks__new {
-  flex-direction: row-reverse;
-}
-[dir="rtl"] .import__reviewbar {
-  flex-direction: row-reverse;
-}
-[dir="rtl"] .import__commit {
-  flex-direction: row-reverse;
-}
-[dir="rtl"] .import__head {
-  flex-direction: row-reverse;
-}
-[dir="rtl"] .study__grade {
-  flex-direction: row-reverse;
-}
-[dir="rtl"] .activity__stats {
-  flex-direction: row-reverse;
-}
+/* RTL overrides — browsers already reverse flex main axis when direction:rtl,
+   so we do NOT add row-reverse (that would double-reverse back to LTR).
+   We only fix things that are NOT automatically handled. */
+
+/* Heatmap always stays LTR (handled via dir="ltr" on the element itself) */
+
+/* Text alignment for RTL */
 [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3,
 [dir="rtl"] p, [dir="rtl"] label,
 [dir="rtl"] .panel, [dir="rtl"] button {
   text-align: right;
+}
+
+/* Deck list indentation uses paddingInlineStart in JSX — no override needed */
+
+/* Activity legend alignment */
+[dir="rtl"] .activity__legend {
+  justify-content: flex-end;
+}
+
+/* Decks new form — items start from the right (natural in RTL flex) */
+[dir="rtl"] .decks__new {
+  justify-content: flex-start;
 }
