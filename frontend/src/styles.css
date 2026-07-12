@@ -795,6 +795,13 @@ kbd {
   .lessonview__head .btn { margin-left: 0; }
 
   .panel { padding: 16px; margin: 16px auto; }
+
+  /* Writing */
+  .writing__bar { flex-direction: column; align-items: stretch; }
+  .writing__source-toggle .btn { flex: 1; }
+  .writing__prompt-footer { flex-wrap: wrap; }
+  .writing__actions { flex-wrap: wrap; gap: 8px; }
+  .writing__actions .btn { flex: 1 0 auto; }
 }
 
 /* ============================================================
