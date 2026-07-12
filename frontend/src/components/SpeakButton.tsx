@@ -10,7 +10,7 @@ type Props = {
 
 /** A 🔊 button that reads `text` aloud in `lang` using the Web Speech API. */
 export default function SpeakButton({ text, lang, small, title }: Props) {
-  if (!text.trim() || !canSpeak()) return null;
+  if (!text?.trim() || !canSpeak()) return null;
   return (
     <button
       type="button"

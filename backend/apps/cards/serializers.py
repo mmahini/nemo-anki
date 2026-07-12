@@ -87,11 +87,20 @@ class CardSerializer(serializers.ModelSerializer):
         return deck
 
 
+class DraftCardSerializer(CardSerializer):
+    """CardSerializer variant used inside BulkCardSerializer — deck is
+    provided at the top level, so it is optional per card."""
+
+    deck = serializers.PrimaryKeyRelatedField(
+        queryset=Deck.objects.all(), required=False, allow_null=True
+    )
+
+
 class BulkCardSerializer(serializers.Serializer):
     """Create many cards in one deck (the import "proceed" action)."""
 
     deck = serializers.PrimaryKeyRelatedField(queryset=Deck.objects.all())
-    cards = CardSerializer(many=True)
+    cards = DraftCardSerializer(many=True)
 
     def validate_deck(self, deck: Deck) -> Deck:
         request = self.context.get("request")
