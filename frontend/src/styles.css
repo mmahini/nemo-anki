@@ -832,7 +832,7 @@ kbd {
   justify-content: flex-end;
 }
 
-/* Decks new form — wrap items to start from the right */
+/* Decks new form — items start from the right (natural in RTL flex) */
 [dir="rtl"] .decks__new {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
