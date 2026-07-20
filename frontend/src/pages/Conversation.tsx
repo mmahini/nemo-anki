@@ -4,8 +4,10 @@ import { useTranslation } from "react-i18next";
 import {
   conversationReply,
   conversationText,
+  writingBooks,
   type ConvCorrection,
   type ConvMessage,
+  type WritingBook,
 } from "../auth/api";
 
 const LANGS = [
@@ -79,11 +81,29 @@ export default function Conversation() {
 
   // Reading state
   const [readText, setReadText] = useState<string | null>(null);
+  const [readSource, setReadSource] = useState<string | null>(null);
+  const [readBookTitle, setReadBookTitle] = useState<string | null>(null);
   const [readBusy, setReadBusy] = useState(false);
   const [readListening, setReadListening] = useState(false);
   const [readResult, setReadResult] = useState<WordResult[] | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
   const readRecRef = useRef<any>(null);
+
+  // Books for reading tab
+  const [readBooks, setReadBooks] = useState<WritingBook[]>([]);
+  const [selectedReadBookId, setSelectedReadBookId] = useState<number | null>(null);
+
+  // Load books when reading tab is opened
+  useEffect(() => {
+    if (tab !== "read") return;
+    writingBooks()
+      .then((list) => {
+        setReadBooks(list);
+        if (list.length > 0 && !selectedReadBookId) setSelectedReadBookId(list[0].id);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const lang = LANGS.find((l) => l.code === langCode) ?? LANGS[0];
   const hasSpeech =
@@ -161,13 +181,20 @@ export default function Conversation() {
     setReadBusy(true);
     setReadResult(null);
     setReadText(null);
+    setReadSource(null);
+    setReadBookTitle(null);
     setReadError(null);
     try {
-      const res = await conversationText({ language: langCode });
+      const res = await conversationText({
+        language: langCode,
+        ...(selectedReadBookId ? { book_id: selectedReadBookId } : {}),
+      });
       setReadText(res.text);
+      setReadSource(res.source);
+      setReadBookTitle(res.book_title ?? null);
     } catch {
-      // API unavailable — use local fallback so the user always gets a text
       setReadText(randomFallback(langCode));
+      setReadSource("fallback");
     } finally {
       setReadBusy(false);
     }
@@ -320,6 +347,24 @@ export default function Conversation() {
       {/* ── READING TAB ── */}
       {tab === "read" && (
         <>
+          {readBooks.length > 0 && (
+            <div className="writing__book-selector">
+              <label className="cardeditor__field">
+                <span>{t("writing.selectBook")}</span>
+                <select
+                  className="input"
+                  value={selectedReadBookId ?? ""}
+                  onChange={(e) => setSelectedReadBookId(Number(e.target.value))}
+                >
+                  <option value="">{t("conversation.autoSource")}</option>
+                  {readBooks.map((b) => (
+                    <option key={b.id} value={b.id}>{b.title}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
           <div className="conv__read-actions">
             <button className="btn btn--primary" disabled={readBusy} onClick={fetchReadText}>
               {readBusy ? t("conversation.fetchingText") : t("conversation.fetchText")}
@@ -342,12 +387,14 @@ export default function Conversation() {
                 ) : (
                   <p className="conv__read-text" dir="auto">{readText}</p>
                 )}
-                <button
-                  className="btn btn--ghost btn--sm conv__play"
-                  onClick={() => speak(readText)}
-                >
-                  ▶ {t("conversation.listenBtn")}
-                </button>
+                <div className="conv__read-footer">
+                  <button className="btn btn--ghost btn--sm conv__play" onClick={() => speak(readText)}>
+                    ▶ {t("conversation.listenBtn")}
+                  </button>
+                  {readSource === "books" && readBookTitle && (
+                    <span className="writing__prompt-source">📚 {readBookTitle}</span>
+                  )}
+                </div>
               </div>
 
               <div className="conv__read-controls">

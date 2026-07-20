@@ -762,6 +762,9 @@ export function conversationReply(payload: {
   return jsonRequest("/api/conversation/reply/", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export function conversationText(payload: { language: string }): Promise<{ text: string; source: string }> {
+export function conversationText(payload: {
+  language: string;
+  book_id?: number;
+}): Promise<{ text: string; source: string; book_title?: string; lesson_title?: string }> {
   return jsonRequest("/api/conversation/text/", { method: "POST", body: JSON.stringify(payload) });
 }

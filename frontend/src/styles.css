@@ -639,6 +639,7 @@ kbd {
 .conv__word { display: inline; }
 .conv__word--ok  { color: var(--good); font-weight: 700; }
 .conv__word--bad { color: var(--again); text-decoration: line-through; opacity: 0.75; }
+.conv__read-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .conv__read-controls { display: flex; gap: 10px; align-items: center; margin: 0 0 8px; flex-wrap: wrap; }
 .conv__read-stats { color: var(--ink-soft); font-size: 0.9rem; margin: 4px 0 0; }
 

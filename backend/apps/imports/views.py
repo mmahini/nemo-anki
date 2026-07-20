@@ -439,4 +439,8 @@ class ConversationTextView(APIView):
 
     def post(self, request):
         language = (request.data.get("language") or "de").strip()
-        return Response(conversation_text(language), status=status.HTTP_200_OK)
+        book_id = request.data.get("book_id")
+        lesson_info = None
+        if book_id:
+            lesson_info = _pick_lesson_for_book(request.user, book_id)
+        return Response(conversation_text(language, lesson_info), status=status.HTTP_200_OK)

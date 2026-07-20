@@ -630,15 +630,47 @@ def conversation_reply(language: str, user_text: str, history: list[dict]) -> di
         return {"response": fallback, "corrections": []}
 
 
-def conversation_text(language: str) -> dict:
+def conversation_text(language: str, lesson_info: dict | None = None) -> dict:
     """Generate a short passage in *language* for reading-aloud practice (A2-B1).
 
-    Returns ``{"text": str, "source": "auto"|"fallback"}``.
+    If *lesson_info* is given (same shape as writing_prompt), builds the text
+    around that lesson's vocabulary so the reader practises known words.
+    Returns ``{"text": str, "source": "books"|"auto"|"fallback", ...}``.
     """
     name = _writing_lang_name(language)
+
+    if lesson_info and settings.GEMINI_API_KEY:
+        vocab_lines = "\n".join(
+            f"- {v['front']}"
+            for v in (lesson_info.get("vocab") or [])
+            if v.get("front")
+        )
+        if vocab_lines:
+            try:
+                prompt = (
+                    f"Write a short, natural paragraph (3-5 sentences) in {name} for a language learner to read aloud. "
+                    f"Use 4-6 of the {name} words/phrases below naturally in the text. "
+                    f"A2-B1 level — clear and flowing, not a word list. "
+                    f'Return ONLY JSON: {{"text": "<paragraph in {name}>"}}. No markdown.\n\n'
+                    f"Words to use:\n{vocab_lines}"
+                )
+                obj = _extract_json_object(_gemini_text(prompt, timeout=30, temperature=0.9))
+                text = str(obj.get("text", "")).strip()
+                if text:
+                    lesson = lesson_info["lesson"]
+                    return {
+                        "text": text,
+                        "source": "books",
+                        "book_title": lesson.book.title,
+                        "lesson_title": lesson.title,
+                    }
+            except Exception:  # noqa: BLE001
+                pass  # fall through to auto
+
     if not settings.GEMINI_API_KEY:
         pool = _READING_FALLBACKS.get(language, _READING_FALLBACKS["en"])
         return {"text": random.choice(pool), "source": "fallback"}
+
     topic = random.choice(_PROMPT_TOPICS)
     prompt = (
         f"Write a short, natural paragraph (3-5 sentences) in {name} for a language learner to read aloud. "

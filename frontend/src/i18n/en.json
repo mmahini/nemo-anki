@@ -256,7 +256,8 @@
     "speakHint": "Press the mic button and start speaking in {{lang}}.",
     "noSpeechSupport": "Your browser does not support speech recognition. Please use Chrome or Edge.",
     "playBtn": "Listen",
-    "correct": "correct"
+    "correct": "correct",
+    "autoSource": "Auto (no book)"
   },
   "common": {
     "error": "Something went wrong.",
