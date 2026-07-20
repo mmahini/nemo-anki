@@ -17,6 +17,8 @@ from . import anki
 from .gemini import (
     analyze_german,
     conjugate_verb,
+    conversation_reply,
+    conversation_text,
     enrich_card,
     parse_text,
     writing_check,
@@ -414,3 +416,27 @@ class WritingToCardView(APIView):
             {"card_id": card.id, "deck_id": deck.id, "deck_name": deck.full_name},
             status=status.HTTP_201_CREATED,
         )
+
+
+class ConversationMessageView(APIView):
+    """Send a learner's spoken/typed message; get an AI reply + corrections."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        language = (request.data.get("language") or "de").strip()
+        user_text = (request.data.get("text") or "").strip()
+        history = request.data.get("history") or []
+        if not user_text:
+            return Response({"detail": "text required"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(conversation_reply(language, user_text, history), status=status.HTTP_200_OK)
+
+
+class ConversationTextView(APIView):
+    """Generate a short passage in the target language for reading-aloud practice."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        language = (request.data.get("language") or "de").strip()
+        return Response(conversation_text(language), status=status.HTTP_200_OK)

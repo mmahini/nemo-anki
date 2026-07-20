@@ -4,6 +4,7 @@
     "books": "کتاب‌ها",
     "import": "وارد کردن",
     "writing": "نوشتن",
+    "conversation": "مکالمه",
     "signOut": "خروج"
   },
   "signIn": {
@@ -232,6 +233,30 @@
     "noVocab": "هنوز لغتی نداریم.",
     "sharedBy": "توسط {{email}}",
     "lessons": "درس"
+  },
+  "conversation": {
+    "title": "مکالمه",
+    "subtitle": "به زبان هدف صحبت کن — آزادانه گفتگو کن یا یک متن را با صدای بلند بخوان.",
+    "chatTab": "💬 مکالمه آزاد",
+    "readTab": "📖 تمرین خواندن",
+    "languageLabel": "زبان",
+    "micBtn": "صحبت کن",
+    "stopBtn": "توقف",
+    "sendBtn": "ارسال",
+    "listening": "در حال گوش دادن…",
+    "thinking": "در حال فکر کردن…",
+    "inputPlaceholder": "تایپ کنید یا صحبت کنید…",
+    "newConv": "مکالمه جدید",
+    "fetchText": "دریافت متن",
+    "fetchingText": "در حال بارگذاری…",
+    "startReading": "شروع خواندن",
+    "stopReading": "توقف",
+    "listenBtn": "گوش بده",
+    "tryAgain": "دوباره امتحان کن",
+    "speakHint": "دکمه میکروفن را بزن و به {{lang}} صحبت کن.",
+    "noSpeechSupport": "مرورگر شما از تشخیص گفتار پشتیبانی نمی‌کند. لطفاً از Chrome یا Edge استفاده کنید.",
+    "playBtn": "گوش بده",
+    "correct": "درست"
   },
   "common": {
     "error": "مشکلی پیش آمد.",

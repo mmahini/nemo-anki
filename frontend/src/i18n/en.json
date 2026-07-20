@@ -4,6 +4,7 @@
     "books": "Books",
     "import": "Import",
     "writing": "Writing",
+    "conversation": "Conversation",
     "signOut": "Sign out"
   },
   "signIn": {
@@ -232,6 +233,30 @@
     "noVocab": "No vocab yet.",
     "sharedBy": "shared by {{email}}",
     "lessons": "lessons"
+  },
+  "conversation": {
+    "title": "Conversation",
+    "subtitle": "Practise speaking in your target language — chat freely or read a passage aloud.",
+    "chatTab": "💬 Free chat",
+    "readTab": "📖 Reading",
+    "languageLabel": "Language",
+    "micBtn": "Speak",
+    "stopBtn": "Stop",
+    "sendBtn": "Send",
+    "listening": "Listening…",
+    "thinking": "Thinking…",
+    "inputPlaceholder": "Type or speak…",
+    "newConv": "New conversation",
+    "fetchText": "Get text",
+    "fetchingText": "Loading…",
+    "startReading": "Start reading",
+    "stopReading": "Stop",
+    "listenBtn": "Listen",
+    "tryAgain": "Try again",
+    "speakHint": "Press the mic button and start speaking in {{lang}}.",
+    "noSpeechSupport": "Your browser does not support speech recognition. Please use Chrome or Edge.",
+    "playBtn": "Listen",
+    "correct": "correct"
   },
   "common": {
     "error": "Something went wrong.",
