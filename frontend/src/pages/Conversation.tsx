@@ -44,6 +44,7 @@ export default function Conversation() {
   const [readBusy, setReadBusy] = useState(false);
   const [readListening, setReadListening] = useState(false);
   const [readResult, setReadResult] = useState<WordResult[] | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
   const readRecRef = useRef<any>(null);
 
   const lang = LANGS.find((l) => l.code === langCode) ?? LANGS[0];
@@ -122,11 +123,12 @@ export default function Conversation() {
     setReadBusy(true);
     setReadResult(null);
     setReadText(null);
+    setReadError(null);
     try {
       const res = await conversationText({ language: langCode });
       setReadText(res.text);
-    } catch {
-      // leave readText null — user can try again
+    } catch (e) {
+      setReadError(e instanceof Error ? e.message : t("common.error"));
     } finally {
       setReadBusy(false);
     }
@@ -284,6 +286,8 @@ export default function Conversation() {
               {readBusy ? t("conversation.fetchingText") : t("conversation.fetchText")}
             </button>
           </div>
+
+          {readError && <p className="auth__error">{readError}</p>}
 
           {readText && (
             <>
