@@ -747,3 +747,24 @@ export function writingToCard(payload: {
 }): Promise<{ card_id: number; deck_id: number; deck_name: string }> {
   return jsonRequest("/api/writing/card/", { method: "POST", body: JSON.stringify(payload) });
 }
+
+// ====== Conversation ======
+
+export type ConvCorrection = { original: string; correction: string; explanation: string };
+export type ConvReply = { response: string; corrections: ConvCorrection[] };
+export type ConvMessage = { role: "user" | "ai"; text: string; corrections?: ConvCorrection[] };
+
+export function conversationReply(payload: {
+  language: string;
+  text: string;
+  history: { role: string; text: string }[];
+}): Promise<ConvReply> {
+  return jsonRequest("/api/conversation/reply/", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function conversationText(payload: {
+  language: string;
+  book_id?: number;
+}): Promise<{ text: string; source: string; book_title?: string; lesson_title?: string }> {
+  return jsonRequest("/api/conversation/text/", { method: "POST", body: JSON.stringify(payload) });
+}

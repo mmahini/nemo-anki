@@ -17,6 +17,7 @@ import BookPage from "./pages/BookPage";
 import Study from "./pages/Study";
 import StudyCard from "./pages/StudyCard";
 import Writing from "./pages/Writing";
+import Conversation from "./pages/Conversation";
 import BackendStatus from "./components/BackendStatus";
 
 // Emit a Wiser CDP pageview on every route change (no-op unless the pixel is configured).
@@ -54,6 +55,7 @@ export default function App() {
               <Route path="/app/books/:bookId" element={<BookPage />} />
               <Route path="/app/import" element={<ImportPage />} />
               <Route path="/app/write" element={<Writing />} />
+              <Route path="/app/conversation" element={<Conversation />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -4,6 +4,8 @@ from .views import (
     AnalyzeGermanView,
     AnkiImportView,
     ConjugateView,
+    ConversationMessageView,
+    ConversationTextView,
     EnrichView,
     ImportParseView,
     WritingBooksView,
@@ -24,4 +26,6 @@ urlpatterns = [
     path("writing/card/", WritingToCardView.as_view(), name="writing-card"),
     path("writing/prompt/", WritingPromptView.as_view(), name="writing-prompt"),
     path("writing/books/", WritingBooksView.as_view(), name="writing-books"),
+    path("conversation/reply/", ConversationMessageView.as_view(), name="conversation-reply"),
+    path("conversation/text/", ConversationTextView.as_view(), name="conversation-text"),
 ]

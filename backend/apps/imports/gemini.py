@@ -554,6 +554,141 @@ def analyze_german_batch(items: list[dict]) -> dict[int, dict]:
     return out
 
 
+_READING_FALLBACKS: dict[str, list[str]] = {
+    "de": [
+        "Heute Morgen bin ich früh aufgestanden. Nach dem Frühstück bin ich zur Arbeit gegangen. Am Abend habe ich mit einem Freund Kaffee getrunken.",
+        "Das Wetter ist heute sehr schön. Ich gehe gerne in den Park und lese ein Buch. Die Vögel singen und die Sonne scheint hell.",
+        "Letzte Woche habe ich einen neuen Film gesehen. Die Geschichte war sehr interessant. Ich empfehle ihn allen meinen Freunden.",
+        "Jeden Morgen trinke ich eine Tasse Kaffee und lese die Nachrichten. Dann fahre ich mit dem Fahrrad zur Arbeit. Der Weg dauert ungefähr zwanzig Minuten.",
+        "Am Wochenende bin ich mit meiner Familie in die Berge gefahren. Wir haben gewandert und frische Luft genossen. Abends haben wir in einer kleinen Hütte gegessen.",
+    ],
+    "en": [
+        "This morning I woke up early. After breakfast, I went to work. In the evening, I had coffee with a friend.",
+        "The weather is beautiful today. I like going to the park and reading a book. The birds are singing and the sun is shining.",
+        "Last week I watched a new film. The story was very interesting. I recommend it to all my friends.",
+        "Every morning I drink a cup of coffee and read the news. Then I cycle to work. The journey takes about twenty minutes.",
+    ],
+    "fr": [
+        "Ce matin, je me suis réveillé tôt. Après le petit-déjeuner, je suis allé au travail. Le soir, j'ai pris un café avec un ami.",
+        "Le temps est très beau aujourd'hui. J'aime me promener dans le parc et lire un livre. Les oiseaux chantent et le soleil brille.",
+    ],
+    "es": [
+        "Esta mañana me desperté temprano. Después del desayuno, fui al trabajo. Por la tarde, tomé un café con un amigo.",
+        "El tiempo está muy bonito hoy. Me gusta ir al parque y leer un libro. Los pájaros cantan y el sol brilla.",
+    ],
+    "it": [
+        "Stamattina mi sono svegliato presto. Dopo colazione, sono andato al lavoro. La sera, ho preso un caffè con un amico.",
+        "Il tempo è molto bello oggi. Mi piace andare al parco e leggere un libro. Gli uccelli cantano e il sole splende.",
+    ],
+}
+
+
+def conversation_reply(language: str, user_text: str, history: list[dict]) -> dict:
+    """Reply to a learner's spoken/typed message, returning corrections.
+
+    Returns ``{"response": str, "corrections": [{"original","correction","explanation"}]}``.
+    """
+    name = _writing_lang_name(language)
+    if not settings.GEMINI_API_KEY:
+        return {
+            "response": "Sehr gut! Kannst du mehr erzählen?" if language == "de" else "Good! Can you tell me more?",
+            "corrections": [],
+        }
+
+    history_text = "\n".join(
+        f"{'User' if m.get('role') == 'user' else 'Tutor'}: {m.get('text', '')}"
+        for m in (history or [])[-6:]
+    )
+    prompt = (
+        f"You are a friendly {name} language tutor having a short conversation with a learner.\n"
+        + (f"Recent conversation:\n{history_text}\n\n" if history_text else "")
+        + f'The learner just said (in {name}): "{user_text[:500]}"\n\n'
+        f"1. Spot any grammar or vocabulary errors in what the learner said.\n"
+        f"2. Write a short natural reply in {name} (1-2 sentences). Continue the conversation naturally.\n"
+        f"Return ONLY JSON (no markdown):\n"
+        f'{{"response": "<your {name} reply>", '
+        f'"corrections": [{{"original": "<wrong phrase>", "correction": "<correct version>", "explanation": "<short English note>"}}]}}\n'
+        f"If no errors, corrections must be []. Keep the reply short and encouraging."
+    )
+    try:
+        obj = _extract_json_object(_gemini_text(prompt, timeout=30, temperature=0.7))
+        corrections = []
+        for c in obj.get("corrections") or []:
+            if not isinstance(c, dict):
+                continue
+            orig = str(c.get("original", "")).strip()
+            corr = str(c.get("correction", "")).strip()
+            if orig or corr:
+                corrections.append({
+                    "original": orig,
+                    "correction": corr,
+                    "explanation": str(c.get("explanation", "")).strip(),
+                })
+        return {"response": str(obj.get("response", "")).strip(), "corrections": corrections}
+    except Exception:  # noqa: BLE001
+        fallback = "Interessant! Weiter so." if language == "de" else "Interesting! Keep going."
+        return {"response": fallback, "corrections": []}
+
+
+def conversation_text(language: str, lesson_info: dict | None = None) -> dict:
+    """Generate a short passage in *language* for reading-aloud practice (A2-B1).
+
+    If *lesson_info* is given (same shape as writing_prompt), builds the text
+    around that lesson's vocabulary so the reader practises known words.
+    Returns ``{"text": str, "source": "books"|"auto"|"fallback", ...}``.
+    """
+    name = _writing_lang_name(language)
+
+    if lesson_info and settings.GEMINI_API_KEY:
+        vocab_lines = "\n".join(
+            f"- {v['front']}"
+            for v in (lesson_info.get("vocab") or [])
+            if v.get("front")
+        )
+        if vocab_lines:
+            try:
+                prompt = (
+                    f"Write a short, natural paragraph (3-5 sentences) in {name} for a language learner to read aloud. "
+                    f"Use 4-6 of the {name} words/phrases below naturally in the text. "
+                    f"A2-B1 level — clear and flowing, not a word list. "
+                    f'Return ONLY JSON: {{"text": "<paragraph in {name}>"}}. No markdown.\n\n'
+                    f"Words to use:\n{vocab_lines}"
+                )
+                obj = _extract_json_object(_gemini_text(prompt, timeout=30, temperature=0.9))
+                text = str(obj.get("text", "")).strip()
+                if text:
+                    lesson = lesson_info["lesson"]
+                    return {
+                        "text": text,
+                        "source": "books",
+                        "book_title": lesson.book.title,
+                        "lesson_title": lesson.title,
+                    }
+            except Exception:  # noqa: BLE001
+                pass  # fall through to auto
+
+    if not settings.GEMINI_API_KEY:
+        pool = _READING_FALLBACKS.get(language, _READING_FALLBACKS["en"])
+        return {"text": random.choice(pool), "source": "fallback"}
+
+    topic = random.choice(_PROMPT_TOPICS)
+    prompt = (
+        f"Write a short, natural paragraph (3-5 sentences) in {name} for a language learner to read aloud. "
+        f"Use A2-B1 vocabulary — clear and natural, not overly simple. Topic: {topic}. "
+        f"Write something specific and vivid. "
+        f'Return ONLY JSON: {{"text": "<paragraph in {name}>"}}. No markdown.'
+    )
+    try:
+        obj = _extract_json_object(_gemini_text(prompt, timeout=30, temperature=0.9))
+        text = str(obj.get("text", "")).strip()
+        if text:
+            return {"text": text, "source": "auto"}
+        raise ValueError("empty")
+    except Exception:  # noqa: BLE001
+        pool = _READING_FALLBACKS.get(language, _READING_FALLBACKS["en"])
+        return {"text": random.choice(pool), "source": "fallback"}
+
+
 def parse_text(text: str, language: str = "", default_type: str = "vocab") -> dict:
     text = (text or "").strip()
     if not text:

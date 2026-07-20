@@ -594,6 +594,55 @@ kbd {
 .writing__prompt-loading { color: var(--ink-faint); font-size: 0.9rem; margin: 0; }
 .writing__prompt-empty { display: flex; align-items: center; justify-content: center; padding: 8px 0; }
 
+/* Conversation */
+.conv__bar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 10px 0 14px; }
+.conv__tabs { display: flex; gap: 4px; }
+.conv__nospeech { margin: 0 0 12px; font-size: 0.9rem; }
+
+.conv__chat {
+  min-height: 280px; max-height: 420px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px; margin: 0 0 4px;
+}
+.conv__hint { color: var(--ink-faint); font-size: 0.9rem; text-align: center; margin: auto; }
+.conv__msg { display: flex; flex-direction: column; gap: 6px; }
+.conv__msg--user { align-items: flex-end; }
+.conv__msg--ai  { align-items: flex-start; }
+.conv__bubble {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--line-soft); border-radius: 14px; padding: 10px 14px;
+  max-width: 82%; word-break: break-word;
+}
+.conv__msg--user .conv__bubble {
+  background: var(--brand); color: #fff;
+  border-radius: 14px 14px 4px 14px;
+}
+.conv__msg--ai .conv__bubble { border-radius: 14px 14px 14px 4px; }
+.conv__play { opacity: 0.55; flex-shrink: 0; padding: 4px 8px; }
+.conv__corrections { display: flex; flex-direction: column; gap: 4px; max-width: 82%; }
+.conv__correction {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 12px;
+  display: flex; flex-direction: column; gap: 3px; font-size: 0.88rem;
+}
+
+.conv__input { display: flex; gap: 8px; align-items: center; margin: 8px 0 4px; }
+.conv__text-input { flex: 1; }
+.conv__mic { font-size: 1.1rem; padding: 10px 14px; }
+.conv__mic--active { animation: conv-pulse 1s ease-in-out infinite; color: var(--again) !important; border-color: var(--again) !important; }
+@keyframes conv-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+.conv__reset { margin-top: 6px; }
+
+.conv__read-actions { margin: 0 0 12px; }
+.conv__read-panel { margin: 0 0 12px; display: flex; flex-direction: column; gap: 10px; }
+.conv__read-text { margin: 0; font-size: 1.08rem; line-height: 1.9; }
+.conv__word { display: inline; }
+.conv__word--ok  { color: var(--good); font-weight: 700; }
+.conv__word--bad { color: var(--again); text-decoration: line-through; opacity: 0.75; }
+.conv__read-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.conv__read-controls { display: flex; gap: 10px; align-items: center; margin: 0 0 8px; flex-wrap: wrap; }
+.conv__read-stats { color: var(--ink-soft); font-size: 0.9rem; margin: 4px 0 0; }
+
 /* Tabs */
 .tabs { display: flex; gap: 4px; margin-top: 10px; }
 .tab { border: none; background: var(--line-soft); color: var(--ink-soft); font: inherit; font-weight: 600; padding: 8px 16px; border-radius: 999px; cursor: pointer; }
@@ -795,6 +844,16 @@ kbd {
   .lessonview__head .btn { margin-left: 0; }
 
   .panel { padding: 16px; margin: 16px auto; }
+
+  /* Conversation */
+  .conv__bar { flex-direction: column; align-items: stretch; }
+  .conv__tabs .btn { flex: 1; }
+  .conv__chat { max-height: 300px; }
+  .conv__input { flex-wrap: wrap; }
+  .conv__text-input { flex: 1 0 100%; order: -1; }
+  .conv__mic, .conv__input .btn--primary { flex: 1; }
+  .conv__bubble { max-width: 92%; }
+  .conv__corrections { max-width: 92%; }
 
   /* Writing */
   .writing__bar { flex-direction: column; align-items: stretch; }
