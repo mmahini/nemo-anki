@@ -289,7 +289,7 @@ export default function DeckCards() {
         ) : (
           <div className="panel">
             {t("deckCards.noCards")} <Link to={`/app/decks/${id}/add`}>{t("deckCards.addCard")}</Link> or use{" "}
-            <Link to="/app/import">{t("nav.import")}</Link>.
+            <Link to="/app/import">{t("import.title")}</Link>.
           </div>
         )
       ) : (

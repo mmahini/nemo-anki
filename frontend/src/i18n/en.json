@@ -2,14 +2,12 @@
   "nav": {
     "decks": "Decks",
     "books": "Books",
-    "import": "Import",
-    "writing": "Writing",
-    "conversation": "Conversation",
     "support": "Support",
     "subscription": "Subscription",
     "language": "Language",
     "signOut": "Sign out",
-    "stats": "Performance"
+    "stats": "Performance",
+    "practice": "Practice"
   },
   "signIn": {
     "title": "Sign in to Nemo Anki",
@@ -60,7 +58,8 @@
     "languageHint": "Sets which language the AI tools assume for cards in this deck.",
     "createBtn": "Create deck",
     "creating": "Creating…",
-    "addSubdeck": "＋ Add sub-deck"
+    "addSubdeck": "＋ Add sub-deck",
+    "importBtn": "↓ Import"
   },
   "import": {
     "title": "Import",
@@ -152,10 +151,7 @@
     "confirmDelete": "Delete the book \"{{title}}\"? (Decks you already imported stay.)"
   },
   "writing": {
-    "title": "Writing",
-    "subtitle": "Practise free writing, get it corrected, and turn each mistake into a sentence card.",
     "languageLabel": "Language",
-    "suggestTopic": "💡 Suggest a topic",
     "thinking": "Thinking…",
     "placeholder": "Write here…",
     "wordCount": "{{count}} words",
@@ -174,7 +170,6 @@
     "promptSourceBooks": "📚 From books",
     "newText": "New text",
     "promptLoading": "Loading text…",
-    "promptFrom": "From: {{source}}",
     "translatePlaceholder": "Write your {{lang}} translation here…",
     "selectBook": "Choose a book",
     "noBooksHint": "No processed books yet — go to Books and process a book first, then come back here."
@@ -214,7 +209,10 @@
     "msgWelcomeBack": "Welcome back — a few reviews today restarts your streak.",
     "msgStart": "Study a deck to start your streak. A little every day goes a long way!",
     "viewStats": "Full analytics →",
-    "heatmapAria": "Review activity over the last weeks"
+    "heatmapAria": "Review activity over the last weeks",
+    "doneToday": "Reviewed today — keep it going.",
+    "keepStreak": "Don't break the streak — a few cards is enough.",
+    "startToday": "Study a deck to start a streak."
   },
   "bookPage": {
     "backBtn": "← Books",
@@ -250,11 +248,6 @@
     "lessons": "lessons"
   },
   "conversation": {
-    "title": "Conversation",
-    "subtitle": "Practise speaking in your target language — chat freely or read a passage aloud.",
-    "chatTab": "💬 Free chat",
-    "readTab": "📖 Reading",
-    "languageLabel": "Language",
     "micBtn": "Speak",
     "stopBtn": "Stop",
     "sendBtn": "Send",
@@ -405,5 +398,20 @@
     "blankTitle": "Nothing to measure yet",
     "blankHint": "Study a deck and this page fills in: retention, streaks, what's coming due, and which cards are giving you trouble.",
     "blankCta": "Go to your decks"
+  },
+  "practice": {
+    "title": "Practice",
+    "languageLabel": "Practising",
+    "tab_write": "Write",
+    "tab_speak": "Speak",
+    "tab_read": "Read aloud",
+    "sub_write": "Write a passage, get it corrected, and turn each mistake into a card.",
+    "sub_speak": "Hold a conversation out loud — it replies, and flags what to fix.",
+    "sub_read": "Read a passage aloud and see which words came through.",
+    "referenceTitle": "Reference text",
+    "referenceEmpty": "Get a text to translate, or just start writing below — both get corrected.",
+    "sourceLabel": "Text source",
+    "readEmpty": "Get a passage, then read it aloud.",
+    "typeHint": "Type a message in {{lang}} to get started."
   }
 }

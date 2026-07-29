@@ -259,9 +259,9 @@ export default function BookPage() {
       </div>
       {book.note && <div className="bookblock__note">{book.note}</div>}
 
-      <div className="tabs bookpage__tabs">
-        <button className={`tab ${tab === "lessons" ? "tab--on" : ""}`} onClick={() => setTab("lessons")}>{t("bookPage.lessonsTab")}</button>
-        {owner && <button className={`tab ${tab === "share" ? "tab--on" : ""}`} onClick={() => setTab("share")}>{t("bookPage.shareTab")}</button>}
+      <div className="segmented bookpage__tabs">
+        <button className={`segmented__btn ${tab === "lessons" ? "segmented__btn--on" : ""}`} aria-pressed={tab === "lessons"} onClick={() => setTab("lessons")}>{t("bookPage.lessonsTab")}</button>
+        {owner && <button className={`segmented__btn ${tab === "share" ? "segmented__btn--on" : ""}`} aria-pressed={tab === "share"} onClick={() => setTab("share")}>{t("bookPage.shareTab")}</button>}
       </div>
 
       {error && <div className="panel panel--error">{error}</div>}

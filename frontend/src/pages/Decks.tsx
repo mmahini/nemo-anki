@@ -155,9 +155,14 @@ export default function Decks() {
             <span className="legend__item"><i className="dot dot--learn" /> {t("decks.legend.learning")}</span>
             <span className="legend__item"><i className="dot dot--due" /> {t("decks.legend.due")}</span>
           </div>
-          <button className="btn btn--primary btn--sm" onClick={() => openAdd()}>
-            {t("decks.addBtn")}
-          </button>
+          <div className="decks__actions">
+            <Link className="btn btn--ghost btn--sm" to="/app/import">
+              {t("decks.importBtn")}
+            </Link>
+            <button className="btn btn--primary btn--sm" onClick={() => openAdd()}>
+              {t("decks.addBtn")}
+            </button>
+          </div>
         </div>
       </div>
 

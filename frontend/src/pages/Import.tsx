@@ -158,17 +158,25 @@ export default function ImportPage() {
   return (
     <div className="import">
       <div className="import__head">
-        <h1>{t("import.title")}</h1>
-        <div className="tabs">
-          <button className={`tab ${tab === "paste" ? "tab--on" : ""}`} onClick={() => setTab("paste")}>
-            {t("import.tabs.paste")}
-          </button>
-          <button className={`tab ${tab === "books" ? "tab--on" : ""}`} onClick={() => setTab("books")}>
-            {t("import.tabs.books")}
-          </button>
-          <button className={`tab ${tab === "anki" ? "tab--on" : ""}`} onClick={() => setTab("anki")}>
-            {t("import.tabs.anki")}
-          </button>
+        <div className="import__titlerow">
+          <h1>{t("import.title")}</h1>
+          {/* Reached from the deck list rather than the nav, so it needs its own
+              way back — otherwise this page is a dead end on mobile. */}
+          <Link className="btn btn--ghost btn--sm" to="/app">
+            {t("decks.backBtn")}
+          </Link>
+        </div>
+        <div className="segmented" role="group" aria-label={t("import.title")}>
+          {(["paste", "books", "anki"] as const).map((key) => (
+            <button
+              key={key}
+              className={`segmented__btn ${tab === key ? "segmented__btn--on" : ""}`}
+              aria-pressed={tab === key}
+              onClick={() => setTab(key)}
+            >
+              {t(`import.tabs.${key}`)}
+            </button>
+          ))}
         </div>
       </div>
 

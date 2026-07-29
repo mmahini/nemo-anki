@@ -56,10 +56,10 @@ export function ActivityHeatmap({ days }: { days: Activity["days"] }) {
 }
 
 /**
- * Motivational strip above the deck list: streak, today's effort, and a way
- * through to the full performance page. Deliberately *not* the whole analysis —
- * the deck list is where you go to study, so this stays a nudge and the charts
- * live on /app/stats.
+ * One-line nudge above the deck list: today's streak and effort, then out of the
+ * way. Best-streak, all-time totals and the heatmap all live on /app/stats — the
+ * deck list is where you come to *study*, so anything that pushes the decks
+ * further down the page costs more than it gives.
  */
 export default function ReviewActivity() {
   const { t } = useTranslation();
@@ -73,46 +73,30 @@ export default function ReviewActivity() {
 
   if (!data) return null;
 
-  function message(a: Activity): string {
-    if (a.today.count > 0) {
-      const s = a.streak > 1 ? ` ${a.streak}-day streak 🔥` : "";
-      return t("activity.msgGreat", { streak: s });
-    }
-    if (a.streak > 0) return t("activity.msgStreak", { count: a.streak });
-    if (a.total_reviews > 0) return t("activity.msgWelcomeBack");
-    return t("activity.msgStart");
-  }
+  const nudge =
+    data.today.count > 0
+      ? t("activity.doneToday")
+      : data.streak > 0
+        ? t("activity.keepStreak")
+        : t("activity.startToday");
 
   return (
-    <section className="activity panel">
-      <div className="activity__stats">
-        <div className="activity__stat activity__stat--streak">
-          <span className="activity__num">🔥 {data.streak}</span>
-          <span className="activity__lbl">{t("activity.dayStreak")}</span>
-        </div>
-        <div className="activity__stat">
-          <span className="activity__num">{data.today.count}</span>
-          <span className="activity__lbl">
-            {t("activity.today")}
-            {data.today.count ? ` · ${fmtDuration(data.today.seconds)}` : ""}
-          </span>
-        </div>
-        <div className="activity__stat">
-          <span className="activity__num">{data.longest_streak}</span>
-          <span className="activity__lbl">{t("activity.bestStreak")}</span>
-        </div>
-        <div className="activity__stat">
-          <span className="activity__num">{data.total_reviews.toLocaleString()}</span>
-          <span className="activity__lbl">{t("activity.allTime")}</span>
-        </div>
-      </div>
-
-      <div className="activity__foot">
-        <p className="activity__msg">{message(data)}</p>
-        <Link className="activity__more" to="/app/stats">
-          {t("activity.viewStats")}
-        </Link>
-      </div>
+    <section className="activity">
+      <span className="activity__stat activity__stat--streak">
+        <b>🔥 {data.streak}</b>
+        <span className="activity__lbl">{t("activity.dayStreak")}</span>
+      </span>
+      <span className="activity__stat">
+        <b>{data.today.count}</b>
+        <span className="activity__lbl">
+          {t("activity.today")}
+          {data.today.count ? ` · ${fmtDuration(data.today.seconds)}` : ""}
+        </span>
+      </span>
+      <span className="activity__nudge">{nudge}</span>
+      <Link className="activity__more" to="/app/stats">
+        {t("activity.viewStats")}
+      </Link>
     </section>
   );
 }

@@ -469,15 +469,21 @@ kbd {
 .decks__headtools { display: flex; align-items: center; gap: 16px; }
 
 /* ============================================================
-   Activity / streak panel
+   Activity strip (deck list) + heatmap (performance page)
    ============================================================ */
-.activity { margin: 0 0 22px; padding: 18px 20px; }
-.activity__stats { display: flex; flex-wrap: wrap; gap: 10px 22px; }
-.activity__stat { display: flex; flex-direction: column; gap: 1px; }
-.activity__num { font-size: 1.35rem; font-weight: 800; line-height: 1.1; }
-.activity__stat--streak .activity__num { color: var(--hard); }
+/* A single row, full width of the deck list below it — same edges, so the page
+   reads as one column and the decks start high up. */
+.activity {
+  display: flex; align-items: center; gap: 8px 20px; flex-wrap: wrap;
+  margin: 16px 0 14px; padding: 11px 16px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm);
+}
+.activity__stat { display: inline-flex; align-items: baseline; gap: 6px; }
+.activity__stat b { font-size: 1.1rem; font-weight: 800; line-height: 1; }
+.activity__stat--streak b { color: var(--hard); }
 .activity__lbl { font-size: 0.72rem; font-weight: 600; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; }
-.activity__msg { margin: 12px 0 14px; color: var(--ink-soft); font-weight: 600; font-size: 0.92rem; }
+.activity__nudge { flex: 1; min-width: 0; color: var(--ink-soft); font-weight: 600; font-size: 0.88rem; }
 .activity__heatwrap { overflow-x: auto; padding-bottom: 4px; }
 .activity__heat { display: grid; grid-template-rows: repeat(7, 11px); grid-auto-flow: column; gap: 3px; width: max-content; }
 .heatcell { width: 11px; height: 11px; border-radius: 3px; background: var(--line-soft); }
@@ -730,10 +736,7 @@ kbd {
 }
 @keyframes wakespin { to { transform: rotate(360deg); } }
 
-/* Writing practice */
-.writing__bar { display: flex; align-items: flex-end; gap: 12px; margin: 10px 0 14px; }
-.writing__topic { display: flex; flex-direction: column; gap: 4px; margin: 0 0 14px; }
-.writing__topicen { color: var(--ink-faint); font-size: 0.85rem; }
+/* Writing practice (the Write tab of /app/practice) */
 .writing__textarea { min-height: 200px; }
 .writing__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 4px; }
 .writing__count { color: var(--ink-faint); font-size: 0.85rem; }
@@ -748,20 +751,8 @@ kbd {
 .issue__good { color: var(--good); font-weight: 700; }
 .issue__why { color: var(--ink-soft); font-size: 0.9rem; }
 .writing__hint { color: var(--ink-faint); font-size: 0.85rem; margin-top: 14px; }
-.writing__source-toggle { display: flex; gap: 4px; align-items: center; }
-.writing__book-selector { margin: 0 0 10px; }
-.writing__no-books { margin: 0 0 10px; font-size: 0.9rem; }
-.writing__prompt { margin: 0 0 14px; display: flex; flex-direction: column; gap: 10px; min-height: 64px; }
-.writing__prompt-text { margin: 0; font-size: 1.08rem; line-height: 1.7; }
-.writing__prompt-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.writing__prompt-source { font-size: 0.8rem; color: var(--ink-faint); }
-.writing__prompt-newbtn { margin-inline-start: auto; }
-.writing__prompt-loading { color: var(--ink-faint); font-size: 0.9rem; margin: 0; }
-.writing__prompt-empty { display: flex; align-items: center; justify-content: center; padding: 8px 0; }
 
-/* Conversation */
-.conv__bar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 10px 0 14px; }
-.conv__tabs { display: flex; gap: 4px; }
+/* Conversation (the Speak / Read tabs of /app/practice) */
 .conv__nospeech { margin: 0 0 12px; font-size: 0.9rem; }
 
 .conv__chat {
@@ -791,22 +782,17 @@ kbd {
   display: flex; flex-direction: column; gap: 3px; font-size: 0.88rem;
 }
 
-.conv__input { display: flex; gap: 8px; align-items: center; margin: 8px 0 4px; }
-.conv__text-input { flex: 1; }
 .conv__mic { font-size: 1.1rem; padding: 10px 14px; }
 .conv__mic--active { animation: conv-pulse 1s ease-in-out infinite; color: var(--again) !important; border-color: var(--again) !important; }
 @keyframes conv-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
 .conv__reset { margin-top: 6px; }
 
-.conv__read-actions { margin: 0 0 12px; }
 .conv__read-panel { margin: 0 0 12px; display: flex; flex-direction: column; gap: 10px; }
 .conv__read-text { margin: 0; font-size: 1.08rem; line-height: 1.9; }
 .conv__word { display: inline; }
 .conv__word--ok  { color: var(--good); font-weight: 700; }
 .conv__word--bad { color: var(--again); text-decoration: line-through; opacity: 0.75; }
 .conv__read-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.conv__read-controls { display: flex; gap: 10px; align-items: center; margin: 0 0 8px; flex-wrap: wrap; }
-.conv__read-stats { color: var(--ink-soft); font-size: 0.9rem; margin: 4px 0 0; }
 
 /* Support */
 .support__header { display: flex; align-items: center; gap: 14px; margin: 0 0 4px; }
@@ -876,10 +862,7 @@ kbd {
 [dir="rtl"] .support__send { transform: scaleX(-1); }
 [dir="rtl"] .support__send:active:not(:disabled) { transform: scaleX(-1) scale(0.94); }
 
-/* Tabs */
-.tabs { display: flex; gap: 4px; margin-top: 10px; }
-.tab { border: none; background: var(--line-soft); color: var(--ink-soft); font: inherit; font-weight: 600; padding: 8px 16px; border-radius: 999px; cursor: pointer; }
-.tab--on { background: var(--brand); color: #fff; }
+/* Tabs everywhere are the `.segmented` control — see the Practice section. */
 
 /* Books page */
 .books__sub { color: var(--ink-soft); max-width: 70ch; }
@@ -908,6 +891,8 @@ kbd {
 .bookcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
 .bookcard__banner { color: #fff; padding: 16px; display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left; border: none; cursor: pointer; font: inherit; }
 .books__tabs { margin: 18px 0 14px; }
+.import__titlerow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.import__titlerow h1 { margin: 0; }
 .bookpage__top { margin-bottom: 12px; }
 .bookpage__banner { border-radius: var(--radius) var(--radius) 0 0; }
 .bookpage__tabs { margin: 16px 0; }
@@ -1048,7 +1033,6 @@ kbd {
   /* Import */
   .import__controls { flex-direction: column; gap: 10px; }
   .import__controls label { width: 100%; }
-  .tabs { flex-wrap: wrap; }
   .import__item { flex-direction: column; }
 
   /* Books */
@@ -1074,13 +1058,8 @@ kbd {
 
   .panel { padding: 16px; margin: 16px auto; }
 
-  /* Conversation */
-  .conv__bar { flex-direction: column; align-items: stretch; }
-  .conv__tabs .btn { flex: 1; }
+  /* Practice — Speak tab */
   .conv__chat { max-height: 300px; }
-  .conv__input { flex-wrap: wrap; }
-  .conv__text-input { flex: 1 0 100%; order: -1; }
-  .conv__mic, .conv__input .btn--primary { flex: 1; }
   .conv__bubble { max-width: 92%; }
   .conv__corrections { max-width: 92%; }
 
@@ -1091,10 +1070,7 @@ kbd {
   .support__text-input { flex: 1 0 100%; order: -1; }
   .support__input .btn--primary { flex: 1; }
 
-  /* Writing */
-  .writing__bar { flex-direction: column; align-items: stretch; }
-  .writing__source-toggle .btn { flex: 1; }
-  .writing__prompt-footer { flex-wrap: wrap; }
+  /* Practice — Write tab */
   .writing__actions { flex-wrap: wrap; gap: 8px; }
   .writing__actions .btn { flex: 1 0 auto; }
 }
@@ -1538,9 +1514,7 @@ kbd {
 .leechlist__tag { flex: none; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--hard); background: rgba(232, 151, 58, 0.14); padding: 2px 8px; border-radius: 999px; }
 
 /* Activity strip: message + link through to the full analysis */
-.activity__foot { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
-.activity__foot .activity__msg { margin: 0; }
-.activity__more { font-weight: 700; font-size: 0.86rem; white-space: nowrap; }
+.activity__more { font-weight: 700; font-size: 0.84rem; white-space: nowrap; }
 
 @media (max-width: 900px) {
   .stats__grid { grid-template-columns: 1fr; }
@@ -1557,4 +1531,109 @@ kbd {
   .barrows__value { min-width: 72px; }
   .leechlist__row { flex-wrap: wrap; gap: 6px 10px; }
   .leechlist__text { flex: 1 0 100%; }
+}
+
+/* ============================================================
+   Practice — write / speak / read aloud  (Practice.tsx + practice/*)
+   ============================================================ */
+.practice__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; }
+.practice__sub { margin: 0; color: var(--ink-soft); max-width: 62ch; }
+/* The target language is set once, above the tabs, because all three tabs use
+   it — that's the whole reason they're one page. */
+.practice__lang { flex: none; }
+.practice__tabs { margin: 18px 0 20px; }
+
+/* Label + control on one line, for the small settings that sit in a bar. */
+.inlinefield { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.inlinefield > span { font-size: 0.78rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+
+/* Segmented control — one recessed track, the active segment lifted out of it.
+   Distinct from .btn so a *view switch* never looks like an action button. */
+.segmented {
+  display: inline-flex; gap: 2px; padding: 3px;
+  background: var(--line-soft); border-radius: 999px;
+  max-width: 100%; overflow-x: auto; scrollbar-width: none;
+}
+.segmented::-webkit-scrollbar { display: none; }
+.segmented__btn {
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  border: none; background: none; color: var(--ink-soft);
+  font: inherit; font-weight: 600; padding: 8px 18px;
+  border-radius: 999px; cursor: pointer;
+  transition: background 0.14s, color 0.14s, box-shadow 0.14s;
+}
+.segmented__btn:hover { color: var(--ink); }
+.segmented__btn--on {
+  background: var(--surface); color: var(--brand-dark);
+  box-shadow: var(--shadow-sm);
+}
+.segmented__icon { font-size: 0.95em; line-height: 1; }
+.segmented--sm { padding: 2px; }
+.segmented--sm .segmented__btn { padding: 5px 12px; font-size: 0.82rem; }
+
+/* ---- Reference text (Write tab) ---- */
+.promptcard {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm);
+  padding: 16px 18px; margin: 0 0 16px;
+}
+.promptcard__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.promptcard__title { margin: 0; font-size: 0.95rem; }
+.promptcard__body { min-height: 52px; display: flex; align-items: center; margin: 12px 0; }
+.promptcard__text { margin: 0; font-size: 1.08rem; line-height: 1.7; }
+.promptcard__muted { margin: 0; color: var(--ink-faint); font-size: 0.9rem; line-height: 1.6; }
+.promptcard__foot {
+  display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap;
+  padding-top: 12px; border-top: 1px solid var(--line-soft);
+}
+.promptcard__source { font-size: 0.8rem; color: var(--ink-faint); }
+.promptcard__new { margin-inline-start: auto; }
+
+/* ---- Speak tab composer ---- */
+.composer { display: flex; gap: 8px; align-items: center; margin: 8px 0 4px; }
+.composer__input { flex: 1; min-width: 0; }
+
+/* ---- Read tab ---- */
+.readpanel__bar { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; margin: 0 0 14px; }
+.readpanel__controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.scorecard {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm);
+  padding: 14px 16px; margin: 0 0 14px;
+}
+.scorecard__top { display: flex; align-items: baseline; gap: 8px; }
+.scorecard__value { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+.scorecard__label { color: var(--ink-faint); font-weight: 600; font-size: 0.85rem; }
+.scorecard__retry { margin-inline-start: auto; }
+/* Track is a light step of the fill's own ramp, so the state reads across the
+   whole bar rather than only where it's filled. */
+.scorecard__meter { display: block; height: 8px; margin-top: 12px; border-radius: 999px; background: var(--line-soft); overflow: hidden; }
+.scorecard__fill { display: block; height: 100%; border-radius: 999px; transition: width 0.3s ease; }
+.scorecard__fill[data-tone="good"] { background: var(--good); }
+.scorecard__fill[data-tone="mid"] { background: var(--hard); }
+.scorecard__fill[data-tone="low"] { background: var(--again); }
+
+/* Deck-list head: Import beside Add deck */
+.decks__actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+@media (max-width: 640px) {
+  .practice__head { gap: 10px; }
+  .practice__head h1 { font-size: 1.4rem; }
+  .practice__lang { width: 100%; justify-content: space-between; }
+  .practice__tabs { display: flex; width: 100%; margin: 14px 0 18px; }
+  .segmented__btn { flex: 1; justify-content: center; padding: 9px 10px; }
+  .promptcard__head { align-items: flex-start; }
+  .promptcard__foot .inlinefield { width: 100%; justify-content: space-between; }
+  .promptcard__new { margin-inline-start: 0; width: 100%; justify-content: center; }
+  .readpanel__bar .inlinefield { width: 100%; justify-content: space-between; }
+  .readpanel__bar .btn { width: 100%; justify-content: center; }
+  .readpanel__controls .btn { flex: 1; justify-content: center; }
+  .composer { flex-wrap: wrap; }
+  .composer__input { flex: 1 0 100%; order: -1; }
+  .composer .conv__mic, .composer .btn--primary { flex: 1; justify-content: center; }
+  .activity { gap: 6px 14px; padding: 10px 14px; }
+  .activity__nudge { flex: 1 0 100%; order: 3; }
+  .activity__more { order: 4; }
+  .decks__actions { flex: 1; }
+  .decks__actions .btn { flex: 1; justify-content: center; }
 }
