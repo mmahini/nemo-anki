@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { createDeck, deleteDeck, fetchDecks, updateDeck, type Deck } from "../auth/api";
+import Modal from "../components/Modal";
 import ReviewActivity from "../components/ReviewActivity";
 
 /** Indentation depth from the `::` chain in full_name. */
@@ -19,6 +20,9 @@ export default function Decks() {
   const [newName, setNewName] = useState("");
   const [newLang, setNewLang] = useState<"de" | "en" | "">("");
   const [newParent, setNewParent] = useState<number | "">("");
+  const [adding, setAdding] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [movingDeck, setMovingDeck] = useState<number | null>(null);
   const [langDeck, setLangDeck] = useState<number | null>(null);
@@ -42,13 +46,32 @@ export default function Decks() {
     load();
   }, []);
 
+  /** Open the add-deck sheet, optionally pre-filling the parent (from a row's
+   * "add sub-deck" action) so nesting doesn't need re-picking. */
+  function openAdd(parent: number | "" = "") {
+    setNewName("");
+    setNewLang("");
+    setNewParent(parent);
+    setCreateError(null);
+    setAdding(true);
+  }
+
   async function onCreate() {
-    if (!newName.trim()) return;
+    if (!newName.trim() || creating) return;
     const parent = newParent === "" ? null : newParent;
     const parentLang = decks.find((d) => d.id === parent)?.language ?? "";
-    await createDeck({ name: newName.trim(), parent, language: newLang || parentLang });
-    setNewName("");
-    load();
+    setCreating(true);
+    setCreateError(null);
+    try {
+      await createDeck({ name: newName.trim(), parent, language: newLang || parentLang });
+      setAdding(false);
+      setNewName("");
+      load();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : t("common.error"));
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function onMove(d: Deck, parent: number | null) {
@@ -126,10 +149,15 @@ export default function Decks() {
     <div className="decks">
       <div className="decks__head">
         <h1>{t("decks.title")}</h1>
-        <div className="legend">
-          <span className="legend__item"><i className="dot dot--new" /> {t("decks.legend.new")}</span>
-          <span className="legend__item"><i className="dot dot--learn" /> {t("decks.legend.learning")}</span>
-          <span className="legend__item"><i className="dot dot--due" /> {t("decks.legend.due")}</span>
+        <div className="decks__headtools">
+          <div className="legend">
+            <span className="legend__item"><i className="dot dot--new" /> {t("decks.legend.new")}</span>
+            <span className="legend__item"><i className="dot dot--learn" /> {t("decks.legend.learning")}</span>
+            <span className="legend__item"><i className="dot dot--due" /> {t("decks.legend.due")}</span>
+          </div>
+          <button className="btn btn--primary btn--sm" onClick={() => openAdd()}>
+            {t("decks.addBtn")}
+          </button>
         </div>
       </div>
 
@@ -233,6 +261,7 @@ export default function Decks() {
                             <button onClick={() => { setOpenMenu(null); setRenameVal(d.name); setRenamingDeck(d.id); }}>{t("decks.rename")}</button>
                             <button onClick={() => { setOpenMenu(null); setLangDeck(d.id); }}>{t("decks.language")}{d.language ? ` (${d.language.toUpperCase()})` : ""}</button>
                             <button onClick={() => { setOpenMenu(null); setMovingDeck(d.id); }}>{t("decks.move")}</button>
+                            <button onClick={() => { setOpenMenu(null); openAdd(d.id); }}>{t("decks.addSubdeck")}</button>
                             {isLeaf && <button onClick={() => { setOpenMenu(null); navigate(`/app/decks/${d.id}/add`); }}>{t("decks.addCard")}</button>}
                             <button className="deckmenu__danger" onClick={() => { setOpenMenu(null); onDelete(d); }}>{t("decks.delete")}</button>
                           </div>
@@ -251,36 +280,69 @@ export default function Decks() {
         <div className="panel decks__empty">
           <h2>{t("decks.noDecks")}</h2>
           <p>{t("decks.noDecksHint")}</p>
+          <button className="btn btn--primary" onClick={() => openAdd()}>
+            {t("decks.addBtn")}
+          </button>
         </div>
       )}
 
-      <div className="decks__new">
-        <input
-          className="input"
-          placeholder={t("decks.newPlaceholder")}
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onCreate()}
-        />
-        <select
-          className="input"
-          value={newParent}
-          onChange={(e) => setNewParent(e.target.value ? Number(e.target.value) : "")}
+      {adding && (
+        <Modal
+          title={t("decks.newTitle")}
+          onClose={() => setAdding(false)}
+          footer={
+            <>
+              <button className="btn btn--ghost" onClick={() => setAdding(false)}>
+                {t("common.cancel")}
+              </button>
+              <button
+                className="btn btn--primary"
+                disabled={!newName.trim() || creating}
+                onClick={onCreate}
+              >
+                {creating ? t("decks.creating") : t("decks.createBtn")}
+              </button>
+            </>
+          }
         >
-          <option value="">{t("decks.topLevel")}</option>
-          {[...decks]
-            .sort((a, b) => a.full_name.localeCompare(b.full_name))
-            .map((d) => (
-              <option key={d.id} value={d.id}>{t("decks.under", { name: d.full_name })}</option>
-            ))}
-        </select>
-        <select className="input" value={newLang} onChange={(e) => setNewLang(e.target.value as any)}>
-          <option value="">{t("decks.languageLabel")}</option>
-          <option value="de">{t("common.german")}</option>
-          <option value="en">{t("common.english")}</option>
-        </select>
-        <button className="btn btn--primary" onClick={onCreate}>{t("decks.addBtn")}</button>
-      </div>
+          <label className="field">
+            <span className="field__label">{t("decks.nameLabel")}</span>
+            <input
+              className="input"
+              autoFocus
+              placeholder={t("decks.newPlaceholder")}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onCreate()}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">{t("decks.parentLabel")}</span>
+            <select
+              className="input"
+              value={newParent}
+              onChange={(e) => setNewParent(e.target.value ? Number(e.target.value) : "")}
+            >
+              <option value="">{t("decks.topLevel")}</option>
+              {[...decks]
+                .sort((a, b) => a.full_name.localeCompare(b.full_name))
+                .map((d) => (
+                  <option key={d.id} value={d.id}>{t("decks.under", { name: d.full_name })}</option>
+                ))}
+            </select>
+          </label>
+          <label className="field">
+            <span className="field__label">{t("decks.languageField")}</span>
+            <select className="input" value={newLang} onChange={(e) => setNewLang(e.target.value as any)}>
+              <option value="">{t("decks.inheritLanguage")}</option>
+              <option value="de">{t("common.german")}</option>
+              <option value="en">{t("common.english")}</option>
+            </select>
+            <span className="field__hint">{t("decks.languageHint")}</span>
+          </label>
+          {createError && <p className="auth__error">{createError}</p>}
+        </Modal>
+      )}
     </div>
   );
 }

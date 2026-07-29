@@ -3,8 +3,8 @@ import math
 
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.db.models import Count, Q, Sum
-from django.db.models.functions import TruncDate
+from django.db.models import Avg, Count, Q, Sum
+from django.db.models.functions import ExtractHour, TruncDate
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -15,7 +15,14 @@ from apps.decks.models import Deck
 from apps.subscriptions.quota import AiQuotaMixin
 
 from . import scheduler
-from .models import Card, CardImage, ReviewLog, add_reverse_cards, sync_card_group
+from .models import (
+    Card,
+    CardImage,
+    CardState,
+    ReviewLog,
+    add_reverse_cards,
+    sync_card_group,
+)
 from .queue import study_queue
 from .serializers import AnswerSerializer, BulkCardSerializer, CardSerializer
 
@@ -461,6 +468,317 @@ class ReviewActivityView(APIView):
                 "total_reviews": ReviewLog.objects.filter(user=request.user).count(),
             }
         )
+
+
+# Card states that still get scheduled (i.e. can come due).
+SCHEDULED_STATES = [CardState.LEARNING, CardState.REVIEW, CardState.RELEARNING]
+
+# "Mature" threshold, matching Anki: a review card with a >= 21 day interval.
+MATURE_DAYS = 21
+
+# Interval histogram buckets as (label, lower, upper) in days; upper None = open.
+INTERVAL_BUCKETS = [
+    ("1d", 0, 1),
+    ("2-3d", 2, 3),
+    ("4-7d", 4, 7),
+    ("1-2w", 8, 14),
+    ("2-4w", 15, 30),
+    ("1-3m", 31, 90),
+    ("3-6m", 91, 180),
+    ("6-12m", 181, 365),
+    ("1y+", 366, None),
+]
+
+
+class StatsOverviewView(APIView):
+    """Everything the performance page shows, in one call.
+
+    Two kinds of numbers live here and they answer different questions, so they
+    are namespaced apart rather than merged:
+
+    * `range` — derived from ReviewLog over the last `days` days: what you *did*.
+    * `collection` / `forecast` — derived from the cards' current scheduling
+      state: where you *are* and what's coming.
+
+    "Retention" is Anki's true retention: of the answers given on cards that
+    were already in the `review` state, the share not rated Again. Hard counts as
+    a pass — the card *was* recalled, just with effort. Answers on new/learning
+    cards are excluded entirely: failing a card you are still learning is the
+    system working, not a memory lapse.
+    """
+
+    permission_classes = [IsAuthenticated]
+    FORECAST_DAYS = 30
+    ALLOWED_DAYS = (7, 30, 90, 365)
+    TOP_LEECHES = 8
+
+    def get(self, request):
+        try:
+            days = int(request.query_params.get("days", 30))
+        except (TypeError, ValueError):
+            days = 30
+        if days not in self.ALLOWED_DAYS:
+            days = 30
+
+        user = request.user
+        now = timezone.now()
+        today = timezone.localdate()
+        start = today - datetime.timedelta(days=days - 1)
+
+        logs = ReviewLog.objects.filter(user=user, reviewed_at__date__gte=start)
+
+        return Response(
+            {
+                "range_days": days,
+                "range": {
+                    **self._range_totals(logs),
+                    "days": self._daily_series(logs, start, days),
+                    "hours": self._hourly_series(logs),
+                },
+                "collection": self._collection(user, now),
+                "forecast": self._forecast(user, today),
+                "intervals": self._intervals(user),
+                "decks": self._decks(user, now, start),
+                "leeches": self._leeches(user),
+            }
+        )
+
+    # ---- Review log (what you did) ----
+
+    def _range_totals(self, logs) -> dict:
+        agg = logs.aggregate(
+            reviews=Count("id"),
+            ms=Sum("time_ms"),
+            mature=Count("id", filter=Q(state_before=CardState.REVIEW)),
+            mature_pass=Count("id", filter=Q(state_before=CardState.REVIEW, rating__gt=1)),
+            again=Count("id", filter=Q(rating=1)),
+            hard=Count("id", filter=Q(rating=2)),
+            good=Count("id", filter=Q(rating=3)),
+            easy=Count("id", filter=Q(rating=4)),
+        )
+        reviews = agg["reviews"]
+        mature = agg["mature"]
+        active_days = (
+            logs.annotate(d=TruncDate("reviewed_at")).values("d").distinct().count()
+        )
+        return {
+            "reviews": reviews,
+            "seconds": round((agg["ms"] or 0) / 1000),
+            "active_days": active_days,
+            # Per *active* day — averaging over calendar days punishes people for
+            # picking a long range and makes the number meaningless.
+            "avg_per_active_day": round(reviews / active_days, 1) if active_days else 0,
+            "avg_seconds_per_card": round((agg["ms"] or 0) / 1000 / reviews, 1) if reviews else 0,
+            "retention": round(agg["mature_pass"] / mature, 4) if mature else None,
+            "mature_answers": mature,
+            "ratings": {
+                "again": agg["again"],
+                "hard": agg["hard"],
+                "good": agg["good"],
+                "easy": agg["easy"],
+            },
+        }
+
+    def _daily_series(self, logs, start, days) -> list[dict]:
+        """Reviews per day, split by how far along the card was — the three
+        buckets are a maturity progression, so the UI ramps one hue over them."""
+        rows = (
+            logs.annotate(d=TruncDate("reviewed_at"))
+            .values("d")
+            .annotate(
+                count=Count("id"),
+                ms=Sum("time_ms"),
+                new=Count("id", filter=Q(state_before=CardState.NEW)),
+                learning=Count(
+                    "id",
+                    filter=Q(state_before__in=[CardState.LEARNING, CardState.RELEARNING]),
+                ),
+                review=Count("id", filter=Q(state_before=CardState.REVIEW)),
+            )
+        )
+        by_date = {r["d"]: r for r in rows}
+        out = []
+        for i in range(days):
+            day = start + datetime.timedelta(days=i)
+            r = by_date.get(day)
+            out.append(
+                {
+                    "date": day.isoformat(),
+                    "count": r["count"] if r else 0,
+                    "seconds": round((r["ms"] or 0) / 1000) if r else 0,
+                    "new": r["new"] if r else 0,
+                    "learning": r["learning"] if r else 0,
+                    "review": r["review"] if r else 0,
+                }
+            )
+        return out
+
+    def _hourly_series(self, logs) -> list[dict]:
+        """Reviews (and retention) by hour of day — answers "when do I study
+        well?", which is actionable in a way a raw count is not."""
+        rows = (
+            logs.annotate(h=ExtractHour("reviewed_at"))
+            .values("h")
+            .annotate(
+                count=Count("id"),
+                mature=Count("id", filter=Q(state_before=CardState.REVIEW)),
+                mature_pass=Count("id", filter=Q(state_before=CardState.REVIEW, rating__gt=1)),
+            )
+        )
+        by_hour = {r["h"]: r for r in rows}
+        out = []
+        for h in range(24):
+            r = by_hour.get(h)
+            mature = r["mature"] if r else 0
+            out.append(
+                {
+                    "hour": h,
+                    "count": r["count"] if r else 0,
+                    "retention": round(r["mature_pass"] / mature, 4) if mature else None,
+                }
+            )
+        return out
+
+    # ---- Scheduling state (where you are) ----
+
+    def _collection(self, user, now) -> dict:
+        cards = Card.objects.filter(deck__user=user)
+        agg = cards.aggregate(
+            total=Count("id"),
+            new=Count("id", filter=Q(state=CardState.NEW)),
+            learning=Count(
+                "id", filter=Q(state__in=[CardState.LEARNING, CardState.RELEARNING])
+            ),
+            young=Count(
+                "id", filter=Q(state=CardState.REVIEW, interval_days__lt=MATURE_DAYS)
+            ),
+            mature=Count(
+                "id", filter=Q(state=CardState.REVIEW, interval_days__gte=MATURE_DAYS)
+            ),
+            suspended=Count("id", filter=Q(state=CardState.SUSPENDED)),
+            due_now=Count("id", filter=Q(state__in=SCHEDULED_STATES, due__lte=now)),
+            leeches=Count("id", filter=Q(is_leech=True)),
+            avg_ease=Avg("ease", filter=Q(state=CardState.REVIEW)),
+            avg_interval=Avg("interval_days", filter=Q(state=CardState.REVIEW)),
+        )
+        return {
+            **{k: v for k, v in agg.items() if k not in ("avg_ease", "avg_interval")},
+            "avg_ease": round(agg["avg_ease"]) if agg["avg_ease"] else None,
+            "avg_interval": round(agg["avg_interval"], 1) if agg["avg_interval"] else None,
+        }
+
+    def _forecast(self, user, today) -> list[dict]:
+        """Cards coming due over the next 30 days. Anything already overdue is
+        folded into day 0 — it is work waiting today, not history."""
+        end = today + datetime.timedelta(days=self.FORECAST_DAYS - 1)
+        rows = (
+            Card.objects.filter(
+                deck__user=user, state__in=SCHEDULED_STATES, due__date__lte=end
+            )
+            .annotate(d=TruncDate("due"))
+            .values("d")
+            .annotate(count=Count("id"))
+        )
+        by_date = {r["d"]: r["count"] for r in rows}
+        backlog = sum(c for d, c in by_date.items() if d < today)
+
+        out, running = [], 0
+        for i in range(self.FORECAST_DAYS):
+            day = today + datetime.timedelta(days=i)
+            count = by_date.get(day, 0) + (backlog if i == 0 else 0)
+            running += count
+            out.append({"date": day.isoformat(), "count": count, "cumulative": running})
+        return out
+
+    def _intervals(self, user) -> list[dict]:
+        rows = Card.objects.filter(
+            deck__user=user, state=CardState.REVIEW
+        ).values_list("interval_days", flat=True)
+        counts = [0] * len(INTERVAL_BUCKETS)
+        for iv in rows:
+            for i, (_, lo, hi) in enumerate(INTERVAL_BUCKETS):
+                if iv >= lo and (hi is None or iv <= hi):
+                    counts[i] += 1
+                    break
+        return [
+            {"label": label, "count": c}
+            for (label, _, _), c in zip(INTERVAL_BUCKETS, counts)
+        ]
+
+    def _decks(self, user, now, start) -> list[dict]:
+        """Per-deck rows. Counts are the deck's *own* cards (not its subtree) so
+        the column sums to the collection total instead of double-counting."""
+        card_rows = (
+            Card.objects.filter(deck__user=user)
+            .values("deck_id")
+            .annotate(
+                cards=Count("id"),
+                due=Count("id", filter=Q(state__in=SCHEDULED_STATES, due__lte=now)),
+                new=Count("id", filter=Q(state=CardState.NEW)),
+                mature=Count(
+                    "id", filter=Q(state=CardState.REVIEW, interval_days__gte=MATURE_DAYS)
+                ),
+            )
+        )
+        log_rows = (
+            ReviewLog.objects.filter(user=user, reviewed_at__date__gte=start)
+            .values("card__deck_id")
+            .annotate(
+                reviews=Count("id"),
+                ms=Sum("time_ms"),
+                mature=Count("id", filter=Q(state_before=CardState.REVIEW)),
+                mature_pass=Count("id", filter=Q(state_before=CardState.REVIEW, rating__gt=1)),
+            )
+        )
+        by_deck_logs = {r["card__deck_id"]: r for r in log_rows}
+        names = {d.id: d for d in Deck.objects.filter(user=user).select_related("parent")}
+
+        out = []
+        for row in card_rows:
+            deck = names.get(row["deck_id"])
+            if deck is None:
+                continue
+            log = by_deck_logs.get(row["deck_id"])
+            mature = log["mature"] if log else 0
+            out.append(
+                {
+                    "id": deck.id,
+                    "name": deck.name,
+                    "full_name": deck.full_name,
+                    "language": deck.language,
+                    "cards": row["cards"],
+                    "new": row["new"],
+                    "mature": row["mature"],
+                    "due": row["due"],
+                    "reviews": log["reviews"] if log else 0,
+                    "seconds": round((log["ms"] or 0) / 1000) if log else 0,
+                    "retention": round(log["mature_pass"] / mature, 4) if mature else None,
+                }
+            )
+        out.sort(key=lambda r: (-r["reviews"], -r["cards"], r["full_name"]))
+        return out
+
+    def _leeches(self, user) -> list[dict]:
+        """The cards fighting back hardest — highest lapse count first. Only the
+        primary direction is listed so a note doesn't appear twice."""
+        cards = (
+            Card.objects.filter(deck__user=user, lapses__gt=0, reverse_of__isnull=True)
+            .select_related("deck")
+            .order_by("-lapses", "id")[: self.TOP_LEECHES]
+        )
+        return [
+            {
+                "id": c.id,
+                "front": c.front[:80],
+                "back": c.back[:80],
+                "deck": c.deck.name,
+                "lapses": c.lapses,
+                "state": c.state,
+                "interval_days": c.interval_days,
+                "is_leech": c.is_leech,
+            }
+            for c in cards
+        ]
 
 
 class UndoView(APIView):

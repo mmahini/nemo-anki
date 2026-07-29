@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { fetchActivity, type ReviewActivity as Activity } from "../auth/api";
+import { fmtDuration } from "./charts";
 
 function level(count: number): number {
   if (!count) return 0;
@@ -11,15 +13,54 @@ function level(count: number): number {
   return 4;
 }
 
-function fmtTime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.round(seconds / 60);
-  if (m < 60) return `${m} min`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
+/**
+ * Contribution-style heatmap of reviews over the last ~17 weeks. Forced LTR so
+ * the calendar reads oldest→newest even in the Persian UI, where flipping it
+ * would put "today" on the left and break the mental model people bring from
+ * every other heatmap they've seen.
+ */
+export function ActivityHeatmap({ days }: { days: Activity["days"] }) {
+  const { t } = useTranslation();
+  // Pad so the first column starts on the right weekday (0 = Sunday).
+  const firstDow = new Date(days[0].date + "T00:00:00").getDay();
+  const cells: (Activity["days"][number] | null)[] = [...Array(firstDow).fill(null), ...days];
+
+  return (
+    <>
+      <div className="activity__heatwrap" dir="ltr">
+        <div className="activity__heat" role="img" aria-label={t("activity.heatmapAria")}>
+          {cells.map((d, i) =>
+            d ? (
+              <span
+                key={d.date}
+                className={`heatcell heat--${level(d.count)}`}
+                title={`${d.date}: ${d.count} review${d.count === 1 ? "" : "s"}${d.count ? ` · ${fmtDuration(d.seconds)}` : ""}`}
+              />
+            ) : (
+              <span key={`pad-${i}`} className="heatcell heatcell--pad" />
+            ),
+          )}
+        </div>
+      </div>
+      <div className="activity__legend">
+        <span>{t("activity.less")}</span>
+        <span className="heatcell heat--0" />
+        <span className="heatcell heat--1" />
+        <span className="heatcell heat--2" />
+        <span className="heatcell heat--3" />
+        <span className="heatcell heat--4" />
+        <span>{t("activity.more")}</span>
+      </div>
+    </>
+  );
 }
 
-/** Motivational activity panel: streak, today's effort, and a contribution-style
- * heatmap of reviews over the last ~17 weeks. */
+/**
+ * Motivational strip above the deck list: streak, today's effort, and a way
+ * through to the full performance page. Deliberately *not* the whole analysis —
+ * the deck list is where you go to study, so this stays a nudge and the charts
+ * live on /app/stats.
+ */
 export default function ReviewActivity() {
   const { t } = useTranslation();
   const [data, setData] = useState<Activity | null>(null);
@@ -42,13 +83,6 @@ export default function ReviewActivity() {
     return t("activity.msgStart");
   }
 
-  // Pad so the first column starts on the right weekday (0 = Sunday).
-  const firstDow = new Date(data.days[0].date + "T00:00:00").getDay();
-  const cells: (Activity["days"][number] | null)[] = [
-    ...Array(firstDow).fill(null),
-    ...data.days,
-  ];
-
   return (
     <section className="activity panel">
       <div className="activity__stats">
@@ -58,7 +92,10 @@ export default function ReviewActivity() {
         </div>
         <div className="activity__stat">
           <span className="activity__num">{data.today.count}</span>
-          <span className="activity__lbl">{t("activity.today")}{data.today.count ? ` · ${fmtTime(data.today.seconds)}` : ""}</span>
+          <span className="activity__lbl">
+            {t("activity.today")}
+            {data.today.count ? ` · ${fmtDuration(data.today.seconds)}` : ""}
+          </span>
         </div>
         <div className="activity__stat">
           <span className="activity__num">{data.longest_streak}</span>
@@ -70,31 +107,11 @@ export default function ReviewActivity() {
         </div>
       </div>
 
-      <p className="activity__msg">{message(data)}</p>
-
-      <div className="activity__heatwrap" dir="ltr">
-        <div className="activity__heat" role="img" aria-label="Review activity over the last weeks">
-          {cells.map((d, i) =>
-            d ? (
-              <span
-                key={d.date}
-                className={`heatcell heat--${level(d.count)}`}
-                title={`${d.date}: ${d.count} review${d.count === 1 ? "" : "s"}${d.count ? ` · ${fmtTime(d.seconds)}` : ""}`}
-              />
-            ) : (
-              <span key={`pad-${i}`} className="heatcell heatcell--pad" />
-            ),
-          )}
-        </div>
-      </div>
-      <div className="activity__legend">
-        <span>{t("activity.less")}</span>
-        <span className="heatcell heat--0" />
-        <span className="heatcell heat--1" />
-        <span className="heatcell heat--2" />
-        <span className="heatcell heat--3" />
-        <span className="heatcell heat--4" />
-        <span>{t("activity.more")}</span>
+      <div className="activity__foot">
+        <p className="activity__msg">{message(data)}</p>
+        <Link className="activity__more" to="/app/stats">
+          {t("activity.viewStats")}
+        </Link>
       </div>
     </section>
   );

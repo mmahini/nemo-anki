@@ -46,28 +46,25 @@ function IconChat() {
     </svg>
   );
 }
-function IconSupport() {
+function IconStats() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-      <path
-        d="M8.5 9.5a3.5 3.5 0 116.2 2.2c-.8.9-1.7 1.3-1.7 2.6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <circle cx="12" cy="17.2" r="1" fill="currentColor" />
+      <path d="M4 20V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M4 20h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8.5 20v-6M13 20V8.5M17.5 20v-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
 
+/* Six items is what the mobile tab bar fits comfortably. Support lives in the
+   account menu instead — it's a rare, deliberate action, not a daily tab. */
 const NAV = [
   { to: "/app", end: true, key: "nav.decks", Icon: IconDecks },
+  { to: "/app/stats", end: false, key: "nav.stats", Icon: IconStats },
   { to: "/app/books", end: false, key: "nav.books", Icon: IconBooks },
   { to: "/app/import", end: false, key: "nav.import", Icon: IconImport },
   { to: "/app/write", end: false, key: "nav.writing", Icon: IconWrite },
   { to: "/app/conversation", end: false, key: "nav.conversation", Icon: IconChat },
-  { to: "/app/support", end: false, key: "nav.support", Icon: IconSupport },
 ] as const;
 
 function AiUsageChip() {
