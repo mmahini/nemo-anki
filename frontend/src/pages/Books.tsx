@@ -10,12 +10,15 @@ import {
   type Book,
 } from "../auth/api";
 import { TRANSLATE_LANGS } from "../lib/translateLang";
+import { FLAGS, useFlag } from "../lib/features";
 
 type Tab = "mine" | "shared";
 
 export default function Books() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  // Book upload + the "My Books" area are staff-only (feature-flagged).
+  const canManage = useFlag(FLAGS.STAFF);
   const [tab, setTab] = useState<Tab>("mine");
   const [mine, setMine] = useState<Book[]>([]);
   const [shared, setShared] = useState<Book[]>([]);
@@ -31,7 +34,10 @@ export default function Books() {
   async function load() {
     setLoading(true);
     try {
-      const [m, s] = await Promise.all([fetchBooks(), fetchSharedBooks().catch(() => [])]);
+      const [m, s] = await Promise.all([
+        canManage ? fetchBooks() : Promise.resolve([]),
+        fetchSharedBooks().catch(() => []),
+      ]);
       setMine(m);
       setShared(s);
     } finally {
@@ -40,7 +46,8 @@ export default function Books() {
   }
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManage]);
 
   async function onUpload(e: FormEvent) {
     e.preventDefault();
@@ -73,7 +80,9 @@ export default function Books() {
     load();
   }
 
-  const list = tab === "mine" ? mine : shared;
+  // Non-staff never see the "mine" tab, so pin them to shared.
+  const effectiveTab: Tab = canManage ? tab : "shared";
+  const list = effectiveTab === "mine" ? mine : shared;
 
   function bookCard(b: Book) {
     return (
@@ -104,6 +113,7 @@ export default function Books() {
     <div className="books">
       <h1>{t("books.title")}</h1>
 
+      {canManage && (
       <form className="books__upload panel" onSubmit={onUpload}>
         <div className="books__row">
           <label className="cardeditor__field" style={{ flex: 2 }}>
@@ -137,16 +147,19 @@ export default function Books() {
           {uploading ? t("books.uploading") : t("books.createBtn")}
         </button>
       </form>
+      )}
 
-      <div className="tabs books__tabs">
-        <button className={`tab ${tab === "mine" ? "tab--on" : ""}`} onClick={() => setTab("mine")}>{t("books.myBooks", { count: mine.length })}</button>
-        <button className={`tab ${tab === "shared" ? "tab--on" : ""}`} onClick={() => setTab("shared")}>{t("books.sharedWithMe", { count: shared.length })}</button>
-      </div>
+      {canManage && (
+        <div className="tabs books__tabs">
+          <button className={`tab ${effectiveTab === "mine" ? "tab--on" : ""}`} onClick={() => setTab("mine")}>{t("books.myBooks", { count: mine.length })}</button>
+          <button className={`tab ${effectiveTab === "shared" ? "tab--on" : ""}`} onClick={() => setTab("shared")}>{t("books.sharedWithMe", { count: shared.length })}</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="panel">{t("books.loading")}</div>
       ) : list.length === 0 ? (
-        <div className="panel">{tab === "mine" ? t("books.noBooks") : t("books.noShared")}</div>
+        <div className="panel">{effectiveTab === "mine" ? t("books.noBooks") : t("books.noShared")}</div>
       ) : (
         <ul className="books__list">{list.map(bookCard)}</ul>
       )}

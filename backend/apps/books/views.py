@@ -10,6 +10,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.feature_flags import STAFF
+from apps.accounts.permissions import RequiresFlag
 from apps.cards.models import Card, add_reverse_cards
 from apps.decks.models import Deck, DeckConfig
 
@@ -82,7 +84,8 @@ class BookAnalyzeView(APIView):
     the user can review/approve page ranges before the book is created. Saves
     nothing."""
 
-    permission_classes = [IsAuthenticated]
+    # Analyzing a PDF is the first step of adding a book — staff-only.
+    permission_classes = [RequiresFlag(STAFF)]
 
     def post(self, request):
         serializer = BookAnalyzeSerializer(data=request.data)
@@ -105,6 +108,13 @@ class BookAnalyzeView(APIView):
 
 class BookListView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        # Listing your own books stays open (non-staff simply have none);
+        # creating a book (upload) requires the staff flag.
+        if self.request.method == "POST":
+            return [RequiresFlag(STAFF)()]
+        return super().get_permissions()
 
     def get(self, request):
         books = Book.objects.filter(user=request.user).prefetch_related("lessons")
