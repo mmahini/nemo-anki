@@ -96,6 +96,10 @@ class SubscriptionRequest(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="subscription_requests"
     )
     plan = models.CharField(max_length=16, choices=PLAN_CHOICES)
+    # The user's source wallet address or the transaction hash, so an admin can
+    # verify the transfer on-chain. Supplied by the user on "I've transferred",
+    # and editable by an admin later.
+    tx_reference = models.CharField(max_length=200, blank=True, default="")
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)

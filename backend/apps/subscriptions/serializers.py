@@ -22,3 +22,8 @@ def subscription_summary(sub: Subscription) -> dict:
 
 class ClaimSerializer(serializers.Serializer):
     plan = serializers.ChoiceField(choices=list(PLANS.keys()))
+    # User's source wallet address or transaction hash (optional — an admin can
+    # add it later).
+    tx_reference = serializers.CharField(
+        max_length=200, required=False, allow_blank=True, default=""
+    )

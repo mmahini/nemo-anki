@@ -74,9 +74,12 @@ class SubscriptionAdmin(admin.ModelAdmin):
 
 @admin.register(SubscriptionRequest)
 class SubscriptionRequestAdmin(admin.ModelAdmin):
-    list_display = ("user", "plan", "status", "created_at", "reviewed_at", "reviewed_by")
+    # tx_reference is editable so an admin can add/correct the source wallet or
+    # transaction hash after the user submits (or if they didn't provide one).
+    list_display = ("user", "plan", "status", "tx_reference", "created_at", "reviewed_at", "reviewed_by")
+    list_editable = ("tx_reference",)
     list_filter = ("status", "plan")
-    search_fields = ("user__email",)
+    search_fields = ("user__email", "tx_reference")
     readonly_fields = ("created_at", "reviewed_at", "reviewed_by")
     actions = ["approve", "reject"]
 

@@ -1103,5 +1103,8 @@ kbd {
   font-family: var(--mono); font-size: 0.9rem;
   background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px;
 }
+.subscribe__tx { display: block; margin-top: 18px; }
+.subscribe__tx .input { width: 100%; margin-top: 6px; }
+.subscribe__txhint { display: block; margin-top: 6px; color: var(--ink-faint); font-size: 0.85rem; line-height: 1.5; }
 .subscribe__thanks { text-align: center; font-weight: 600; color: var(--good); }
 .subscribe__back { display: inline-block; margin-top: 20px; color: var(--ink-soft); }

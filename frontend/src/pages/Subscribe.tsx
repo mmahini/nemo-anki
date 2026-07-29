@@ -12,6 +12,7 @@ export default function Subscribe() {
 
   const [data, setData] = useState<SubscriptionPlans | null>(null);
   const [selected, setSelected] = useState<string>("");
+  const [txRef, setTxRef] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -43,7 +44,7 @@ export default function Subscribe() {
     setSubmitting(true);
     setError(null);
     try {
-      await submitSubscriptionClaim(selected);
+      await submitSubscriptionClaim(selected, txRef.trim());
       setSubmitted(true);
       refreshUser().catch(() => {});
     } catch (e) {
@@ -109,9 +110,21 @@ export default function Subscribe() {
                 </button>
               </div>
             </div>
+
+            <label className="subscribe__tx">
+              <span className="subscribe__walletlabel">{t("subscription.txLabel")}</span>
+              <input
+                className="input"
+                value={txRef}
+                onChange={(e) => setTxRef(e.target.value)}
+                placeholder={t("subscription.txPlaceholder")}
+              />
+              <span className="subscribe__txhint">{t("subscription.txHint")}</span>
+            </label>
+
             {error && <p className="auth__error">{error}</p>}
             <button className="btn btn--primary btn--lg" onClick={onPaid} disabled={submitting}>
-              {submitting ? t("subscription.submitting") : t("subscription.paidBtn")}
+              {submitting ? t("subscription.submitting") : t("subscription.transferredBtn")}
             </button>
           </div>
         </>
