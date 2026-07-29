@@ -39,6 +39,7 @@ class ClaimView(APIView):
         serializer = ClaimSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         Subscription.for_user(request.user)  # ensure it exists
+        tx_reference = serializer.validated_data.get("tx_reference", "").strip()
         # Collapse rapid double-taps: reuse an existing pending request for the
         # same plan rather than stacking duplicates in the admin queue.
         req, _ = SubscriptionRequest.objects.get_or_create(
@@ -46,6 +47,10 @@ class ClaimView(APIView):
             plan=serializer.validated_data["plan"],
             status=SubscriptionRequest.PENDING,
         )
+        # Keep the latest reference the user provides (they may resubmit with it).
+        if tx_reference and req.tx_reference != tx_reference:
+            req.tx_reference = tx_reference
+            req.save(update_fields=["tx_reference"])
         return Response(
             {"ok": True, "request_id": req.id, "status": req.status},
             status=status.HTTP_201_CREATED,

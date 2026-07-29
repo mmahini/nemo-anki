@@ -337,11 +337,15 @@ export function fetchSubscriptionPlans(): Promise<SubscriptionPlans> {
   return jsonRequest<SubscriptionPlans>("/api/subscription/plans", { method: "GET" });
 }
 
-/** "I've paid" — records a pending claim for admin verification (Phase 1). */
-export function submitSubscriptionClaim(plan: string): Promise<{ ok: boolean; status: string }> {
+/** "I've transferred" — records a pending claim (with the user's source wallet
+ * or transaction hash) for admin verification (Phase 1). */
+export function submitSubscriptionClaim(
+  plan: string,
+  txReference: string,
+): Promise<{ ok: boolean; status: string }> {
   return jsonRequest("/api/subscription/claim", {
     method: "POST",
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify({ plan, tx_reference: txReference }),
   });
 }
 
