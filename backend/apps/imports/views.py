@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from apps.books.models import BookCard, BookLesson
 from apps.cards.models import Card, CardImage
 from apps.decks.models import Deck, DeckConfig
+from apps.subscriptions.quota import AiQuotaMixin
 
 from . import anki
 from .gemini import (
@@ -56,7 +57,7 @@ class AnalyzeGermanSerializer(serializers.Serializer):
     text = serializers.CharField(max_length=1000)
 
 
-class ImportParseView(APIView):
+class ImportParseView(AiQuotaMixin, APIView):
     """Parse pasted book text into draft cards (not saved). The client edits
     them, picks a deck, then commits via /api/cards/bulk/."""
 
@@ -73,7 +74,7 @@ class ImportParseView(APIView):
         return Response(result, status=status.HTTP_200_OK)
 
 
-class EnrichView(APIView):
+class EnrichView(AiQuotaMixin, APIView):
     """Translate one term and fill its reading / article / example (the
     Translate button on the card editor)."""
 
@@ -91,7 +92,7 @@ class EnrichView(APIView):
         return Response(result, status=status.HTTP_200_OK)
 
 
-class ConjugateView(APIView):
+class ConjugateView(AiQuotaMixin, APIView):
     """Conjugate a verb across the tenses a learner needs (the "Fill
     conjugations" button on a verb card)."""
 
@@ -108,7 +109,7 @@ class ConjugateView(APIView):
         return Response(result, status=status.HTTP_200_OK)
 
 
-class AnalyzeGermanView(APIView):
+class AnalyzeGermanView(AiQuotaMixin, APIView):
     """Return each noun's true gender for a German sentence so it can be
     coloured grammatically (the "Colour genders" button)."""
 
@@ -334,7 +335,7 @@ class WritingBooksView(APIView):
         return Response([{"id": b.id, "title": b.title} for b in books])
 
 
-class WritingPromptView(APIView):
+class WritingPromptView(AiQuotaMixin, APIView):
     """Return a short native-language passage for the user to translate into the target language."""
 
     permission_classes = [IsAuthenticated]
@@ -357,7 +358,7 @@ class WritingPromptView(APIView):
         return Response(writing_prompt(language, translation_language, lesson_info), status=status.HTTP_200_OK)
 
 
-class WritingTopicView(APIView):
+class WritingTopicView(AiQuotaMixin, APIView):
     """Suggest one short writing-practice topic for a chosen language."""
 
     permission_classes = [IsAuthenticated]
@@ -367,7 +368,7 @@ class WritingTopicView(APIView):
         return Response(writing_topic(language), status=status.HTTP_200_OK)
 
 
-class WritingCheckView(APIView):
+class WritingCheckView(AiQuotaMixin, APIView):
     """Correct a piece of writing; return per-issue corrections + explanations."""
 
     permission_classes = [IsAuthenticated]
@@ -418,7 +419,7 @@ class WritingToCardView(APIView):
         )
 
 
-class ConversationMessageView(APIView):
+class ConversationMessageView(AiQuotaMixin, APIView):
     """Send a learner's spoken/typed message; get an AI reply + corrections."""
 
     permission_classes = [IsAuthenticated]
@@ -432,7 +433,7 @@ class ConversationMessageView(APIView):
         return Response(conversation_reply(language, user_text, history), status=status.HTTP_200_OK)
 
 
-class ConversationTextView(APIView):
+class ConversationTextView(AiQuotaMixin, APIView):
     """Generate a short passage in the target language for reading-aloud practice."""
 
     permission_classes = [IsAuthenticated]

@@ -272,7 +272,12 @@
   "subscription": {
     "trial": "Trial — {{days}} days left",
     "active": "Subscribed — {{days}} days left",
+    "activeTier": "{{tier}} — {{days}} days left",
     "expired": "Your subscription has ended",
+    "tierBasic": "Basic",
+    "tierPro": "Pro",
+    "usage": "AI {{used}} / {{limit}} today",
+    "tierLimit": "{{limit}} AI actions per day",
     "pendingBanner": "Payment under review",
     "subscribe": "Subscribe",
     "renew": "Renew",

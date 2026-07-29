@@ -4,6 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.subscriptions.quota import AiQuotaMixin
+
 from .models import Deck, DeckConfig
 from .serializers import DeckConfigSerializer, DeckSerializer
 
@@ -102,7 +104,7 @@ class DeckStatsView(APIView):
         return Response(deck_counts(deck, timezone.now()))
 
 
-class DeckColourizeView(APIView):
+class DeckColourizeView(AiQuotaMixin, APIView):
     """Bulk-run German colouring over a deck's cards: detect & set the article
     for vocab nouns, and the per-noun genders for sentence/grammar cards.
     Processes a capped batch per call (Gemini is per-card) and reports how many

@@ -1093,6 +1093,18 @@ kbd {
 .plancard--on { border-color: var(--brand); background: rgba(76, 110, 245, 0.06); }
 .plancard__price { font-size: 1.6rem; font-weight: 800; }
 .plancard__label { color: var(--ink-soft); font-weight: 600; }
+.subscribe__tiers { display: flex; gap: 8px; margin-bottom: 12px; }
+.tierpill {
+  flex: 1; padding: 12px; border: 2px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); font: inherit; font-weight: 700; color: var(--ink-soft); cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.tierpill--on { border-color: var(--brand); background: rgba(76, 110, 245, 0.06); color: var(--brand-dark); }
+.subscribe__tierlimit { margin: 0 0 16px; color: var(--ink-faint); font-size: 0.9rem; font-weight: 600; }
+.subbanner__usage {
+  font-weight: 700; font-size: 0.82rem; padding: 2px 10px; border-radius: 999px;
+  background: rgba(20, 28, 46, 0.06);
+}
 .subscribe__payintro { margin-top: 0; color: var(--ink-soft); line-height: 1.6; }
 .subscribe__payrow { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
 .subscribe__wallet { margin: 16px 0; }

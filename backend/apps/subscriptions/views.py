@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Subscription, SubscriptionRequest
-from .plans import PAYMENT, plans_public
+from .plans import PAYMENT, tiers_public
 from .serializers import ClaimSerializer, subscription_summary
 
 
@@ -24,7 +24,7 @@ class PlansView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({"plans": plans_public(), "payment": PAYMENT})
+        return Response({"tiers": tiers_public(), "payment": PAYMENT})
 
 
 class ClaimView(APIView):

@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.decks.models import Deck
+from apps.subscriptions.quota import AiQuotaMixin
 
 from . import scheduler
 from .models import Card, CardImage, ReviewLog, add_reverse_cards, sync_card_group
@@ -224,7 +225,7 @@ class CardImageDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class CardColourizeView(APIView):
+class CardColourizeView(AiQuotaMixin, APIView):
     """Colour one card: detect the German article (vocab) or per-noun genders
     (sentence/grammar) and save them. Targets the note's primary card so both
     directions stay in sync."""
