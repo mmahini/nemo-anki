@@ -69,28 +69,28 @@ function IconChat() {
 
 const FEATURES = [
   {
-    Icon: IconSpark,
+    Icon: IconLayers,
     tone: "der",
+    title: "Real Anki flashcards",
+    body: "The spaced-repetition engine you trust — faithful SM-2 scheduling, Again / Hard / Good / Easy grading, and cards shown exactly when you're about to forget them. Daily streaks and a heatmap keep the habit visible.",
+  },
+  {
+    Icon: IconSpark,
+    tone: "die",
     title: "Turn any chapter into cards",
-    body: "Paste a page from your coursebook and the AI reads it, picks the words, sentences and grammar worth learning, and drafts clean cards you can review and tweak before saving.",
+    body: "Paste a page from Menschen or Oxford Word Skills and the AI reads it, picks the words, sentences and grammar worth learning, and drafts clean cards for you to review before saving.",
   },
   {
     Icon: IconWand,
-    tone: "die",
-    title: "Cards that fill themselves in",
-    body: "One click enriches a term with its translation, IPA reading, the right der/die/das article, plural form and full verb conjugations — no more typing every field by hand.",
-  },
-  {
-    Icon: IconLayers,
     tone: "das",
-    title: "Scheduling that actually works",
-    body: "Faithful SM-2 spaced repetition shows each card exactly when you're about to forget it. Daily streaks and an activity heatmap keep the habit visible.",
+    title: "Cards that fill themselves in",
+    body: "One click adds the translation and IPA reading — plus der/die/das articles, plurals and conjugations for German, or collocations and natural examples for English.",
   },
   {
     Icon: IconBook,
     tone: "der",
     title: "Read real books",
-    body: "Upload a PDF, split it into lessons, and study straight from the source — with inline translations into your native language whenever you get stuck.",
+    body: "Upload a PDF, split it into lessons, and study straight from the source in either language — with inline translations into your native language whenever you get stuck.",
   },
   {
     Icon: IconPen,
@@ -102,7 +102,7 @@ const FEATURES = [
     Icon: IconChat,
     tone: "das",
     title: "Hold a conversation",
-    body: "Chat or speak with an AI partner in your target language, tuned to the vocabulary you're learning, so every exchange reinforces what's in your decks.",
+    body: "Chat or speak with an AI partner in German or English, tuned to the vocabulary you're learning, so every exchange reinforces what's in your decks.",
   },
 ] as const;
 
@@ -142,27 +142,31 @@ export default function LandingPage() {
             Learn words that <span className="accent">stick</span>.
           </h1>
           <p className="hero__lede">
-            An AI language tutor built on Anki's proven spaced repetition. Turn
-            coursebooks and real texts into rich flashcards in seconds — then
-            read, write and talk your way to fluency in German and English.
+            An AI tutor wrapped around real Anki flashcards. Turn coursebooks and
+            texts into rich cards in seconds, then read, write and talk your way
+            to fluency — in both German and English.
           </p>
+          <div className="hero__langs">
+            <span className="langpill"><span className="flag flag--de">DE</span> German · Menschen</span>
+            <span className="langpill"><span className="flag flag--en">EN</span> English · Oxford Word Skills</span>
+          </div>
           <div className="hero__cta">
             <Link to="/app" className="btn btn--primary btn--lg">{cta}</Link>
             <a href="#features" className="btn btn--glass btn--lg">See what it does</a>
           </div>
 
-          <div className="hero__cards">
-            <div className="mini-card mini-card--der">
-              <span className="mini-card__pill pill--der">der</span>
-              <span className="mini-card__word art-der">Name</span>
-            </div>
-            <div className="mini-card mini-card--die">
-              <span className="mini-card__pill pill--die">die</span>
-              <span className="mini-card__word art-die">Frau</span>
-            </div>
-            <div className="mini-card mini-card--das">
-              <span className="mini-card__pill pill--das">das</span>
-              <span className="mini-card__word art-das">Kind</span>
+          {/* An actual Anki-style review card: front, reading, back and grades. */}
+          <div className="studycard" aria-hidden>
+            <span className="studycard__tag flag--en">English</span>
+            <div className="studycard__q">resilient</div>
+            <div className="studycard__reading">/rɪˈzɪl.i.ənt/</div>
+            <div className="studycard__sep" />
+            <div className="studycard__a">able to bounce back quickly from difficulty</div>
+            <div className="studycard__grades">
+              <span className="grade grade--again">Again</span>
+              <span className="grade grade--hard">Hard</span>
+              <span className="grade grade--good">Good</span>
+              <span className="grade grade--easy">Easy</span>
             </div>
           </div>
         </div>
@@ -196,10 +200,10 @@ export default function LandingPage() {
           <span className="section-kicker">AI in action</span>
           <h2>From a paragraph to a deck — instantly</h2>
           <p>
-            Drop in text from any lesson. The AI extracts what matters, detects
-            the card type, and returns structured cards with readings, articles
-            and examples already filled in. You stay in control: review, edit,
-            and keep only the cards you want.
+            Drop in text from any lesson, in German or English. The AI extracts
+            what matters, detects each card type, and returns structured cards
+            with readings, articles and examples already filled in. You stay in
+            control: review, edit, and keep only the cards you want.
           </p>
           <Link to="/app" className="btn btn--primary btn--lg">Try it on your own text</Link>
         </div>
@@ -208,8 +212,11 @@ export default function LandingPage() {
           <div className="aidemo__col aidemo__col--in">
             <span className="aidemo__label">Pasted text</span>
             <p className="aidemo__text">
-              Ich <mark>gehe</mark> jeden Morgen zur <mark>Arbeit</mark>. Die
-              <mark> Wohnung</mark> ist klein aber gemütlich.
+              Ich <mark>gehe</mark> jeden Morgen zur <mark>Arbeit</mark>.
+            </p>
+            <p className="aidemo__text">
+              She stayed calm and <mark>resilient</mark> under real
+              <mark> pressure</mark>.
             </p>
           </div>
           <div className="aidemo__arrow">
@@ -223,34 +230,69 @@ export default function LandingPage() {
               <span className="gcard__back">work · ˈaʁbaɪt</span>
             </div>
             <div className="gcard">
-              <span className="gcard__pill pill--die">die</span>
-              <span className="gcard__front art-die">Wohnung</span>
-              <span className="gcard__back">flat, apartment</span>
-            </div>
-            <div className="gcard">
               <span className="gcard__pill gcard__pill--verb">verb</span>
               <span className="gcard__front">gehen</span>
               <span className="gcard__back">to go · ich gehe, du gehst…</span>
+            </div>
+            <div className="gcard">
+              <span className="gcard__pill gcard__pill--en">EN</span>
+              <span className="gcard__front">resilient</span>
+              <span className="gcard__back">able to recover quickly · under pressure</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ---------- COLOUR SYSTEM ---------- */}
-      <section className="colours">
+      {/* ---------- TUNED TO EACH LANGUAGE ---------- */}
+      <section className="langs">
         <header className="section-head">
-          <span className="section-kicker">Built for German</span>
-          <h2>See gender before you memorise it</h2>
+          <span className="section-kicker">German &amp; English</span>
+          <h2>Tuned to the language you're learning</h2>
           <p>
-            Every noun is tinted by its article, so the right gender sticks
-            visually — long before you can recite the rule.
+            The same deck, adapted to how each language actually works — so the
+            cues that help you remember are always the right ones.
           </p>
         </header>
-        <div className="colours__row">
-          <div className="colours__chip"><span className="pill--der">der</span> masculine · blue</div>
-          <div className="colours__chip"><span className="pill--die">die</span> feminine · red</div>
-          <div className="colours__chip"><span className="pill--das">das</span> neuter · green</div>
-          <div className="colours__chip"><span className="pill--plural">die</span> plural · purple</div>
+
+        <div className="langs__grid">
+          <article className="langpanel">
+            <h3 className="langpanel__title">
+              <span className="flag flag--de">DE</span> German · Menschen
+            </h3>
+            <p className="langpanel__lede">
+              Every noun is tinted by its article, so gender sticks visually long
+              before you can recite the rule.
+            </p>
+            <div className="langpanel__chips">
+              <span className="pill--der">der</span>
+              <span className="pill--die">die</span>
+              <span className="pill--das">das</span>
+              <span className="pill--plural">die&nbsp;(pl)</span>
+            </div>
+            <ul className="langpanel__list">
+              <li>Automatic plural forms &amp; full verb conjugations</li>
+              <li>Case-aware example sentences</li>
+            </ul>
+          </article>
+
+          <article className="langpanel">
+            <h3 className="langpanel__title">
+              <span className="flag flag--en">EN</span> English · Oxford Word Skills
+            </h3>
+            <p className="langpanel__lede">
+              Cards built the way vocabulary is really used — meaning, the words
+              it pairs with, and how it sounds.
+            </p>
+            <div className="langpanel__chips">
+              <span className="pill--das">definition</span>
+              <span className="pill--der">collocations</span>
+              <span className="pill--plural">IPA</span>
+            </div>
+            <ul className="langpanel__list">
+              <li>Natural example sentences for every entry</li>
+              <li>Reverse cards to test recall both ways</li>
+            </ul>
+          </article>
         </div>
       </section>
 
@@ -264,7 +306,7 @@ export default function LandingPage() {
       </section>
 
       <footer className="landing__footer">
-        Faithful SM-2 scheduling · works offline (PWA) · der=blue · die=red · das=green
+        German (Menschen) · English (Oxford Word Skills) · faithful SM-2 · works offline (PWA)
       </footer>
     </main>
   );
