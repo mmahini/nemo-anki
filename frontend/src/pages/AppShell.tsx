@@ -83,19 +83,7 @@ export default function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <div className="shell__actions">
-          {/* Quick access to Support next to the account menu — handy on
-              mobile where the bottom tab bar can be a reach. */}
-          <NavLink
-            to="/app/support"
-            className="shell__support-btn"
-            aria-label={t("nav.support")}
-            title={t("nav.support")}
-          >
-            🎧
-          </NavLink>
-          <UserMenu />
-        </div>
+        <UserMenu />
       </header>
 
       <SubscriptionBanner />
