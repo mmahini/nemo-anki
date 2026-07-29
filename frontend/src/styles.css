@@ -289,6 +289,30 @@ kbd {
 .hero__cards { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
 .hero__cards .mini-card { box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35); }
 
+.hero__langs { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 24px; }
+.langpill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 14px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #d3dbf5; font-weight: 600; font-size: 0.9rem;
+}
+
+/* Anki-style review card shown in the hero */
+.studycard {
+  width: 100%; max-width: 384px; margin: 44px auto 0;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+  box-shadow: 0 26px 64px rgba(0, 0, 0, 0.45);
+  padding: 24px 22px 18px; text-align: center;
+}
+.studycard__tag { display: inline-block; margin-bottom: 12px; }
+.studycard__q { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.01em; }
+.studycard__reading { color: var(--ink-faint); font-family: var(--mono); font-size: 0.9rem; margin-top: 4px; }
+.studycard__sep { height: 1px; background: var(--line); margin: 16px 0; }
+.studycard__a { color: var(--ink-soft); font-size: 1.02rem; line-height: 1.5; }
+.studycard__grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 18px; }
+.studycard__grades .grade { flex: none; min-width: 0; padding: 9px 4px; border-radius: var(--radius-sm); font-size: 0.82rem; }
+
 /* ---------- Shared section header ---------- */
 .section-head { max-width: 640px; margin: 0 auto 44px; text-align: center; }
 .section-kicker { display: inline-block; color: var(--brand); font-weight: 700; font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
@@ -339,18 +363,20 @@ kbd {
 .gcard:last-child { margin-bottom: 0; }
 .gcard__pill { grid-row: 1 / span 2; align-self: start; font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
 .gcard__pill--verb { background: rgba(217, 119, 6, 0.14); color: var(--trigger); }
+.gcard__pill--en { background: rgba(31, 157, 87, 0.14); color: var(--art-das); }
 .gcard__front { font-weight: 700; font-size: 1.05rem; }
 .gcard__back { grid-column: 2; color: var(--ink-soft); font-size: 0.85rem; }
 
-/* ---------- Colour system ---------- */
-.colours { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 80px 24px; }
-.colours__row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
-.colours__chip {
-  display: inline-flex; align-items: center; gap: 10px;
-  background: var(--bg); border: 1px solid var(--line); border-radius: 999px;
-  padding: 10px 18px; font-size: 0.95rem; color: var(--ink-soft); font-weight: 600;
-}
-.colours__chip [class^="pill--"] { font-weight: 800; padding: 2px 10px; border-radius: 999px; }
+/* ---------- Tuned to each language ---------- */
+.langs { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 84px 24px; }
+.langs__grid { max-width: 940px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+@media (max-width: 760px) { .langs__grid { grid-template-columns: 1fr; } }
+.langpanel { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 26px 24px; }
+.langpanel__title { display: flex; align-items: center; gap: 10px; font-size: 1.15rem; margin: 0 0 12px; }
+.langpanel__lede { color: var(--ink-soft); line-height: 1.6; margin: 0 0 16px; font-size: 0.98rem; }
+.langpanel__chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.langpanel__chips > span { font-weight: 800; padding: 4px 12px; border-radius: 999px; font-size: 0.9rem; }
+.langpanel__list { margin: 0; padding-left: 18px; color: var(--ink-soft); line-height: 1.75; font-size: 0.95rem; }
 
 /* ---------- CTA band ---------- */
 .ctaband { padding: 30px 24px 88px; }
