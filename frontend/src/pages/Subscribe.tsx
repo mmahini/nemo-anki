@@ -94,15 +94,14 @@ export default function Subscribe() {
                   setSelected("");
                 }}
               >
-                {tierName(tr.key)}
+                <span className="tierpill__name">{tierName(tr.key)}</span>
+                <span className="tierpill__meta">
+                  {t("subscription.perDay", { limit: tr.daily_ai_limit })}
+                </span>
               </button>
             ))}
           </div>
-          {activeTier && (
-            <p className="subscribe__tierlimit">
-              {t("subscription.tierLimit", { limit: activeTier.daily_ai_limit })}
-            </p>
-          )}
+          <p className="subscribe__tierlimit">{t("subscription.tierDiff")}</p>
 
           <div className="subscribe__plans">
             {activeTier?.plans.map((p) => (

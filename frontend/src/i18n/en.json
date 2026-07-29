@@ -278,6 +278,8 @@
     "tierPro": "Pro",
     "usage": "AI {{used}} / {{limit}} today",
     "tierLimit": "{{limit}} AI actions per day",
+    "perDay": "{{limit}} AI/day",
+    "tierDiff": "Both tiers include every feature — Pro just gives you a higher daily AI limit.",
     "pendingBanner": "Payment under review",
     "subscribe": "Subscribe",
     "renew": "Renew",
