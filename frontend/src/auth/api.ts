@@ -827,3 +827,21 @@ export function conversationText(payload: {
 }): Promise<{ text: string; source: string; book_title?: string; lesson_title?: string }> {
   return jsonRequest("/api/conversation/text/", { method: "POST", body: JSON.stringify(payload) });
 }
+
+// ====== Support ======
+
+export type SupportMessage = { id: number; from_admin: boolean; body: string; created_at: string };
+export type SupportThread = {
+  id: number;
+  messages: SupportMessage[];
+  created_at: string;
+  updated_at: string;
+};
+
+export function fetchSupportThread(): Promise<SupportThread> {
+  return jsonRequest("/api/support/thread/", { method: "GET" });
+}
+
+export function sendSupportMessage(body: string): Promise<SupportThread> {
+  return jsonRequest("/api/support/thread/", { method: "POST", body: JSON.stringify({ body }) });
+}

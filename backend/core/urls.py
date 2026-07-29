@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/", include("apps.imports.urls")),
     path("api/", include("apps.books.urls")),
     path("api/", include("apps.subscriptions.urls")),
+    path("api/", include("apps.support.urls")),
 ]
 
 if settings.DEBUG:

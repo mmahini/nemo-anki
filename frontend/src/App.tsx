@@ -18,6 +18,7 @@ import Study from "./pages/Study";
 import StudyCard from "./pages/StudyCard";
 import Writing from "./pages/Writing";
 import Conversation from "./pages/Conversation";
+import Support from "./pages/Support";
 import Subscribe from "./pages/Subscribe";
 import BackendStatus from "./components/BackendStatus";
 
@@ -57,6 +58,7 @@ export default function App() {
               <Route path="/app/import" element={<ImportPage />} />
               <Route path="/app/write" element={<Writing />} />
               <Route path="/app/conversation" element={<Conversation />} />
+              <Route path="/app/support" element={<Support />} />
               <Route path="/app/subscribe" element={<Subscribe />} />
             </Route>
           </Route>

@@ -5,6 +5,7 @@
     "import": "Import",
     "writing": "Writing",
     "conversation": "Conversation",
+    "support": "Support",
     "subscription": "Subscription",
     "language": "Language",
     "signOut": "Sign out"
@@ -260,6 +261,13 @@
     "playBtn": "Listen",
     "correct": "correct",
     "autoSource": "Auto (no book)"
+  },
+  "support": {
+    "title": "Support",
+    "subtitle": "Have a question or ran into a problem? Ask here — our team will reply as soon as they can.",
+    "emptyHint": "Send us a message and we'll get back to you.",
+    "inputPlaceholder": "Type your question…",
+    "sendBtn": "Send"
   },
   "common": {
     "error": "Something went wrong.",
