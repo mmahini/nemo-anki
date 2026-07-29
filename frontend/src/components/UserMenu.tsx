@@ -5,11 +5,13 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/AuthContext";
 import { updateMe } from "../auth/api";
 import { applyLanguage } from "../i18n";
+import { useSubscription } from "../subscription/SubscriptionContext";
 
 /** Top-right account menu: subscription, language and sign-out. Opens as a
  * dropdown on desktop and a bottom sheet on mobile (styled in styles.css). */
 export default function UserMenu() {
   const { user, signOut, refreshUser } = useAuth();
+  const { sub } = useSubscription();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -37,12 +39,12 @@ export default function UserMenu() {
   }
 
   const initial = (user?.email?.[0] ?? "?").toUpperCase();
-  const sub = user?.subscription;
   const subTone = sub?.pending ? "pending" : sub?.state ?? "expired";
+  const tierLabel = sub?.tier === "pro" ? t("subscription.tierPro") : t("subscription.tierBasic");
   const subLabel = sub?.pending
     ? t("subscription.pendingBanner")
     : sub?.state === "active"
-      ? t("subscription.active", { days: sub.days_left })
+      ? t("subscription.activeTier", { tier: tierLabel, days: sub.days_left })
       : sub?.state === "trial"
         ? t("subscription.trial", { days: sub.days_left })
         : t("subscription.expired");
@@ -70,11 +72,11 @@ export default function UserMenu() {
 
             <Link
               to="/app/subscribe"
-              className="usermenu__item"
+              className="usermenu__item usermenu__item--stacked"
               role="menuitem"
               onClick={() => setOpen(false)}
             >
-              <span>{t("nav.subscription")}</span>
+              <span className="usermenu__itemlabel">{t("nav.subscription")}</span>
               <span className={`usermenu__badge usermenu__badge--${subTone}`}>{subLabel}</span>
             </Link>
 

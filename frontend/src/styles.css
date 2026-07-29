@@ -1150,7 +1150,20 @@ kbd {
 .usermenu__item:hover { background: var(--line-soft); }
 .usermenu__item--danger { color: var(--again); }
 .usermenu__value { color: var(--ink-faint); font-weight: 600; }
-.usermenu__badge { font-size: 0.72rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.usermenu__item--stacked { flex-direction: column; align-items: flex-start; gap: 6px; }
+.usermenu__itemlabel { font-weight: 600; }
+.usermenu__badge { display: inline-block; max-width: 100%; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+
+/* Header AI-usage chip */
+.shell__usage {
+  margin-left: auto; white-space: nowrap; font-size: 0.8rem; font-weight: 700;
+  color: var(--ink-soft); background: var(--line-soft);
+  padding: 5px 11px; border-radius: 999px;
+}
+.shell__usage--over { color: var(--again); background: rgba(226, 59, 84, 0.12); }
+.usermenu { margin-left: 12px; }
+[dir="rtl"] .shell__usage { margin-left: 0; margin-right: auto; }
+[dir="rtl"] .usermenu { margin-left: 0; margin-right: 12px; }
 .usermenu__badge--trial { background: rgba(76, 110, 245, 0.12); color: var(--brand-dark); }
 .usermenu__badge--active { background: rgba(31, 157, 87, 0.12); color: var(--good); }
 .usermenu__badge--expired { background: rgba(226, 59, 84, 0.12); color: var(--again); }

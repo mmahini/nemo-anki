@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import SubscriptionBanner from "../components/SubscriptionBanner";
 import UserMenu from "../components/UserMenu";
+import { SubscriptionProvider, useSubscription } from "../subscription/SubscriptionContext";
 
 /* Small inline nav icons for the mobile bottom bar. */
 function IconDecks() {
@@ -54,38 +55,53 @@ const NAV = [
   { to: "/app/conversation", end: false, key: "nav.conversation", Icon: IconChat },
 ] as const;
 
+function AiUsageChip() {
+  const { sub } = useSubscription();
+  const { t } = useTranslation();
+  if (!sub || sub.ai_limit == null) return null;
+  const over = sub.ai_used >= sub.ai_limit;
+  return (
+    <span className={`shell__usage ${over ? "shell__usage--over" : ""}`} title={t("subscription.usageTitle")}>
+      {t("subscription.usage", { used: sub.ai_used, limit: sub.ai_limit })}
+    </span>
+  );
+}
+
 export default function AppShell() {
   const { t } = useTranslation();
 
   return (
-    <div className="shell">
-      <header className="shell__bar">
-        <Link to="/app" className="shell__brand">Nemo&nbsp;Anki</Link>
-        <nav className="shell__nav">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className="shell__link">
-              {t(n.key)}
+    <SubscriptionProvider>
+      <div className="shell">
+        <header className="shell__bar">
+          <Link to="/app" className="shell__brand">Nemo&nbsp;Anki</Link>
+          <nav className="shell__nav">
+            {NAV.map((n) => (
+              <NavLink key={n.to} to={n.to} end={n.end} className="shell__link">
+                {t(n.key)}
+              </NavLink>
+            ))}
+          </nav>
+          <AiUsageChip />
+          <UserMenu />
+        </header>
+
+        <SubscriptionBanner />
+
+        <main className="shell__main">
+          <Outlet />
+        </main>
+
+        {/* Mobile bottom tab bar (hidden on desktop via CSS). */}
+        <nav className="shell__tabbar">
+          {NAV.map(({ to, end, key, Icon }) => (
+            <NavLink key={to} to={to} end={end} className="tabbar__link">
+              <span className="tabbar__icon"><Icon /></span>
+              <span className="tabbar__label">{t(key)}</span>
             </NavLink>
           ))}
         </nav>
-        <UserMenu />
-      </header>
-
-      <SubscriptionBanner />
-
-      <main className="shell__main">
-        <Outlet />
-      </main>
-
-      {/* Mobile bottom tab bar (hidden on desktop via CSS). */}
-      <nav className="shell__tabbar">
-        {NAV.map(({ to, end, key, Icon }) => (
-          <NavLink key={to} to={to} end={end} className="tabbar__link">
-            <span className="tabbar__icon"><Icon /></span>
-            <span className="tabbar__label">{t(key)}</span>
-          </NavLink>
-        ))}
-      </nav>
-    </div>
+      </div>
+    </SubscriptionProvider>
   );
 }
