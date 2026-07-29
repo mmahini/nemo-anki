@@ -272,7 +272,12 @@
   "subscription": {
     "trial": "دوره آزمایشی — {{days}} روز مانده",
     "active": "اشتراک فعال — {{days}} روز مانده",
+    "activeTier": "{{tier}} — {{days}} روز مانده",
     "expired": "اشتراک شما به پایان رسیده است",
+    "tierBasic": "پایه",
+    "tierPro": "پرو",
+    "usage": "AI: {{used}} / {{limit}} امروز",
+    "tierLimit": "{{limit}} عملیات هوش مصنوعی در روز",
     "pendingBanner": "پرداخت در حال بررسی",
     "subscribe": "خرید اشتراک",
     "renew": "تمدید",

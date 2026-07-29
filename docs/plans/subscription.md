@@ -2,26 +2,51 @@
 
 ## Summary
 
-A single-tier subscription: a user either **has an active subscription or not**.
-There are no feature levels — just three billing durations at different prices,
-plus a free trial. Access state is one of `trial`, `active`, or `expired`.
+A subscription in **two tiers** — **Basic** and **Pro**. A user either has an
+active subscription or not; the tier only changes the **daily AI usage limit**
+(both tiers include all features). Each tier has three billing durations, plus a
+free trial. Access state is one of `trial`, `active`, or `expired`.
 
 This document is the source of truth for the feature. Phase 1 (below) is what is
 built now; Phase 2 is deliberately deferred.
 
-## Pricing
+## Pricing & tiers
 
-| Plan        | Price  | Duration |
-|-------------|--------|----------|
-| `monthly`   | $1.00  | 30 days  |
-| `quarterly` | $2.50  | 90 days  |
-| `yearly`    | $9.00  | 365 days |
+| Tier  | 1 month | 3 months | 12 months | AI limit / day |
+|-------|---------|----------|-----------|----------------|
+| Basic | $1.00   | $2.50    | $9.00     | 80             |
+| Pro   | $5.00   | $12.50   | $45.00    | 500            |
+
+Plan keys: `basic_monthly` / `basic_quarterly` / `basic_yearly` and
+`pro_monthly` / `pro_quarterly` / `pro_yearly` (see `plans.py`).
 
 - **Trial:** every user gets a **7-day** trial starting at signup
   (`trial_end = date_joined + 7 days`).
-- Buying a plan sets/extends `current_period_end`. If a subscription is still
-  active, a new purchase **stacks** onto the remaining time; otherwise it starts
-  from now.
+- Buying a plan sets/extends `current_period_end` and stamps the `tier`. If a
+  subscription is still active, a new purchase **stacks** onto the remaining
+  time; otherwise it starts from now.
+
+## AI usage limits
+
+To stop abuse and keep Gemini cost below the subscription price, every user has a
+**daily AI-action limit** in a fixed 1-day (UTC) window — like an API rate limit.
+One "action" = one Gemini-backed request (import parse, enrich, conjugate,
+gender-colour, writing prompt/topic/check, conversation reply/text).
+
+| Access level         | AI actions / day |
+|----------------------|------------------|
+| No sub / expired     | 10               |
+| Trial                | 40               |
+| Basic                | 80               |
+| Pro                  | 500              |
+| Staff                | unlimited        |
+
+- Enforced server-side (`AiQuotaMixin` → `consume_ai_quota`) — over the limit
+  returns **HTTP 429**. Counters live in `AiUsage(user, day, count)`.
+- Usage is shown at the top of the app ("AI used/limit today") via the
+  subscription summary. Limits are tunable in `plans.py`.
+- Future refinement: weight heavier actions (conversation, batch colour) more
+  than a single enrich, or meter by token spend.
 
 ## State model
 

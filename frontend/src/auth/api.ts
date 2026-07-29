@@ -179,14 +179,27 @@ export type SubscriptionSummary = {
   access_until: string | null;
   days_left: number;
   plan: string | null;
-  /** A submitted "I've paid" claim is awaiting admin verification. */
+  /** Active paid tier ("basic"/"pro"), or null on trial/expired. */
+  tier: string | null;
+  /** AI actions used in the current 1-day window. */
+  ai_used: number;
+  /** Daily AI limit, or null when unlimited (staff). */
+  ai_limit: number | null;
+  /** A submitted "I've transferred" claim is awaiting admin verification. */
   pending: boolean;
 };
 
 export type SubscriptionPlan = { key: string; label: string; price_usd: string; days: number };
 
-export type SubscriptionPlans = {
+export type SubscriptionTier = {
+  key: string;
+  label: string;
+  daily_ai_limit: number;
   plans: SubscriptionPlan[];
+};
+
+export type SubscriptionPlans = {
+  tiers: SubscriptionTier[];
   payment: { method: string; network: string; address: string };
 };
 
@@ -335,6 +348,11 @@ export function updateMe(payload: Partial<Pick<AuthUser, "display_name" | "ui_la
 
 export function fetchSubscriptionPlans(): Promise<SubscriptionPlans> {
   return jsonRequest<SubscriptionPlans>("/api/subscription/plans", { method: "GET" });
+}
+
+/** Current subscription status incl. AI usage — used by the top banner. */
+export function fetchSubscription(): Promise<SubscriptionSummary> {
+  return jsonRequest<SubscriptionSummary>("/api/subscription", { method: "GET" });
 }
 
 /** "I've transferred" — records a pending claim (with the user's source wallet

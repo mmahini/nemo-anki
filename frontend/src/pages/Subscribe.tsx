@@ -11,6 +11,7 @@ export default function Subscribe() {
   const sub = user?.subscription;
 
   const [data, setData] = useState<SubscriptionPlans | null>(null);
+  const [tierKey, setTierKey] = useState<string>(sub?.tier ?? "basic");
   const [selected, setSelected] = useState<string>("");
   const [txRef, setTxRef] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -24,7 +25,12 @@ export default function Subscribe() {
 
   const address = data?.payment.address ?? "";
   const network = data?.payment.network ?? "";
-  const selectedPlan = data?.plans.find((p) => p.key === selected) ?? null;
+  const activeTier = data?.tiers.find((tr) => tr.key === tierKey) ?? data?.tiers[0] ?? null;
+  const selectedPlan = data?.tiers.flatMap((tr) => tr.plans).find((p) => p.key === selected) ?? null;
+
+  function tierName(key: string) {
+    return key === "pro" ? t("subscription.tierPro") : t("subscription.tierBasic");
+  }
 
   async function copyAddress() {
     try {
@@ -76,8 +82,30 @@ export default function Subscribe() {
       ) : (
         <>
           <h2 className="subscribe__h2">{t("subscription.choosePlan")}</h2>
+
+          <div className="subscribe__tiers">
+            {data?.tiers.map((tr) => (
+              <button
+                key={tr.key}
+                type="button"
+                className={`tierpill ${tierKey === tr.key ? "tierpill--on" : ""}`}
+                onClick={() => {
+                  setTierKey(tr.key);
+                  setSelected("");
+                }}
+              >
+                {tierName(tr.key)}
+              </button>
+            ))}
+          </div>
+          {activeTier && (
+            <p className="subscribe__tierlimit">
+              {t("subscription.tierLimit", { limit: activeTier.daily_ai_limit })}
+            </p>
+          )}
+
           <div className="subscribe__plans">
-            {data?.plans.map((p) => (
+            {activeTier?.plans.map((p) => (
               <button
                 key={p.key}
                 type="button"

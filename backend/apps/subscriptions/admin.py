@@ -4,21 +4,29 @@ from django.urls import path
 from django.utils import timezone
 
 from .models import Subscription, SubscriptionRequest
-from .plans import MONTHLY, PLANS, QUARTERLY, YEARLY
+from .plans import PLANS, TIERS
 
 
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
     change_list_template = "admin/subscriptions/subscription/change_list.html"
-    list_display = ("user", "status", "live_state", "days_left", "plan", "trial_end", "current_period_end")
-    list_filter = ("status", "plan")
+    list_display = ("user", "status", "live_state", "tier", "ai_limit", "days_left", "plan", "current_period_end")
+    list_filter = ("status", "tier", "plan")
     search_fields = ("user__email",)
-    readonly_fields = ("created_at", "updated_at", "live_state", "days_left")
-    actions = ["activate_monthly", "activate_quarterly", "activate_yearly", "recompute"]
+    readonly_fields = ("created_at", "updated_at", "live_state", "ai_limit", "days_left")
+    actions = [
+        "activate_basic_monthly", "activate_basic_quarterly", "activate_basic_yearly",
+        "activate_pro_monthly", "activate_pro_quarterly", "activate_pro_yearly",
+        "recompute",
+    ]
 
     @admin.display(description="live state")
     def live_state(self, obj):
         return obj.computed_state
+
+    @admin.display(description="AI/day")
+    def ai_limit(self, obj):
+        return obj.daily_ai_limit
 
     @admin.display(description="days left")
     def days_left(self, obj):
@@ -27,19 +35,32 @@ class SubscriptionAdmin(admin.ModelAdmin):
     def _activate(self, request, queryset, plan):
         for sub in queryset:
             sub.activate(plan)
-        self.message_user(request, f"Activated {PLANS[plan]['label']} for {queryset.count()} user(s).")
+        tier = TIERS[PLANS[plan]["tier"]]["label"]
+        self.message_user(request, f"Activated {tier} · {PLANS[plan]['label']} for {queryset.count()} user(s).")
 
-    @admin.action(description="Activate — 1 month ($1)")
-    def activate_monthly(self, request, queryset):
-        self._activate(request, queryset, MONTHLY)
+    @admin.action(description="Activate — Basic · 1 month ($1)")
+    def activate_basic_monthly(self, request, queryset):
+        self._activate(request, queryset, "basic_monthly")
 
-    @admin.action(description="Activate — 3 months ($2.50)")
-    def activate_quarterly(self, request, queryset):
-        self._activate(request, queryset, QUARTERLY)
+    @admin.action(description="Activate — Basic · 3 months ($2.50)")
+    def activate_basic_quarterly(self, request, queryset):
+        self._activate(request, queryset, "basic_quarterly")
 
-    @admin.action(description="Activate — 12 months ($9)")
-    def activate_yearly(self, request, queryset):
-        self._activate(request, queryset, YEARLY)
+    @admin.action(description="Activate — Basic · 12 months ($9)")
+    def activate_basic_yearly(self, request, queryset):
+        self._activate(request, queryset, "basic_yearly")
+
+    @admin.action(description="Activate — Pro · 1 month ($5)")
+    def activate_pro_monthly(self, request, queryset):
+        self._activate(request, queryset, "pro_monthly")
+
+    @admin.action(description="Activate — Pro · 3 months ($12.50)")
+    def activate_pro_quarterly(self, request, queryset):
+        self._activate(request, queryset, "pro_quarterly")
+
+    @admin.action(description="Activate — Pro · 12 months ($45)")
+    def activate_pro_yearly(self, request, queryset):
+        self._activate(request, queryset, "pro_yearly")
 
     @admin.action(description="Recompute status label")
     def recompute(self, request, queryset):
