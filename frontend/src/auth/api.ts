@@ -171,6 +171,25 @@ async function jsonRequest<T>(path: string, init: RequestInit): Promise<T> {
 
 // ====== Types ======
 
+export type SubscriptionState = "trial" | "active" | "expired";
+
+export type SubscriptionSummary = {
+  state: SubscriptionState;
+  is_active: boolean;
+  access_until: string | null;
+  days_left: number;
+  plan: string | null;
+  /** A submitted "I've paid" claim is awaiting admin verification. */
+  pending: boolean;
+};
+
+export type SubscriptionPlan = { key: string; label: string; price_usd: string; days: number };
+
+export type SubscriptionPlans = {
+  plans: SubscriptionPlan[];
+  payment: { method: string; network: string; address: string };
+};
+
 export type AuthUser = {
   id: number;
   email: string;
@@ -179,6 +198,8 @@ export type AuthUser = {
   date_joined: string;
   /** Feature flags this user holds (see lib/features.ts). */
   feature_flags: string[];
+  /** Subscription status for the top-of-page banner. */
+  subscription: SubscriptionSummary;
 };
 
 export type RequestOtpResponse = {
@@ -307,6 +328,20 @@ export function updateMe(payload: Partial<Pick<AuthUser, "display_name" | "ui_la
   return jsonRequest<AuthUser>("/api/me", {
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+}
+
+// ====== Subscription ======
+
+export function fetchSubscriptionPlans(): Promise<SubscriptionPlans> {
+  return jsonRequest<SubscriptionPlans>("/api/subscription/plans", { method: "GET" });
+}
+
+/** "I've paid" — records a pending claim for admin verification (Phase 1). */
+export function submitSubscriptionClaim(plan: string): Promise<{ ok: boolean; status: string }> {
+  return jsonRequest("/api/subscription/claim", {
+    method: "POST",
+    body: JSON.stringify({ plan }),
   });
 }
 

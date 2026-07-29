@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/AuthContext";
 import { updateMe } from "../auth/api";
 import { applyLanguage } from "../i18n";
+import SubscriptionBanner from "../components/SubscriptionBanner";
 
 export default function AppShell() {
   const { user, signOut, refreshUser } = useAuth();
@@ -53,6 +54,7 @@ export default function AppShell() {
           </button>
         </div>
       </header>
+      <SubscriptionBanner />
       <main className="shell__main">
         <Outlet />
       </main>
