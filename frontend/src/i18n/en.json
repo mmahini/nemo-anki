@@ -5,6 +5,8 @@
     "import": "Import",
     "writing": "Writing",
     "conversation": "Conversation",
+    "subscription": "Subscription",
+    "language": "Language",
     "signOut": "Sign out"
   },
   "signIn": {
