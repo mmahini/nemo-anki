@@ -819,7 +819,11 @@ kbd {
 }
 .support__empty-icon { font-size: 2.2rem; }
 
-.support__msg { display: flex; align-items: flex-end; gap: 8px; }
+@keyframes support-msg-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.support__msg { display: flex; align-items: flex-end; gap: 8px; animation: support-msg-in 0.22s ease; }
 .support__msg--user { justify-content: flex-end; }
 .support__msg--admin { justify-content: flex-start; }
 .support__avatar {
@@ -840,10 +844,25 @@ kbd {
 .support__time { font-size: 0.72rem; color: var(--ink-faint); padding: 0 4px; }
 
 .support__input {
-  display: flex; gap: 8px; align-items: center;
+  display: flex; gap: 8px; align-items: flex-end;
   max-width: 720px; margin: 8px 0 4px;
 }
-.support__text-input { flex: 1; }
+.support__text-input {
+  flex: 1; resize: none; overflow-y: auto;
+  min-height: 42px; max-height: 120px; line-height: 1.4;
+  padding-top: 10px; padding-bottom: 10px;
+}
+.support__send {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--brand); color: #fff; font-size: 1.05rem;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.support__send:hover:not(:disabled) { background: var(--brand-dark); }
+.support__send:active:not(:disabled) { transform: scale(0.94); }
+.support__send:disabled { background: var(--line-soft); color: var(--ink-faint); cursor: not-allowed; }
+[dir="rtl"] .support__send { transform: scaleX(-1); }
+[dir="rtl"] .support__send:active:not(:disabled) { transform: scaleX(-1) scale(0.94); }
 
 /* Tabs */
 .tabs { display: flex; gap: 4px; margin-top: 10px; }

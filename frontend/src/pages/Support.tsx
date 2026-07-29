@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { fetchSupportThread, sendSupportMessage, type SupportMessage } from "../auth/api";
 
 const POLL_MS = 5000;
+const TEXTAREA_MAX_PX = 120;
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -17,6 +18,7 @@ export default function Support() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,16 +52,33 @@ export default function Support() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  function autoResize() {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, TEXTAREA_MAX_PX) + "px";
+  }
+
   async function handleSend() {
     const trimmed = inputText.trim();
     if (!trimmed || sending) return;
+
+    // Optimistic bubble — shows instantly instead of waiting on the round trip.
+    const optimisticId = -Date.now();
+    setMessages((prev) => [
+      ...prev,
+      { id: optimisticId, from_admin: false, body: trimmed, created_at: new Date().toISOString() },
+    ]);
+    setInputText("");
+    requestAnimationFrame(autoResize);
     setSending(true);
     setError(null);
     try {
       const thread = await sendSupportMessage(trimmed);
       setMessages(thread.messages);
-      setInputText("");
     } catch (e) {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+      setInputText(trimmed);
       setError(e instanceof Error ? e.message : t("common.error"));
     } finally {
       setSending(false);
@@ -103,25 +122,31 @@ export default function Support() {
       </div>
 
       <div className="support__input">
-        <input
+        <textarea
+          ref={textareaRef}
           className="input support__text-input"
+          rows={1}
           placeholder={t("support.inputPlaceholder")}
           value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
+          onChange={(e) => {
+            setInputText(e.target.value);
+            autoResize();
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               handleSend();
             }
           }}
-          disabled={sending}
         />
         <button
-          className="btn btn--primary"
+          className="support__send"
           onClick={handleSend}
           disabled={sending || !inputText.trim()}
+          aria-label={t("support.sendBtn")}
+          title={t("support.sendBtn")}
         >
-          {t("support.sendBtn")}
+          ➤
         </button>
       </div>
     </div>
