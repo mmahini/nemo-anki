@@ -5,6 +5,10 @@ import { fetchSupportThread, sendSupportMessage, type SupportMessage } from "../
 
 const POLL_MS = 5000;
 
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 export default function Support() {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<SupportMessage[]>([]);
@@ -63,19 +67,34 @@ export default function Support() {
   }
 
   return (
-    <div className="conversation">
-      <h1>{t("support.title")}</h1>
-      <p className="import__sub">{t("support.subtitle")}</p>
+    <div className="support">
+      <div className="support__header">
+        <span className="support__badge" aria-hidden>🎧</span>
+        <div>
+          <h1>{t("support.title")}</h1>
+          <p className="import__sub">{t("support.subtitle")}</p>
+        </div>
+      </div>
 
-      <div className="panel conv__chat">
-        {loading && <p className="conv__hint">{t("common.loading")}</p>}
+      <div className="panel support__chat">
+        {loading && <p className="support__loading">{t("common.loading")}</p>}
         {!loading && messages.length === 0 && (
-          <p className="conv__hint">{t("support.emptyHint")}</p>
+          <div className="support__empty">
+            <span className="support__empty-icon" aria-hidden>💬</span>
+            <p>{t("support.emptyHint")}</p>
+          </div>
         )}
         {messages.map((msg) => (
-          <div key={msg.id} className={`conv__msg conv__msg--${msg.from_admin ? "ai" : "user"}`}>
-            <div className="conv__bubble">
-              <span dir="auto">{msg.body}</span>
+          <div
+            key={msg.id}
+            className={`support__msg support__msg--${msg.from_admin ? "admin" : "user"}`}
+          >
+            {msg.from_admin && <span className="support__avatar" aria-hidden>🎧</span>}
+            <div className="support__msg-body">
+              <div className="support__bubble">
+                <span dir="auto">{msg.body}</span>
+              </div>
+              <span className="support__time">{formatTime(msg.created_at)}</span>
             </div>
           </div>
         ))}
@@ -83,9 +102,9 @@ export default function Support() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="conv__input">
+      <div className="support__input">
         <input
-          className="input conv__text-input"
+          className="input support__text-input"
           placeholder={t("support.inputPlaceholder")}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
