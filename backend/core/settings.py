@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "apps.imports",
     "apps.books",
     "apps.subscriptions",
+    "apps.support",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
