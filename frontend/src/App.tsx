@@ -17,8 +17,7 @@ import Books from "./pages/Books";
 import BookPage from "./pages/BookPage";
 import Study from "./pages/Study";
 import StudyCard from "./pages/StudyCard";
-import Writing from "./pages/Writing";
-import Conversation from "./pages/Conversation";
+import Practice from "./pages/Practice";
 import Support from "./pages/Support";
 import Subscribe from "./pages/Subscribe";
 import BackendStatus from "./components/BackendStatus";
@@ -58,8 +57,16 @@ export default function App() {
               <Route path="/app/books" element={<Books />} />
               <Route path="/app/books/:bookId" element={<BookPage />} />
               <Route path="/app/import" element={<ImportPage />} />
-              <Route path="/app/write" element={<Writing />} />
-              <Route path="/app/conversation" element={<Conversation />} />
+              <Route path="/app/practice" element={<Practice />} />
+              <Route path="/app/practice/:tab" element={<Practice />} />
+              {/* Writing and Conversation merged into Practice. Keep the old
+                  paths working — they're bookmarked, and an installed PWA can
+                  hold a stale link for a while. */}
+              <Route path="/app/write" element={<Navigate to="/app/practice/write" replace />} />
+              <Route
+                path="/app/conversation"
+                element={<Navigate to="/app/practice/speak" replace />}
+              />
               <Route path="/app/support" element={<Support />} />
               <Route path="/app/subscribe" element={<Subscribe />} />
             </Route>

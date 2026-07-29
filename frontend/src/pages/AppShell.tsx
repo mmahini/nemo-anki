@@ -22,27 +22,11 @@ function IconBooks() {
     </svg>
   );
 }
-function IconImport() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 4v10m0 0l-3.5-3.5M12 14l3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 18h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function IconWrite() {
+function IconPractice() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M4 20l3.5-.9L18 8.6a2 2 0 000-2.8l-.8-.8a2 2 0 00-2.8 0L3.9 15.5 3 19l1 1z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
       <path d="M13.5 6.5l4 4" stroke="currentColor" strokeWidth="2" />
-    </svg>
-  );
-}
-function IconChat() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 5.5h16v10H9.5L5 19v-3.5H4v-10z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M8 9.5h8M8 12.5h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -56,15 +40,15 @@ function IconStats() {
   );
 }
 
-/* Six items is what the mobile tab bar fits comfortably. Support lives in the
-   account menu instead — it's a rare, deliberate action, not a daily tab. */
+/* Four destinations, so the labels fit and the mobile tab bar can breathe.
+   Import moved to a button on the deck list (that's where you already are when
+   you want to add cards), Support to the account menu, and Writing +
+   Conversation merged into Practice. */
 const NAV = [
   { to: "/app", end: true, key: "nav.decks", Icon: IconDecks },
   { to: "/app/stats", end: false, key: "nav.stats", Icon: IconStats },
   { to: "/app/books", end: false, key: "nav.books", Icon: IconBooks },
-  { to: "/app/import", end: false, key: "nav.import", Icon: IconImport },
-  { to: "/app/write", end: false, key: "nav.writing", Icon: IconWrite },
-  { to: "/app/conversation", end: false, key: "nav.conversation", Icon: IconChat },
+  { to: "/app/practice", end: false, key: "nav.practice", Icon: IconPractice },
 ] as const;
 
 function AiUsageChip() {

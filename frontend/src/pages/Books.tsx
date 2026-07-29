@@ -150,9 +150,9 @@ export default function Books() {
       )}
 
       {canManage && (
-        <div className="tabs books__tabs">
-          <button className={`tab ${effectiveTab === "mine" ? "tab--on" : ""}`} onClick={() => setTab("mine")}>{t("books.myBooks", { count: mine.length })}</button>
-          <button className={`tab ${effectiveTab === "shared" ? "tab--on" : ""}`} onClick={() => setTab("shared")}>{t("books.sharedWithMe", { count: shared.length })}</button>
+        <div className="segmented books__tabs">
+          <button className={`segmented__btn ${effectiveTab === "mine" ? "segmented__btn--on" : ""}`} aria-pressed={effectiveTab === "mine"} onClick={() => setTab("mine")}>{t("books.myBooks", { count: mine.length })}</button>
+          <button className={`segmented__btn ${effectiveTab === "shared" ? "segmented__btn--on" : ""}`} aria-pressed={effectiveTab === "shared"} onClick={() => setTab("shared")}>{t("books.sharedWithMe", { count: shared.length })}</button>
         </div>
       )}
 
