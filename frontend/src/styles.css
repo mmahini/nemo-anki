@@ -1022,11 +1022,11 @@ kbd {
 [dir="rtl"] body {
   font-family: var(--font);
 }
+/* Keep the top bar's layout consistent in both languages: brand at the left,
+   AI-usage chip + account avatar pinned to the right. (The menu's own content
+   is switched back to RTL below.) */
 [dir="rtl"] .shell__bar {
-  flex-direction: row-reverse;
-}
-[dir="rtl"] .shell__nav {
-  flex-direction: row-reverse;
+  direction: ltr;
 }
 /* RTL overrides — browsers already reverse flex main axis when direction:rtl,
    so we do NOT add row-reverse (that would double-reverse back to LTR).
@@ -1162,15 +1162,12 @@ kbd {
 }
 .shell__usage--over { color: var(--again); background: rgba(226, 59, 84, 0.12); }
 .usermenu { margin-left: 12px; }
-[dir="rtl"] .shell__usage { margin-left: 0; margin-right: auto; }
-[dir="rtl"] .usermenu { margin-left: 0; margin-right: 12px; }
 .usermenu__badge--trial { background: rgba(76, 110, 245, 0.12); color: var(--brand-dark); }
 .usermenu__badge--active { background: rgba(31, 157, 87, 0.12); color: var(--good); }
 .usermenu__badge--expired { background: rgba(226, 59, 84, 0.12); color: var(--again); }
 .usermenu__badge--pending { background: rgba(232, 151, 58, 0.14); color: var(--hard); }
-[dir="rtl"] .usermenu { margin-left: 0; margin-right: auto; }
-[dir="rtl"] .usermenu__panel { right: auto; left: 0; }
-[dir="rtl"] .shell__nav { margin-right: 0; margin-left: auto; }
+/* The bar is forced LTR (above); the dropdown/sheet keeps Persian content RTL. */
+[dir="rtl"] .usermenu__panel { direction: rtl; }
 
 /* Bottom tab bar (mobile) */
 .tabbar__link {
