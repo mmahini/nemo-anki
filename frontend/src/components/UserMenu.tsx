@@ -80,6 +80,15 @@ export default function UserMenu() {
               <span className={`usermenu__badge usermenu__badge--${subTone}`}>{subLabel}</span>
             </Link>
 
+            <Link
+              to="/app/support"
+              className="usermenu__item"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+            >
+              {t("nav.support")}
+            </Link>
+
             <button className="usermenu__item" role="menuitem" onClick={toggleLanguage}>
               <span>{t("nav.language")}</span>
               <span className="usermenu__value">{user?.ui_language === "fa" ? "فارسی" : "English"}</span>

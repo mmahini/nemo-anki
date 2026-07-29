@@ -523,6 +523,91 @@ export function fetchActivity(): Promise<ReviewActivity> {
   return jsonRequest<ReviewActivity>("/api/stats/activity/", { method: "GET" });
 }
 
+/** Ranges the performance page offers; the backend rejects anything else. */
+export type StatsRange = 7 | 30 | 90 | 365;
+
+/** One day of the review-log series. `new`/`learning`/`review` split `count` by
+ * how far along the card was when answered. */
+export type StatsDay = {
+  date: string;
+  count: number;
+  seconds: number;
+  new: number;
+  learning: number;
+  review: number;
+};
+
+export type StatsHour = { hour: number; count: number; retention: number | null };
+
+export type StatsRatings = { again: number; hard: number; good: number; easy: number };
+
+export type StatsCollection = {
+  total: number;
+  new: number;
+  learning: number;
+  young: number;
+  mature: number;
+  suspended: number;
+  due_now: number;
+  leeches: number;
+  avg_ease: number | null;
+  avg_interval: number | null;
+};
+
+export type StatsForecastDay = { date: string; count: number; cumulative: number };
+
+export type StatsDeckRow = {
+  id: number;
+  name: string;
+  full_name: string;
+  language: string;
+  cards: number;
+  new: number;
+  mature: number;
+  due: number;
+  reviews: number;
+  seconds: number;
+  retention: number | null;
+};
+
+export type StatsLeech = {
+  id: number;
+  front: string;
+  back: string;
+  deck: string;
+  lapses: number;
+  state: CardState;
+  interval_days: number;
+  is_leech: boolean;
+};
+
+export type StatsOverview = {
+  range_days: StatsRange;
+  range: {
+    reviews: number;
+    seconds: number;
+    active_days: number;
+    avg_per_active_day: number;
+    avg_seconds_per_card: number;
+    /** True retention (0–1) over review-state answers, or null with none yet. */
+    retention: number | null;
+    mature_answers: number;
+    ratings: StatsRatings;
+    days: StatsDay[];
+    hours: StatsHour[];
+  };
+  collection: StatsCollection;
+  forecast: StatsForecastDay[];
+  intervals: { label: string; count: number }[];
+  decks: StatsDeckRow[];
+  leeches: StatsLeech[];
+};
+
+/** Everything the performance page renders, for the given trailing window. */
+export function fetchStatsOverview(days: StatsRange): Promise<StatsOverview> {
+  return jsonRequest<StatsOverview>(`/api/stats/overview/?days=${days}`, { method: "GET" });
+}
+
 // ====== Import ======
 
 export function parseImport(payload: {

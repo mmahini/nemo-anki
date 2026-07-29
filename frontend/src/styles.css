@@ -61,6 +61,18 @@
   --good: #1f9d57;
   --easy: #2f6fed;
 
+  /* Chart ramp (--sr-*, "spaced repetition"). Card maturity is an ordered
+     progression (new → learning → young → mature), so it gets ONE hue stepped
+     light→dark instead of four identities: the reader sees the order in the
+     colour. Steps are validated for monotone lightness, visible ΔL gaps and a
+     light end that still clears the surface; --sr-3 is the brand blue.
+     --sr-off is the out-of-progression state (suspended). */
+  --sr-1: #9dadfa;
+  --sr-2: #6f86f7;
+  --sr-3: #4c6ef5;
+  --sr-4: #2b3f9c;
+  --sr-off: #939bad;
+
   --radius: 14px;
   --radius-sm: 9px;
   --radius-lg: 22px;
@@ -454,7 +466,7 @@ kbd {
 .decklist__del:hover { color: var(--again); background: rgba(226, 59, 84, 0.1); }
 .decks__empty { text-align: center; }
 .decks__empty code { font-family: var(--mono); background: var(--line-soft); padding: 1px 6px; border-radius: 5px; }
-.decks__new { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.decks__headtools { display: flex; align-items: center; gap: 16px; }
 
 /* ============================================================
    Activity / streak panel
@@ -1008,8 +1020,7 @@ kbd {
   .count { min-width: 22px; padding: 2px 4px; }
   .deckmenu { min-width: 180px; }
   .deckmenu button { padding: 11px 12px; }
-  .decks__new { flex-direction: column; align-items: stretch; }
-  .decks__new > * { width: 100%; }
+  .decks__headtools { width: 100%; justify-content: space-between; gap: 8px; }
 
   /* Deck card list */
   .browse__head { flex-direction: column; align-items: stretch; }
@@ -1123,10 +1134,9 @@ kbd {
   justify-content: flex-end;
 }
 
-/* Decks new form — items start from the right (natural in RTL flex) */
-[dir="rtl"] .decks__new {
-  justify-content: flex-start;
-}
+/* The modal/sheet is a fresh stacking context — keep its content RTL even where
+   an ancestor was forced LTR (the app bar does that). */
+[dir="rtl"] .modal__panel { direction: rtl; }
 
 /* ============================================================
    Subscription — top banner + buy page
@@ -1290,3 +1300,261 @@ kbd {
 .subscribe__txhint { display: block; margin-top: 6px; color: var(--ink-faint); font-size: 0.85rem; line-height: 1.5; }
 .subscribe__thanks { text-align: center; font-weight: 600; color: var(--good); }
 .subscribe__back { display: inline-block; margin-top: 20px; color: var(--ink-soft); }
+
+/* ============================================================
+   Modal / bottom sheet  (Modal.tsx)
+   Same component in both layouts: a centred dialog on desktop, a sheet that
+   rises from the bottom edge on phones (switched at 640px below).
+   ============================================================ */
+.modal {
+  position: fixed; inset: 0; z-index: 70;
+  display: grid; place-items: center; padding: 24px;
+  background: rgba(20, 28, 46, 0.45);
+  animation: modal-fade 0.15s ease;
+}
+.modal__panel {
+  width: min(460px, 100%); max-height: min(86vh, 720px);
+  display: flex; flex-direction: column;
+  background: var(--surface); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md); outline: none;
+  animation: modal-pop 0.16s ease;
+}
+.modal__grip { display: none; }
+.modal__head {
+  flex: none; display: flex; align-items: center; gap: 12px;
+  padding: 18px 20px 12px;
+}
+.modal__title { margin: 0; font-size: 1.1rem; }
+.modal__close {
+  margin-inline-start: auto; flex: none;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: none; background: var(--line-soft); color: var(--ink-soft);
+  font: inherit; font-size: 0.9rem; line-height: 1; cursor: pointer;
+}
+.modal__close:hover { background: var(--line); color: var(--ink); }
+.modal__body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 20px 18px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.modal__foot {
+  flex: none; display: flex; justify-content: flex-end; gap: 10px;
+  padding: 14px 20px; border-top: 1px solid var(--line);
+}
+@keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+/* Labelled form field, used inside the sheet */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field__label { font-size: 0.78rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.field__hint { font-size: 0.82rem; color: var(--ink-faint); line-height: 1.5; }
+.field .input { width: 100%; }
+
+@media (max-width: 640px) {
+  .modal { padding: 0; place-items: end stretch; }
+  .modal__panel {
+    width: 100%; max-width: none; max-height: 92dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation: sheet-up 0.22s ease;
+  }
+  .modal__grip {
+    display: block; flex: none;
+    width: 40px; height: 4px; margin: 10px auto 0;
+    border-radius: 999px; background: var(--line);
+  }
+  .modal__head { padding: 12px 18px 10px; }
+  .modal__body { padding: 4px 18px 16px; }
+  .modal__foot { padding: 12px 18px; }
+  .modal__foot .btn { flex: 1; justify-content: center; }
+}
+
+/* ============================================================
+   Performance page  (Stats.tsx + charts.tsx)
+   ============================================================ */
+.stats { transition: opacity 0.15s ease; }
+/* While a new range loads, hold the previous render rather than flashing a
+   skeleton — the numbers move, the layout doesn't. */
+.stats--refreshing { opacity: 0.55; }
+.stats__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.stats__sub { margin: 0 0 4px; color: var(--ink-soft); }
+
+/* Filters: one row, above everything they scope */
+.stats__filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 16px 0 20px; }
+.stats__filterlabel { font-size: 0.78rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; margin-inline-end: 4px; }
+.rangepill {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
+  font: inherit; font-weight: 600; font-size: 0.85rem;
+  padding: 6px 14px; border-radius: 999px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.rangepill:hover { border-color: var(--ink-faint); }
+.rangepill--on { border-color: var(--brand); background: rgba(76, 110, 245, 0.08); color: var(--brand-dark); }
+
+/* Hero figure + supporting tiles */
+.statshero {
+  display: flex; flex-wrap: wrap; align-items: stretch; gap: 20px 32px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm);
+  padding: 22px 24px; margin-bottom: 18px;
+}
+.statshero__main { display: flex; flex-direction: column; gap: 2px; min-width: 190px; }
+.statshero__label { font-size: 0.78rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+/* Proportional figures: tabular-nums would leave a big number looking loose. */
+.statshero__value { font-size: 3.1rem; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; }
+.statshero__sub { font-size: 0.85rem; color: var(--ink-soft); line-height: 1.5; max-width: 26ch; }
+.statshero__tiles { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)); gap: 14px 18px; align-content: center; }
+
+.tile { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.tile__label { font-size: 0.72rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+.tile__value { font-size: 1.4rem; font-weight: 800; line-height: 1.15; }
+.tile__sub { font-size: 0.76rem; color: var(--ink-faint); font-weight: 600; }
+
+/* Chart cards */
+.stats__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.chartcard {
+  min-width: 0; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 18px 20px 20px;
+}
+.chartcard--wide { grid-column: 1 / -1; }
+.chartcard__head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.chartcard__titles { min-width: 0; }
+.chartcard__title { margin: 0; font-size: 1rem; }
+.chartcard__hint { margin: 3px 0 0; font-size: 0.82rem; color: var(--ink-faint); line-height: 1.5; }
+.chartcard__tablebtn {
+  margin-inline-start: auto; flex: none;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
+  font: inherit; font-weight: 600; font-size: 0.78rem;
+  padding: 4px 11px; border-radius: 999px; cursor: pointer;
+}
+.chartcard__tablebtn:hover { border-color: var(--ink-faint); }
+.chartcard__foot { margin: 14px 0 0; font-size: 0.82rem; color: var(--ink-faint); font-weight: 600; }
+.chartcard__empty { margin: 0; color: var(--ink-faint); }
+.chartcard__tablewrap { margin-top: 14px; overflow-x: auto; }
+
+.chartlegend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 14px; font-size: 0.8rem; color: var(--ink-soft); font-weight: 600; }
+.chartlegend__item { display: inline-flex; align-items: center; gap: 6px; }
+.chartlegend__swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+/* Data table (also the accessible fallback for every chart) */
+.datatable { width: 100%; border-collapse: collapse; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.datatable th, .datatable td { padding: 7px 10px; text-align: start; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+.datatable th { font-size: 0.72rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+.datatable td { color: var(--ink-soft); }
+.datatable td:first-child { color: var(--ink); font-weight: 600; }
+.datatable tr:last-child td { border-bottom: none; }
+.datatable--decks td:first-child { white-space: normal; min-width: 160px; }
+
+/* ---- Column chart ---- */
+.colchart { display: flex; gap: 10px; }
+.colchart__yaxis {
+  flex: none; display: flex; flex-direction: column; justify-content: space-between;
+  font-size: 0.7rem; font-variant-numeric: tabular-nums; color: var(--ink-faint); text-align: end;
+}
+/* The axis labels mark the gridlines, so nudge them onto the same baseline. */
+.colchart__yaxis span { transform: translateY(-0.4em); }
+/* The plot scrolls sideways so a long range (a year of days) keeps readable
+   column widths instead of collapsing to hairlines. The bottom padding holds the
+   x-axis ticks: they're positioned out of flow (so they can't steal height from
+   the columns), and this keeps them inside the scroll container's visible area
+   rather than clipped by it. */
+.colchart__plot { position: relative; flex: 1; min-width: 0; overflow-x: auto; padding-bottom: 22px; }
+.colchart__grid { position: absolute; inset-inline: 0; top: 0; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+/* Hairline, solid, one step off the surface — recessive by design. */
+.colchart__grid i { display: block; height: 1px; background: var(--line-soft); }
+.colchart__cols { position: relative; display: flex; align-items: flex-end; gap: 2px; }
+.colchart__cols { min-width: 100%; }
+.colchart__col {
+  position: relative; flex: 1; min-width: 4px; height: 100%;
+  cursor: default; outline: none;
+}
+.colchart__stack {
+  display: flex; flex-direction: column-reverse; justify-content: flex-start;
+  gap: 2px; height: 100%;
+  /* Cap the mark thickness and let the leftover band be air. */
+  width: min(100%, 24px); margin: 0 auto;
+}
+.colchart__seg { display: block; min-height: 2px; transition: filter 0.12s; }
+.colchart__seg--top { border-radius: 4px 4px 0 0; }
+.colchart__col.is-hover .colchart__seg, .colchart__col:focus-visible .colchart__seg { filter: brightness(1.12); }
+.colchart__col:focus-visible .colchart__stack { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+.colchart__tick {
+  position: absolute; top: calc(100% + 6px); inset-inline-start: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem; color: var(--ink-faint); white-space: nowrap;
+}
+[dir="rtl"] .colchart__tick { transform: translateX(50%); }
+
+.charttip {
+  position: absolute; bottom: calc(100% + 8px); z-index: 5;
+  transform: translateX(-50%); pointer-events: none;
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 116px; padding: 9px 11px;
+  background: var(--ink); color: #fff; border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md); font-size: 0.78rem;
+}
+[dir="rtl"] .charttip { transform: translateX(50%); }
+.charttip__value { font-size: 1.05rem; font-weight: 800; line-height: 1.1; }
+.charttip__label { opacity: 0.72; }
+.charttip__row { display: flex; align-items: center; gap: 6px; }
+/* A short stroke, not a filled box — at tooltip density a box is too much ink. */
+.charttip__key { width: 10px; height: 2px; border-radius: 2px; flex: none; }
+.charttip__row b { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+.charttip__note { margin-top: 3px; opacity: 0.62; }
+
+/* ---- Horizontal bar rows ---- */
+.barrows { display: flex; flex-direction: column; gap: 10px; }
+.barrows__row { display: flex; align-items: center; gap: 10px; }
+.barrows__label { flex: none; width: 56px; font-size: 0.82rem; font-weight: 600; color: var(--ink-soft); }
+.barrows__track { flex: 1; min-width: 0; height: 12px; display: flex; align-items: center; }
+.barrows__fill { height: 12px; min-width: 2px; border-radius: 0 4px 4px 0; display: block; }
+[dir="rtl"] .barrows__fill { border-radius: 4px 0 0 4px; }
+.barrows__value { flex: none; min-width: 82px; text-align: end; font-size: 0.84rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.barrows__value em { display: inline-block; margin-inline-start: 6px; font-style: normal; font-weight: 600; color: var(--ink-faint); font-size: 0.78rem; }
+
+/* ---- Share (part-to-whole) bar ---- */
+.sharebar__track { display: flex; gap: 2px; height: 18px; border-radius: 5px; overflow: hidden; }
+.sharebar__seg { display: block; min-width: 3px; }
+.sharebar__seg--empty { flex: 1; background: var(--line-soft); }
+.sharebar__keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px 16px; margin: 16px 0 0; }
+.sharebar__key { min-width: 0; }
+.sharebar__key dt { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: var(--ink-soft); }
+.sharebar__key dd { margin: 2px 0 0 0; font-size: 1.05rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sharebar__key dd em { margin-inline-start: 5px; font-style: normal; font-size: 0.76rem; font-weight: 600; color: var(--ink-faint); }
+
+/* ---- Streak tiles inside a chart card ---- */
+.stats__streaks { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 14px 18px; margin-bottom: 18px; }
+
+/* ---- Toughest cards ---- */
+.leechlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.leechlist__row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+.leechlist__row:last-child { border-bottom: none; }
+.leechlist__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.leechlist__front { font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leechlist__back { font-size: 0.8rem; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leechlist__deck { flex: none; font-size: 0.76rem; color: var(--ink-faint); font-weight: 600; }
+.leechlist__lapses { flex: none; font-size: 0.78rem; font-weight: 700; color: var(--again); background: rgba(226, 59, 84, 0.1); padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.leechlist__tag { flex: none; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--hard); background: rgba(232, 151, 58, 0.14); padding: 2px 8px; border-radius: 999px; }
+
+/* Activity strip: message + link through to the full analysis */
+.activity__foot { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.activity__foot .activity__msg { margin: 0; }
+.activity__more { font-weight: 700; font-size: 0.86rem; white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .stats__grid { grid-template-columns: 1fr; }
+  .chartcard--wide { grid-column: auto; }
+}
+@media (max-width: 640px) {
+  .stats__head h1 { font-size: 1.4rem; }
+  .statshero { padding: 18px; gap: 16px; }
+  .statshero__value { font-size: 2.5rem; }
+  .statshero__tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chartcard { padding: 16px 14px 18px; }
+  .chartcard__head { flex-wrap: wrap; }
+  .barrows__label { width: 46px; font-size: 0.78rem; }
+  .barrows__value { min-width: 72px; }
+  .leechlist__row { flex-wrap: wrap; gap: 6px 10px; }
+  .leechlist__text { flex: 1 0 100%; }
+}
