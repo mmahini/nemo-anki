@@ -24,7 +24,7 @@ services:
     container_name: nemo-anki-backend
     restart: unless-stopped
     command: >
-      sh -c "python manage.py makemigrations accounts decks cards imports books &&
+      sh -c "python manage.py makemigrations accounts decks cards imports books subscriptions &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
     environment:

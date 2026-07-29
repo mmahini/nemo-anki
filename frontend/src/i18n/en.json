@@ -266,5 +266,32 @@
     "english": "English",
     "persian": "Persian",
     "other": "Other"
+  },
+  "subscription": {
+    "trial": "Trial — {{days}} days left",
+    "active": "Subscribed — {{days}} days left",
+    "expired": "Your subscription has ended",
+    "pendingBanner": "Payment under review",
+    "subscribe": "Subscribe",
+    "renew": "Renew",
+    "pageTitle": "Subscribe",
+    "pageSubtitle": "One subscription, all features. Choose a duration.",
+    "statusTrial": "You're on a free trial — {{days}} days left.",
+    "statusActive": "Your subscription is active — {{days}} days left.",
+    "statusExpired": "You don't have an active subscription right now.",
+    "statusPending": "We've received your payment note. An admin will verify it and activate your subscription within 24 hours.",
+    "choosePlan": "Choose a plan",
+    "payTitle": "Pay with crypto",
+    "payIntro": "Send the amount below to this wallet on the {{network}} network, then tap “I've paid”.",
+    "network": "Network",
+    "wallet": "Wallet address",
+    "amount": "Amount",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "paidBtn": "I've paid",
+    "submitting": "Submitting…",
+    "paidThanks": "Thanks! An admin will verify your payment and activate your subscription within 24 hours.",
+    "backToApp": "Back to app",
+    "selectPlanFirst": "Please choose a plan first."
   }
 }

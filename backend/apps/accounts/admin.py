@@ -11,7 +11,8 @@ class UserAdmin(DjangoUserAdmin):
     search_fields = ("email", "display_name")
     fieldsets = (
         (None, {"fields": ("email", "password")}),
-        ("Profile", {"fields": ("display_name",)}),
+        ("Profile", {"fields": ("display_name", "ui_language")}),
+        ("Feature flags", {"fields": ("feature_flags",)}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         ("Important dates", {"fields": ("last_login", "date_joined")}),
     )

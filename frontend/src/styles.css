@@ -1052,3 +1052,56 @@ kbd {
 [dir="rtl"] .decks__new {
   justify-content: flex-start;
 }
+
+/* ============================================================
+   Subscription — top banner + buy page
+   ============================================================ */
+.subbanner {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 8px 16px; font-size: 0.9rem; font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+.subbanner--trial { background: rgba(76, 110, 245, 0.10); color: var(--brand-dark); }
+.subbanner--active { background: rgba(31, 157, 87, 0.10); color: var(--good); }
+.subbanner--expired { background: rgba(226, 59, 84, 0.10); color: var(--again); }
+.subbanner--pending { background: rgba(232, 151, 58, 0.12); color: var(--hard); }
+.subbanner__cta {
+  text-decoration: none; font-weight: 700; white-space: nowrap;
+  padding: 4px 14px; border-radius: 999px;
+  background: var(--brand); color: #fff;
+}
+.subbanner__cta:hover { background: var(--brand-dark); }
+
+.subscribe { max-width: 720px; margin: 0 auto; padding: 24px 20px 64px; }
+.subscribe h1 { margin: 0 0 4px; }
+.subscribe__sub { color: var(--ink-soft); margin: 0 0 20px; }
+.subscribe__status { border-radius: var(--radius); padding: 12px 16px; font-weight: 600; margin-bottom: 24px; }
+.subscribe__status--trial { background: rgba(76, 110, 245, 0.10); color: var(--brand-dark); }
+.subscribe__status--active { background: rgba(31, 157, 87, 0.10); color: var(--good); }
+.subscribe__status--expired { background: rgba(226, 59, 84, 0.10); color: var(--again); }
+.subscribe__status--pending { background: rgba(232, 151, 58, 0.12); color: var(--hard); }
+.subscribe__h2 { font-size: 1.15rem; margin: 0 0 12px; }
+.subscribe__plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+@media (max-width: 560px) { .subscribe__plans { grid-template-columns: 1fr; } }
+.plancard {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 22px 12px; border: 2px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); cursor: pointer; font: inherit; color: var(--ink);
+  transition: border-color 0.15s, background 0.15s;
+}
+.plancard:hover { border-color: var(--ink-faint); }
+.plancard--on { border-color: var(--brand); background: rgba(76, 110, 245, 0.06); }
+.plancard__price { font-size: 1.6rem; font-weight: 800; }
+.plancard__label { color: var(--ink-soft); font-weight: 600; }
+.subscribe__payintro { margin-top: 0; color: var(--ink-soft); line-height: 1.6; }
+.subscribe__payrow { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+.subscribe__wallet { margin: 16px 0; }
+.subscribe__walletlabel { display: block; font-size: 0.78rem; color: var(--ink-faint); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.subscribe__walletrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.subscribe__addr {
+  flex: 1; min-width: 0; word-break: break-all;
+  font-family: var(--mono); font-size: 0.9rem;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px;
+}
+.subscribe__thanks { text-align: center; font-weight: 600; color: var(--good); }
+.subscribe__back { display: inline-block; margin-top: 20px; color: var(--ink-soft); }

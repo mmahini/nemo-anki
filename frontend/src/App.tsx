@@ -18,6 +18,7 @@ import Study from "./pages/Study";
 import StudyCard from "./pages/StudyCard";
 import Writing from "./pages/Writing";
 import Conversation from "./pages/Conversation";
+import Subscribe from "./pages/Subscribe";
 import BackendStatus from "./components/BackendStatus";
 
 // Emit a Wiser CDP pageview on every route change (no-op unless the pixel is configured).
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="/app/import" element={<ImportPage />} />
               <Route path="/app/write" element={<Writing />} />
               <Route path="/app/conversation" element={<Conversation />} />
+              <Route path="/app/subscribe" element={<Subscribe />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
