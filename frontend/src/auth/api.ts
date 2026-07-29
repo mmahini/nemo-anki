@@ -177,6 +177,8 @@ export type AuthUser = {
   display_name: string;
   ui_language: "en" | "fa";
   date_joined: string;
+  /** Feature flags this user holds (see lib/features.ts). */
+  feature_flags: string[];
 };
 
 export type RequestOtpResponse = {

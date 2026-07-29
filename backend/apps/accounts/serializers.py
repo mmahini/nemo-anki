@@ -13,7 +13,14 @@ class VerifyOTPSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    # Effective flags (includes implicit superuser flags). Read-only — a user
+    # must never be able to grant themselves a flag via PATCH /api/me.
+    feature_flags = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "email", "display_name", "ui_language", "date_joined"]
-        read_only_fields = ["id", "email", "date_joined"]
+        fields = ["id", "email", "display_name", "ui_language", "date_joined", "feature_flags"]
+        read_only_fields = ["id", "email", "date_joined", "feature_flags"]
+
+    def get_feature_flags(self, obj) -> list[str]:
+        return obj.effective_flags

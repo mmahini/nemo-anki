@@ -50,6 +50,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     ui_language = models.CharField(max_length=4, choices=UI_LANGUAGE_CHOICES, default="en")
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    # Per-user feature flags — a list of capability strings (see
+    # accounts.feature_flags). Editable in the Django admin; gate features with
+    # `user.has_flag(...)` rather than reading this directly.
+    feature_flags = models.JSONField(default=list, blank=True)
     date_joined = models.DateTimeField(default=timezone.now)
 
     USERNAME_FIELD = "email"
@@ -59,6 +63,20 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self) -> str:
         return self.email
+
+    @property
+    def effective_flags(self) -> list[str]:
+        """Flags this user actually holds — stored flags plus every flag for a
+        superuser (so an admin is never locked out of a gated feature)."""
+        from .feature_flags import ALL_FLAGS, clean
+
+        flags = set(clean(self.feature_flags))
+        if self.is_superuser:
+            flags |= ALL_FLAGS
+        return sorted(flags)
+
+    def has_flag(self, flag: str) -> bool:
+        return flag in self.effective_flags
 
 
 def _generate_otp_code() -> str:
