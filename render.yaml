@@ -29,7 +29,7 @@ services:
       - key: DJANGO_ALLOWED_HOSTS
         value: nemo-anki-backend.onrender.com
       - key: CORS_ALLOWED_ORIGINS
-        value: https://nemo-anki.vercel.app,https://nemo-anki-frontend.onrender.com
+        value: https://anki.nemoapps.xyz,https://nemo-anki.vercel.app,https://nemo-anki-frontend.onrender.com
       - key: CSRF_TRUSTED_ORIGINS
         value: https://nemo-anki-backend.onrender.com
       # Shared Postgres with the other mmahini projects — sync: false so the
@@ -83,6 +83,12 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     autoDeploy: true
+    # Canonical user-facing domain. DNS: a CNAME record anki -> the service's
+    # onrender.com host, kept DNS-only (not Cloudflare-proxied) so Render
+    # manages the TLS cert directly. Render provisions the cert once the
+    # blueprint is applied and DNS resolves.
+    domains:
+      - anki.nemoapps.xyz
     # SPA fallback: serve index.html for client-side routes. Render serves a
     # real built file first when one exists at the path, so hashed assets and
     # the PWA files (sw.js, manifest.webmanifest, icons) are unaffected.
