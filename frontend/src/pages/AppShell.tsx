@@ -58,11 +58,14 @@ const NAV = [
 function AiUsageChip() {
   const { sub } = useSubscription();
   const { t } = useTranslation();
-  if (!sub || sub.ai_limit == null) return null;
-  const over = sub.ai_used >= sub.ai_limit;
+  if (!sub) return null;
+  const unlimited = sub.ai_limit == null;
+  const over = !unlimited && sub.ai_used >= (sub.ai_limit ?? 0);
   return (
     <span className={`shell__usage ${over ? "shell__usage--over" : ""}`} title={t("subscription.usageTitle")}>
-      {t("subscription.usage", { used: sub.ai_used, limit: sub.ai_limit })}
+      {unlimited
+        ? t("subscription.usageUnlimited", { used: sub.ai_used })
+        : t("subscription.usage", { used: sub.ai_used, limit: sub.ai_limit })}
     </span>
   );
 }
@@ -82,8 +85,10 @@ export default function AppShell() {
               </NavLink>
             ))}
           </nav>
-          <AiUsageChip />
-          <UserMenu />
+          <div className="shell__account">
+            <AiUsageChip />
+            <UserMenu />
+          </div>
         </header>
 
         <SubscriptionBanner />

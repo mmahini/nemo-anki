@@ -42,14 +42,14 @@ class AiQuotaMixin:
 
 
 def consume_ai_quota(user) -> None:
-    """Count one AI action against today's window; raise 429 when over limit."""
+    """Count one AI action against today's window; raise 429 when over a finite
+    limit. Usage is always counted (so it can be shown), including for staff who
+    have no limit (None) and are never blocked."""
     limit = daily_limit(user)
-    if limit is None:
-        return  # unlimited (staff)
     today = timezone.now().date()
     with transaction.atomic():
         usage, _ = AiUsage.objects.select_for_update().get_or_create(user=user, day=today)
-        if usage.count >= limit:
+        if limit is not None and usage.count >= limit:
             raise Throttled(
                 detail=(
                     f"You've reached today's AI limit ({limit}). It resets tomorrow — "

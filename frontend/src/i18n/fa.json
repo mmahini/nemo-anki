@@ -277,6 +277,7 @@
     "tierBasic": "پایه",
     "tierPro": "پرو",
     "usage": "AI: {{used}} / {{limit}} امروز",
+    "usageUnlimited": "AI: {{used}} امروز",
     "usageTitle": "مصرف هوش مصنوعی امروز (روزانه صفر می‌شود)",
     "tierLimit": "{{limit}} عملیات هوش مصنوعی در روز",
     "perDay": "{{limit}} AI در روز",
