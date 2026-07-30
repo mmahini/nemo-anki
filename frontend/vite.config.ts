@@ -11,6 +11,11 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: "autoUpdate",
+        // We register the service worker ourselves (src/pwa.ts) so we can also
+        // poll for updates while the app stays open — installed PWAs (desktop/
+        // Android) are often left running for a long time, and a plain SW only
+        // checks for updates on navigation.
+        injectRegister: null,
         includeAssets: ["cards.svg", "favicon.ico", "apple-touch-icon-180x180.png"],
         manifest: {
           name: "Nemo Anki",
