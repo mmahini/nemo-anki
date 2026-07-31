@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { fetchCardForReview, updateCard, type Card, type DraftCard } from "../auth/api";
 import CardEditor, { cardToDraft } from "./CardEditor";
@@ -15,6 +16,7 @@ export default function CardEditModal({
   onClose: () => void;
   onSaved: (updated: Card) => void;
 }) {
+  const { t } = useTranslation();
   const [state, setState] = useState<Card>(card);
   const [draft, setDraft] = useState<DraftCard>(() => cardToDraft(card));
   const [busy, setBusy] = useState(false);
@@ -36,7 +38,7 @@ export default function CardEditModal({
       onSaved(updated);
       onClose();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Couldn't save the card.");
+      setErr(e instanceof Error ? e.message : t("cardEditor.errSave"));
     } finally {
       setBusy(false);
     }
@@ -46,8 +48,8 @@ export default function CardEditModal({
     <div className="lessonview" onClick={onClose}>
       <div className="lessonview__card editmodal" onClick={(e) => e.stopPropagation()}>
         <div className="lessonview__head">
-          <strong>Edit card</strong>
-          <button className="btn btn--ghost btn--sm" onClick={onClose}>Close</button>
+          <strong>{t("cardEditor.editTitle")}</strong>
+          <button className="btn btn--ghost btn--sm" onClick={onClose}>{t("common.close")}</button>
         </div>
         <div className="editmodal__body">
           <CardEditor value={draft} onChange={setDraft} />
@@ -55,9 +57,9 @@ export default function CardEditModal({
           {err && <p className="auth__error">{err}</p>}
         </div>
         <div className="editmodal__foot">
-          <button className="btn btn--ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn--ghost" onClick={onClose}>{t("common.cancel")}</button>
           <button className="btn btn--primary" disabled={busy} onClick={save}>
-            {busy ? "Saving…" : "Save"}
+            {busy ? t("common.saving") : t("common.save")}
           </button>
         </div>
       </div>

@@ -1173,6 +1173,16 @@ kbd {
    an ancestor was forced LTR (the app bar does that). */
 [dir="rtl"] .modal__panel { direction: rtl; }
 
+/* The blanket `[dir="rtl"] h1, p { text-align: right }` above out-specifies the
+   welcome step's own centring, so restate it here. The onboarding card is
+   centre-aligned in both languages by design — it's a single column of short
+   lines under a portrait, and ragged-right would pull it off the character. */
+[dir="rtl"] .wstep__title,
+[dir="rtl"] .wstep__lede,
+[dir="rtl"] .wstep__note { text-align: center; }
+/* Feature rows stay start-aligned — they're list items, not centred copy. */
+[dir="rtl"] .wfeature__body { text-align: right; }
+
 /* ============================================================
    Subscription — top banner + buy page
    ============================================================ */
@@ -1696,4 +1706,118 @@ kbd {
   .activity__more { order: 4; }
   .decks__actions { flex: 1; }
   .decks__actions .btn { flex: 1; justify-content: center; }
+}
+
+/* ============================================================
+   Welcome / onboarding  (Welcome.tsx)
+   ============================================================ */
+.welcome {
+  min-height: 100%; display: grid; place-items: center;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(760px 420px at 50% -8%, rgba(76, 110, 245, 0.10), transparent 70%),
+    var(--bg);
+}
+.welcome__card {
+  width: min(560px, 100%);
+  display: flex; flex-direction: column; gap: 18px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+  padding: 28px 30px 26px;
+}
+.welcome__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.welcome__actions .btn--primary { min-width: 140px; justify-content: center; }
+
+/* Progress dots */
+.wprogress { display: flex; justify-content: center; gap: 6px; }
+.wprogress__dot {
+  width: 26px; height: 4px; border-radius: 999px;
+  background: var(--line); transition: background 0.25s ease;
+}
+.wprogress__dot.is-done { background: var(--brand); }
+
+/* The character. Circular — which also crops the source image's corner mark. */
+.nemo {
+  display: block; margin: 0 auto; border-radius: 50%;
+  background: var(--line-soft);
+  box-shadow: 0 8px 26px rgba(20, 28, 46, 0.16);
+}
+
+.wstep { display: flex; flex-direction: column; gap: 12px; text-align: center; }
+.wstep__title { margin: 6px 0 0; font-size: 1.5rem; line-height: 1.25; text-align: center; }
+.wstep__lede { margin: 0; color: var(--ink-soft); line-height: 1.65; text-align: center; }
+.wstep__note { margin: 2px 0 0; color: var(--ink-faint); font-size: 0.88rem; line-height: 1.6; text-align: center; }
+
+/* Language step: bilingual, so each line stacks its two languages. The stacked
+   spans are flex items, so they need align-items — text-align alone can't
+   centre them. */
+.wstep--lang .wstep__title,
+.wstep--lang .wstep__lede { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.wstep--lang .wstep__title span:last-child { font-size: 1.25rem; color: var(--ink-soft); }
+.wstep--lang .wstep__lede span:last-child { font-size: 0.95rem; }
+.wlangs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
+.wlang {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 18px 12px; border: 2px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;
+  transition: border-color 0.14s, background 0.14s, transform 0.06s;
+}
+.wlang:hover { border-color: var(--brand); background: rgba(76, 110, 245, 0.05); }
+.wlang:active { transform: translateY(1px); }
+.wlang__name { font-size: 1.2rem; font-weight: 800; }
+.wlang__note { font-size: 0.82rem; color: var(--ink-faint); font-weight: 600; }
+
+.wname { width: 100%; text-align: center; font-size: 1.1rem; padding: 13px 16px; }
+
+/* Deck + card illustration */
+.wdemo { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.wdemo__deck {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.wdemo__deckname { font-weight: 700; }
+.wdemo__deckmeta { font-size: 0.8rem; color: var(--ink-faint); font-weight: 600; }
+.wdemo__card {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 18px 14px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--shadow-sm);
+}
+.wdemo__cardface { font-size: 1.25rem; font-weight: 700; color: var(--art-der); }
+.wdemo__carddiv { display: block; width: 40px; height: 1px; background: var(--line); }
+.wdemo__cardback { color: var(--ink-soft); }
+
+/* Grade chips — same colours as the real review buttons, so the mapping is
+   already learned by the time they reach a card. */
+.wgrades { display: flex; gap: 8px; margin-top: 2px; }
+.wgrade {
+  flex: 1; padding: 10px 6px; border-radius: var(--radius-sm);
+  font-size: 0.86rem; font-weight: 700; color: #fff;
+}
+.wgrade--again { background: var(--again); }
+.wgrade--hard { background: var(--hard); }
+.wgrade--good { background: var(--good); }
+.wgrade--easy { background: var(--easy); }
+
+/* Feature tour */
+.wfeatures { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.wfeature { display: flex; align-items: flex-start; gap: 12px; text-align: start; }
+.wfeature__icon {
+  flex: none; display: grid; place-items: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(76, 110, 245, 0.10); color: var(--brand-dark);
+  font-size: 0.95rem; font-weight: 700;
+}
+.wfeature__title { display: block; font-size: 0.95rem; }
+.wfeature__body { display: block; color: var(--ink-soft); font-size: 0.88rem; line-height: 1.55; }
+
+@media (max-width: 560px) {
+  .welcome { padding: 16px 12px calc(16px + env(safe-area-inset-bottom)); }
+  .welcome__card { padding: 22px 18px 20px; border-radius: var(--radius); }
+  .wstep__title { font-size: 1.3rem; }
+  .wlangs { grid-template-columns: 1fr; gap: 10px; }
+  .wgrades { flex-wrap: wrap; }
+  .wgrade { flex: 1 0 calc(50% - 4px); }
+  .welcome__actions .btn { flex: 1; justify-content: center; }
+  .welcome__actions .btn--primary { min-width: 0; }
 }

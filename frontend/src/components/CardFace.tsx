@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import type { Card, DraftCard } from "../auth/api";
 import { articleClass, articlePillClass, articleLabel } from "../lib/article";
 import CaseTable from "./CaseTable";
@@ -21,6 +23,7 @@ function cardLang(card: AnyCard): string {
 /** The article-tinted term (German word) with its gender pill + audio. Used as
  * the prompt on forward vocab and as the answer on reverse vocab. */
 function TermReveal({ card }: { card: AnyCard }) {
+  const { t } = useTranslation();
   const tint = card.article !== "none" ? articleClass(card.article) : "";
   return (
     <>
@@ -29,7 +32,7 @@ function TermReveal({ card }: { card: AnyCard }) {
       )}
       <div className="face__termrow">
         <div className={`face__term ${tint}`}>{card.front}</div>
-        <SpeakButton text={card.front} lang={cardLang(card)} title="Hear the word" />
+        <SpeakButton text={card.front} lang={cardLang(card)} title={t("cardEditor.hearWord")} />
         <PronunciationCheck text={card.front} lang={cardLang(card)} />
       </div>
     </>
@@ -39,6 +42,7 @@ function TermReveal({ card }: { card: AnyCard }) {
 /** The front of a card (the recall prompt). Article-tinted for German nouns.
  * On a reverse vocab card the prompt is the meaning instead of the term. */
 export function CardFront({ card }: { card: AnyCard }) {
+  const { t } = useTranslation();
   const isVocab = card.card_type === "vocab";
 
   // Reverse vocab: prompt with the meaning, recall the (tinted) word.
@@ -69,7 +73,7 @@ export function CardFront({ card }: { card: AnyCard }) {
             <GermanText text={card.front} lang={cardLang(card)} genders={card.genders} />
           )}
         </div>
-        <SpeakButton text={card.front} lang={cardLang(card)} title="Hear the word" />
+        <SpeakButton text={card.front} lang={cardLang(card)} title={t("cardEditor.hearWord")} />
         <PronunciationCheck text={card.front} lang={cardLang(card)} />
       </div>
       {card.card_type === "grammar" && card.notes && (
@@ -82,6 +86,7 @@ export function CardFront({ card }: { card: AnyCard }) {
 /** The back of a card: answer + reading + example (+ grammar table/notes).
  * On a reverse vocab card the answer is the tinted term itself. */
 export function CardBack({ card }: { card: AnyCard }) {
+  const { t } = useTranslation();
   const isReverseVocab = card.card_type === "vocab" && cardDirection(card) === "reverse";
   return (
     <div className="face face--back">
@@ -93,7 +98,7 @@ export function CardBack({ card }: { card: AnyCard }) {
       {card.reading && (
         <div className="face__readingrow">
           <span className="face__reading">/{card.reading}/</span>
-          <SpeakButton text={card.front} lang={cardLang(card)} small title="Hear pronunciation" />
+          <SpeakButton text={card.front} lang={cardLang(card)} small title={t("cardEditor.hearPronunciation")} />
         </div>
       )}
       {"images" in card && card.images && card.images.length > 0 && (
@@ -106,7 +111,7 @@ export function CardBack({ card }: { card: AnyCard }) {
       {card.card_type === "vocab" && card.plural && (
         <div className="face__plural">
           plural: <span className="art-plural">{card.plural}</span>
-          <SpeakButton text={card.plural} lang={cardLang(card)} small title="Hear the plural" />
+          <SpeakButton text={card.plural} lang={cardLang(card)} small title={t("cardEditor.hearPlural")} />
         </div>
       )}
       {card.notes && <div className="face__notes">{card.notes}</div>}
@@ -122,7 +127,7 @@ export function CardBack({ card }: { card: AnyCard }) {
           <div className="face__example">
             <GermanText text={card.example} lang={cardLang(card)} />
           </div>
-          <SpeakButton text={card.example} lang={cardLang(card)} small title="Hear the example" />
+          <SpeakButton text={card.example} lang={cardLang(card)} small title={t("cardEditor.hearExample")} />
         </div>
       )}
       {card.tags.length > 0 && (

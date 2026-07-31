@@ -252,7 +252,7 @@ export default function Decks() {
                     <div className="deckmenu-wrap">
                       <button
                         className="btn btn--ghost btn--sm deckmenu-btn"
-                        aria-label="More actions"
+                        aria-label={t("decks.moreActions")}
                         onClick={(e) => {
                           if (openMenu === d.id) return setOpenMenu(null);
                           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();

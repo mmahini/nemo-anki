@@ -213,6 +213,8 @@ export type AuthUser = {
   feature_flags: string[];
   /** Subscription status for the top-of-page banner. */
   subscription: SubscriptionSummary;
+  /** Has the welcome flow been completed? False routes into /welcome. */
+  onboarded: boolean;
 };
 
 export type RequestOtpResponse = {
@@ -337,7 +339,9 @@ export function fetchMe(): Promise<AuthUser> {
   return jsonRequest<AuthUser>("/api/me", { method: "GET" });
 }
 
-export function updateMe(payload: Partial<Pick<AuthUser, "display_name" | "ui_language">>): Promise<AuthUser> {
+export function updateMe(
+  payload: Partial<Pick<AuthUser, "display_name" | "ui_language" | "onboarded">>,
+): Promise<AuthUser> {
   return jsonRequest<AuthUser>("/api/me", {
     method: "PATCH",
     body: JSON.stringify(payload),

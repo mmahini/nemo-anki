@@ -8,7 +8,8 @@
     "signOut": "Sign out",
     "stats": "Performance",
     "practice": "Practice",
-    "quiz": "Quiz"
+    "quiz": "Quiz",
+    "howItWorks": "How it works"
   },
   "signIn": {
     "title": "Sign in to Nemo Anki",
@@ -23,7 +24,14 @@
     "codeLabel": "Code",
     "verifyBtn": "Verify",
     "verifying": "Verifying…",
-    "backBtn": "← Use a different email"
+    "backBtn": "← Use a different email",
+    "sub": "We've emailed a 5-digit code to {{email}}. Check your inbox (and spam), then enter it below.",
+    "subNoEmail": "We've emailed you a 5-digit code. Check your inbox (and spam), then enter it below.",
+    "subDev": "We generated a 5-digit code for {{email}}.",
+    "subDevNoEmail": "We generated a 5-digit code.",
+    "devLabel": "DEV — your code is",
+    "devNote": "No email key is configured here, so we're showing it for local testing.",
+    "failed": "Verification failed."
   },
   "decks": {
     "title": "Your decks",
@@ -61,7 +69,8 @@
     "creating": "Creating…",
     "addSubdeck": "＋ Add sub-deck",
     "importBtn": "↓ Import",
-    "placementTestBtn": "🎓 Quiz"
+    "placementTestBtn": "🎓 Quiz",
+    "moreActions": "More actions"
   },
   "import": {
     "title": "Import",
@@ -200,7 +209,11 @@
     "reviewBtn": "▶ Review",
     "prevBtn": "← Prev",
     "nextBtn": "Next →",
-    "pageInfo": "Page {{page}} of {{total}}"
+    "pageInfo": "Page {{page}} of {{total}}",
+    "bothWaysTitle": "Reviewed both ways (term ⇄ meaning), tracked separately",
+    "colouriseCardTitle": "Colourise this card (German article / noun genders)",
+    "nothingToColour": "Nothing to colour — the cards are already coloured, or no German nouns were found.",
+    "autotypeTitle": "Check every card and set its type automatically from its content"
   },
   "activity": {
     "dayStreak": "day streak",
@@ -285,7 +298,16 @@
     "closeBtn": "Close",
     "noVocab": "No vocab yet.",
     "sharedBy": "shared by {{email}}",
-    "lessons": "lessons"
+    "lessons": "lessons",
+    "setWhere": "Set where",
+    "startPageShort": "Start page",
+    "pagesPerUnitShort": "Pages/unit",
+    "unitPlaceholder": "Unit",
+    "openLessonTitle": "Open the PDF + vocabulary for review",
+    "fixPagesTitle": "Fix this lesson's pages",
+    "notSplitHint": "This book hasn't been split yet — slice the PDF into one sub-PDF per lesson.",
+    "splitHint": "Set where the first unit starts and how many pages each spans",
+    "lessonFixHint": "Set where {{title}} really starts. “This lesson” fixes only it;"
   },
   "conversation": {
     "micBtn": "Speak",
@@ -322,7 +344,10 @@
     "persian": "Persian",
     "other": "Other",
     "close": "Close",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "listen": "Listen",
+    "save": "Save",
+    "saving": "Saving…"
   },
   "subscription": {
     "trial": "Trial — {{days}} days left",
@@ -453,5 +478,85 @@
     "sourceLabel": "Text source",
     "readEmpty": "Get a passage, then read it aloud.",
     "typeHint": "Type a message in {{lang}} to get started."
+  },
+  "welcome": {
+    "nameTitle": "What should I call you?",
+    "nameLede": "A first name is plenty — it's only used to say hello.",
+    "namePlaceholder": "Your first name",
+    "decksTitle": "Here's the idea",
+    "decksTitleNamed": "Good to meet you, {{name}}",
+    "decksLede": "A card is one thing you're learning — a word, a phrase, a grammar rule. A deck is a folder of cards, and decks can sit inside other decks.",
+    "demoDeckMeta": "12 new · 3 due",
+    "demoCardBack": "the table",
+    "decksNote": "Vocabulary is studied both ways — shown the word, and shown the meaning.",
+    "reviewTitle": "You only review what you're about to forget",
+    "reviewLede": "I show you a card, you try to answer, then you tell me how it went:",
+    "reviewNote": "Again brings it back soon. Easy makes it wait longer. That's spaced repetition — it keeps the daily work small and the memory fresh.",
+    "tourTitle": "There's more than flashcards",
+    "tourLede": "Whenever you want it:",
+    "featImportTitle": "Import",
+    "featImportBody": "Paste a word list or bring an Anki deck — the cards get built for you.",
+    "featBooksTitle": "Books",
+    "featBooksBody": "Upload a coursebook PDF and pull the vocabulary out of each lesson.",
+    "featPracticeTitle": "Practice",
+    "featPracticeBody": "Write, speak out loud, or read a passage — and get corrected.",
+    "featStatsTitle": "Performance",
+    "featStatsBody": "Streaks, how much is sticking, and what's coming due.",
+    "back": "Back",
+    "next": "Next",
+    "start": "Start learning",
+    "saving": "Setting up…"
+  },
+  "cardEditor": {
+    "articleTitle": "German article (colour-coded)",
+    "colourGendersTitle": "Detect each noun's true gender and colour the sentence accurately",
+    "analysing": "Analysing…",
+    "coloured": "🎨 {{count}} coloured",
+    "colourGenders": "🎨 Colour genders",
+    "backLangTitle": "Translate the back into this language",
+    "translateTitle": "Auto-translate + fill reading/article",
+    "translating": "Translating…",
+    "translate": "🌐 Translate",
+    "promptLabel": "Prompt (use ___ for the gap)",
+    "frontLabel": "Front",
+    "frontPlaceholder": "e.g. der Tisch — the article is detected",
+    "hearFront": "Hear the front",
+    "answerLabel": "Answer (fills the gap)",
+    "backLabel": "Back / translation",
+    "readingLabel": "Reading (phonetic)",
+    "hearPronunciation": "Hear pronunciation",
+    "pluralLabel": "Plural",
+    "pluralPlaceholder": "e.g. die Tische",
+    "hearPlural": "Hear the plural",
+    "conjugationsLabel": "Conjugations",
+    "fillConjTitle": "Fill the verb's forms for each tense with AI",
+    "filling": "Filling…",
+    "fillConj": "🪄 Fill conjugations",
+    "tense": "Tense",
+    "form": "Form",
+    "meaning": "Meaning",
+    "hearForm": "Hear this form",
+    "removeRow": "Remove this row",
+    "addRow": "+ Add row",
+    "exampleLabel": "Example",
+    "examplePlaceholder": "One example per line",
+    "hearExample": "Hear the example",
+    "notesLabel": "Rule / notes",
+    "tagsLabel": "Tags (comma-separated)",
+    "errTranslate": "Translation failed.",
+    "errAnalysis": "Analysis failed.",
+    "errConjugate": "Couldn't conjugate the verb.",
+    "hearWord": "Hear the word",
+    "photosLabel": "Photos (shown on the answer)",
+    "noImageFound": "No image found.",
+    "articleColumn": "Article",
+    "editTitle": "Edit card",
+    "errSave": "Couldn't save the card."
+  },
+  "review": {
+    "colourise": "Colourise (German article / genders)",
+    "findImage": "Find an image",
+    "editCard": "Edit this card",
+    "spaceKey": "Space"
   }
 }

@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { addCardImage, deleteCardImage, findCardImage, type Card } from "../auth/api";
 
 /** Manage a card's photos (shown on the answer side during review). `onChange`
  * is called after any change so the parent can refresh the card. */
 export default function CardImages({ card, onChange }: { card: Card; onChange: () => void }) {
+  const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const images = card.images ?? [];
@@ -42,7 +44,7 @@ export default function CardImages({ card, onChange }: { card: Card; onChange: (
       await findCardImage(card.id);
       onChange();
     } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : "No image found.");
+      setErr(e2 instanceof Error ? e2.message : t("cardEditor.noImageFound"));
     } finally {
       setBusy(false);
     }
@@ -51,7 +53,7 @@ export default function CardImages({ card, onChange }: { card: Card; onChange: (
   return (
     <div className="cardimages">
       <span className="cardimages__label">
-        Photos (shown on the answer)
+        {t("cardEditor.photosLabel")}
         <button type="button" className="btn btn--ghost btn--sm cardimages__find" disabled={busy} onClick={autoFind}>
           {images.length ? "🔄 Regenerate image" : "🔍 Find image"}
         </button>

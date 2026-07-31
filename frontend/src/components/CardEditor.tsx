@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   analyzeGerman,
@@ -62,6 +63,7 @@ type Props = {
 };
 
 export default function CardEditor({ value, onChange, compact }: Props) {
+  const { t } = useTranslation();
   const [translating, setTranslating] = useState(false);
   const [translateErr, setTranslateErr] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -114,7 +116,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
         example: isSentence ? "" : r.example || value.example,
       });
     } catch (err) {
-      setTranslateErr(err instanceof Error ? err.message : "Translate failed.");
+      setTranslateErr(err instanceof Error ? err.message : t("cardEditor.errTranslate"));
     } finally {
       setTranslating(false);
     }
@@ -128,7 +130,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
       const r = await analyzeGerman(value.front.trim());
       onChange({ ...value, genders: r.nouns });
     } catch (err) {
-      setTranslateErr(err instanceof Error ? err.message : "Analysis failed.");
+      setTranslateErr(err instanceof Error ? err.message : t("cardEditor.errAnalysis"));
     } finally {
       setAnalyzing(false);
     }
@@ -151,7 +153,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
         back: value.back || r.back,
       });
     } catch (err) {
-      setTranslateErr(err instanceof Error ? err.message : "Couldn't conjugate the verb.");
+      setTranslateErr(err instanceof Error ? err.message : t("cardEditor.errConjugate"));
     } finally {
       setConjugating(false);
     }
@@ -180,7 +182,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
             className={`input input--sm art-select art-select--${value.article}`}
             value={value.article}
             onChange={(e) => set("article", e.target.value as Article)}
-            title="German article (colour-coded)"
+            title={t("cardEditor.articleTitle")}
           >
             {ARTICLES.map((a) => (
               <option key={a} value={a}>{a}</option>
@@ -194,16 +196,16 @@ export default function CardEditor({ value, onChange, compact }: Props) {
               className="btn btn--ghost btn--sm"
               onClick={colourGenders}
               disabled={analyzing || !value.front.trim()}
-              title="Detect each noun's true gender and colour the sentence accurately"
+              title={t("cardEditor.colourGendersTitle")}
             >
               {analyzing
-                ? "Analysing…"
+                ? t("cardEditor.analysing")
                 : value.genders.length
-                  ? `🎨 ${value.genders.length} coloured`
-                  : "🎨 Colour genders"}
+                  ? t("cardEditor.coloured", { count: value.genders.length })
+                  : t("cardEditor.colourGenders")}
             </button>
           )}
-          <div className="translate-group" title="Translate the back into this language">
+          <div className="translate-group" title={t("cardEditor.backLangTitle")}>
             <select
               className="input input--sm translate-group__lang"
               value={backLang}
@@ -221,16 +223,16 @@ export default function CardEditor({ value, onChange, compact }: Props) {
               className="btn btn--ghost btn--sm translate-group__btn"
               onClick={translate}
               disabled={translating || !value.front.trim()}
-              title="Auto-translate + fill reading/article"
+              title={t("cardEditor.translateTitle")}
             >
-              {translating ? "Translating…" : "🌐 Translate"}
+              {translating ? t("cardEditor.translating") : t("cardEditor.translate")}
             </button>
           </div>
         </div>
       </div>
 
       <label className="cardeditor__field">
-        <span>{value.card_type === "grammar" ? "Prompt (use ___ for the gap)" : "Front"}</span>
+        <span>{t(value.card_type === "grammar" ? "cardEditor.promptLabel" : "cardEditor.frontLabel")}</span>
         <div className="cardeditor__inline cardeditor__inline--top">
           <textarea
             className="input cardeditor__text"
@@ -238,9 +240,9 @@ export default function CardEditor({ value, onChange, compact }: Props) {
             value={value.front}
             onChange={(e) => onFrontChange(e.target.value)}
             onBlur={onFrontBlur}
-            placeholder={showArticle ? "e.g. der Tisch — article is detected" : ""}
+            placeholder={showArticle ? t("cardEditor.frontPlaceholder") : ""}
           />
-          <SpeakButton text={value.front} lang={value.language} title="Hear the front" />
+          <SpeakButton text={value.front} lang={value.language} title={t("cardEditor.hearFront")} />
         </div>
         {showColourGenders && value.genders.length > 0 && (
           <div className="cardeditor__cases">
@@ -250,13 +252,13 @@ export default function CardEditor({ value, onChange, compact }: Props) {
       </label>
 
       <label className="cardeditor__field">
-        <span>{value.card_type === "grammar" ? "Answer (fills the gap)" : "Back / translation"}</span>
+        <span>{t(value.card_type === "grammar" ? "cardEditor.answerLabel" : "cardEditor.backLabel")}</span>
         <textarea className="input cardeditor__text" rows={2} dir="auto" value={value.back} onChange={(e) => set("back", e.target.value)} />
       </label>
 
       {hasReading && (
         <label className="cardeditor__field">
-          <span>Reading (phonetic)</span>
+          <span>{t("cardEditor.readingLabel")}</span>
           <div className="cardeditor__inline">
             <input
               className="input mono"
@@ -264,22 +266,22 @@ export default function CardEditor({ value, onChange, compact }: Props) {
               onChange={(e) => set("reading", e.target.value)}
               placeholder="/ˈtɪʃ/"
             />
-            <SpeakButton text={value.front} lang={value.language} title="Hear pronunciation" />
+            <SpeakButton text={value.front} lang={value.language} title={t("cardEditor.hearPronunciation")} />
           </div>
         </label>
       )}
 
       {value.card_type === "vocab" && (
         <label className="cardeditor__field">
-          <span>Plural</span>
+          <span>{t("cardEditor.pluralLabel")}</span>
           <div className="cardeditor__inline">
             <input
               className="input"
               value={value.plural}
               onChange={(e) => set("plural", e.target.value)}
-              placeholder="e.g. die Tische"
+              placeholder={t("cardEditor.pluralPlaceholder")}
             />
-            <SpeakButton text={value.plural} lang={value.language} title="Hear the plural" />
+            <SpeakButton text={value.plural} lang={value.language} title={t("cardEditor.hearPlural")} />
           </div>
         </label>
       )}
@@ -291,15 +293,15 @@ export default function CardEditor({ value, onChange, compact }: Props) {
           {isVerb && (
             <div className="cardeditor__field">
               <div className="cardeditor__conjhead">
-                <span>Conjugations</span>
+                <span>{t("cardEditor.conjugationsLabel")}</span>
                 <button
                   type="button"
                   className="btn btn--ghost btn--sm"
                   onClick={fillConjugations}
                   disabled={conjugating || !value.front.trim()}
-                  title="Fill the verb's forms for each tense/situation with AI"
+                  title={t("cardEditor.fillConjTitle")}
                 >
-                  {conjugating ? "Filling…" : "🪄 Fill conjugations"}
+                  {conjugating ? t("cardEditor.filling") : t("cardEditor.fillConj")}
                 </button>
               </div>
               {value.conjugations.length > 0 && (
@@ -310,30 +312,30 @@ export default function CardEditor({ value, onChange, compact }: Props) {
                         className="input input--sm conjeditor__tense"
                         value={row.tense}
                         onChange={(e) => updateConjRow(i, "tense", e.target.value)}
-                        placeholder="Tense"
+                        placeholder={t("cardEditor.tense")}
                       />
                       <div className="conjeditor__form">
                         <input
                           className="input input--sm"
                           value={row.form}
                           onChange={(e) => updateConjRow(i, "form", e.target.value)}
-                          placeholder="Form"
+                          placeholder={t("cardEditor.form")}
                         />
-                        <SpeakButton text={row.form} lang={value.language} small title="Hear this form" />
+                        <SpeakButton text={row.form} lang={value.language} small title={t("cardEditor.hearForm")} />
                       </div>
                       <input
                         className="input input--sm conjeditor__meaning"
                         dir="auto"
                         value={row.meaning}
                         onChange={(e) => updateConjRow(i, "meaning", e.target.value)}
-                        placeholder="Meaning"
+                        placeholder={t("cardEditor.meaning")}
                       />
                       <button
                         type="button"
                         className="conjeditor__del"
                         onClick={() => removeConjRow(i)}
-                        title="Remove this row"
-                        aria-label="Remove row"
+                        title={t("cardEditor.removeRow")}
+                        aria-label={t("cardEditor.removeRow")}
                       >
                         ✕
                       </button>
@@ -342,14 +344,14 @@ export default function CardEditor({ value, onChange, compact }: Props) {
                 </div>
               )}
               <button type="button" className="btn btn--ghost btn--sm conjeditor__add" onClick={addConjRow}>
-                + Add row
+                {t("cardEditor.addRow")}
               </button>
             </div>
           )}
           {/* A sentence card is itself the example — no separate Example field. */}
           {!isSentence && (
             <label className="cardeditor__field">
-              <span>Example</span>
+              <span>{t("cardEditor.exampleLabel")}</span>
               <div className="cardeditor__inline cardeditor__inline--top">
                 <textarea
                   className="input cardeditor__text"
@@ -357,20 +359,20 @@ export default function CardEditor({ value, onChange, compact }: Props) {
                   dir="auto"
                   value={value.example}
                   onChange={(e) => set("example", e.target.value)}
-                  placeholder="One example per line"
+                  placeholder={t("cardEditor.examplePlaceholder")}
                 />
-                <SpeakButton text={value.example} lang={value.language} title="Hear the example" />
+                <SpeakButton text={value.example} lang={value.language} title={t("cardEditor.hearExample")} />
               </div>
             </label>
           )}
           {value.card_type === "grammar" && (
             <label className="cardeditor__field">
-              <span>Rule / notes</span>
+              <span>{t("cardEditor.notesLabel")}</span>
               <input className="input" value={value.notes} onChange={(e) => set("notes", e.target.value)} />
             </label>
           )}
           <label className="cardeditor__field">
-            <span>Tags (comma-separated)</span>
+            <span>{t("cardEditor.tagsLabel")}</span>
             <input
               className="input"
               value={value.tags.join(", ")}
