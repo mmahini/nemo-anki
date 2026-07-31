@@ -930,3 +930,48 @@ export function fetchSupportThread(): Promise<SupportThread> {
 export function sendSupportMessage(body: string): Promise<SupportThread> {
   return jsonRequest("/api/support/thread/", { method: "POST", body: JSON.stringify({ body }) });
 }
+
+// ====== Placement Test ======
+
+export type PlacementLevel = "A1" | "A2" | "B1" | "B2" | "C1";
+
+export type PlacementQuestion = {
+  id: number;
+  order: number;
+  section: "reading" | "listening";
+  level_tag: PlacementLevel;
+  /** Reading: shown up front. Listening: "" — only read aloud via speak(). */
+  passage: string;
+  audio_text: string;
+  question_text: string;
+  choices: string[];
+};
+
+export type StartPlacementResult = { attempt_id: number; questions: PlacementQuestion[] };
+
+export function startPlacementTest(
+  language: "de" | "en",
+  length: "quick" | "full",
+): Promise<StartPlacementResult> {
+  return jsonRequest<StartPlacementResult>("/api/placement/start/", {
+    method: "POST",
+    body: JSON.stringify({ language, length }),
+  });
+}
+
+export type PlacementResult = {
+  estimated_level: PlacementLevel;
+  correct_count: number;
+  total_count: number;
+  by_level: Record<PlacementLevel, { correct: number; total: number }>;
+};
+
+export function submitPlacementTest(
+  attemptId: number,
+  answers: { question_id: number; choice_index: number }[],
+): Promise<PlacementResult> {
+  return jsonRequest<PlacementResult>(`/api/placement/${attemptId}/submit/`, {
+    method: "POST",
+    body: JSON.stringify({ answers }),
+  });
+}
