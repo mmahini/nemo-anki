@@ -7,6 +7,7 @@ import LandingPage from "./components/LandingPage";
 import ProtectedRoute from "./pages/ProtectedRoute";
 import SignIn from "./pages/SignIn";
 import Verify from "./pages/Verify";
+import Welcome from "./pages/Welcome";
 import AppShell from "./pages/AppShell";
 import Decks from "./pages/Decks";
 import Stats from "./pages/Stats";
@@ -46,6 +47,9 @@ export default function App() {
           <Route path="/auth/sign-in" element={<SignIn />} />
           <Route path="/auth/verify" element={<Verify />} />
           <Route element={<ProtectedRoute />}>
+            {/* First-run walkthrough: full-screen, no nav — there's nothing to
+                navigate to until it's done. */}
+            <Route path="/welcome" element={<Welcome />} />
             {/* Study runs full-screen, outside the shell chrome. */}
             <Route path="/app/study/:deckId" element={<Study />} />
             <Route path="/app/study/card/:cardId" element={<StudyCard />} />

@@ -204,9 +204,9 @@ export default function Study() {
       ) : (
         <div className="study__stage">
           <div className="cardtools">
-            <button className="cardtools__btn" title="Colourise (German article / genders)" disabled={cardBusy} onClick={colourise}>🎨</button>
-            <button className="cardtools__btn" title="Find an image" disabled={cardBusy} onClick={findImage}>🖼️</button>
-            <button className="cardtools__btn" title="Edit this card" onClick={() => setEditing(true)}>✎</button>
+            <button className="cardtools__btn" title={t("review.colourise")} disabled={cardBusy} onClick={colourise}>🎨</button>
+            <button className="cardtools__btn" title={t("review.findImage")} disabled={cardBusy} onClick={findImage}>🖼️</button>
+            <button className="cardtools__btn" title={t("review.editCard")} onClick={() => setEditing(true)}>✎</button>
           </div>
           <div className={`reviewcard ${flipped ? "is-flipped" : ""}`}>
             <CardFront card={current} />
@@ -216,7 +216,7 @@ export default function Study() {
 
           {!flipped ? (
             <button className="btn btn--primary btn--lg study__show" onClick={() => setFlipped(true)}>
-              {t("study.showAnswer")} <kbd>Space</kbd>
+              {t("study.showAnswer")} <kbd>{t("review.spaceKey")}</kbd>
             </button>
           ) : (
             <div className="grades">

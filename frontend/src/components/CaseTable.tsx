@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import type { NounGender } from "../auth/api";
 import { articleClass } from "../lib/article";
 
@@ -7,6 +9,7 @@ import { articleClass } from "../lib/article";
  * applies. Populated by the "Colour genders" analysis.
  */
 export default function CaseTable({ items }: { items: NounGender[] }) {
+  const { t } = useTranslation();
   const rows = items.filter((n) => n.case || n.article);
   if (!rows.length) return null;
   return (
@@ -14,7 +17,7 @@ export default function CaseTable({ items }: { items: NounGender[] }) {
       <thead>
         <tr>
           <th>Word</th>
-          <th>Article</th>
+          <th>{t("cardEditor.articleColumn")}</th>
           <th>Case</th>
           <th>Why</th>
         </tr>

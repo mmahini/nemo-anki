@@ -14,7 +14,9 @@ class UserAdmin(DjangoUserAdmin):
         ("Profile", {"fields": ("display_name", "ui_language")}),
         ("Feature flags", {"fields": ("feature_flags",)}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
-        ("Important dates", {"fields": ("last_login", "date_joined")}),
+        # Clearing onboarded_at sends this user back through the welcome flow —
+        # handy for re-testing it against a real account.
+        ("Important dates", {"fields": ("last_login", "date_joined", "onboarded_at")}),
     )
     add_fieldsets = (
         (None, {"classes": ("wide",), "fields": ("email", "password1", "password2")}),
