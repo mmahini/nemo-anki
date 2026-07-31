@@ -37,9 +37,11 @@ export default function Verify() {
         { access: r.access, refresh: r.refresh, user: r.user },
         { isNewUser: r.is_new_user },
       );
-      navigate("/app", { replace: true });
+      // Straight into the walkthrough for a brand-new account, so there's no
+      // flash of the deck list before ProtectedRoute bounces them there.
+      navigate(r.user.onboarded ? "/app" : "/welcome", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Verification failed.");
+      setError(err instanceof Error ? err.message : t("verify.failed"));
     } finally {
       setSubmitting(false);
     }
@@ -51,17 +53,19 @@ export default function Verify() {
         <h1>{t("verify.title")}</h1>
         <p className="auth__sub">
           {state.devCode
-            ? `We generated a 5-digit code${state.email ? ` for ${state.email}` : ""}.`
-            : `We've emailed a 5-digit code${state.email ? ` to ${state.email}` : ""}. Check your inbox (and spam) and enter it below.`}
+            ? state.email
+              ? t("verify.subDev", { email: state.email })
+              : t("verify.subDevNoEmail")
+            : state.email
+              ? t("verify.sub", { email: state.email })
+              : t("verify.subNoEmail")}
         </p>
 
         {state.devCode && (
           <div className="dev-banner" role="status">
-            <span className="dev-banner__label">DEV — your code is</span>
+            <span className="dev-banner__label">{t("verify.devLabel")}</span>
             <span className="dev-banner__code">{state.devCode}</span>
-            <span className="dev-banner__note">
-              No email key configured here, so we&apos;re showing it for local testing.
-            </span>
+            <span className="dev-banner__note">{t("verify.devNote")}</span>
           </div>
         )}
 

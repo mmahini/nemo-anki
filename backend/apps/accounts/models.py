@@ -54,6 +54,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     # accounts.feature_flags). Editable in the Django admin; gate features with
     # `user.has_flag(...)` rather than reading this directly.
     feature_flags = models.JSONField(default=list, blank=True)
+    # When the welcome flow was completed. Null means "still needs onboarding",
+    # which is what routes a fresh account into it. A timestamp rather than a
+    # boolean so we can tell *when* someone joined the flow as it changes.
+    onboarded_at = models.DateTimeField(null=True, blank=True)
     date_joined = models.DateTimeField(default=timezone.now)
 
     USERNAME_FIELD = "email"

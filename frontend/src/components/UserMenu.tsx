@@ -38,7 +38,8 @@ export default function UserMenu() {
     refreshUser().catch(() => {});
   }
 
-  const initial = (user?.email?.[0] ?? "?").toUpperCase();
+  // Prefer the name they gave during onboarding; fall back to the email.
+  const initial = (user?.display_name?.trim()?.[0] || user?.email?.[0] || "?").toUpperCase();
   const subTone = sub?.pending ? "pending" : sub?.state ?? "expired";
   const tierLabel = sub?.tier === "pro" ? t("subscription.tierPro") : t("subscription.tierBasic");
   const subLabel = sub?.pending
@@ -78,6 +79,15 @@ export default function UserMenu() {
             >
               <span className="usermenu__itemlabel">{t("nav.subscription")}</span>
               <span className={`usermenu__badge usermenu__badge--${subTone}`}>{subLabel}</span>
+            </Link>
+
+            <Link
+              to="/welcome"
+              className="usermenu__item"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+            >
+              {t("nav.howItWorks")}
             </Link>
 
             <Link

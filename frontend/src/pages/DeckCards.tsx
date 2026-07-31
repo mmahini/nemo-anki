@@ -191,7 +191,7 @@ export default function DeckCards() {
       setColourMsg(
         total
           ? `🎨 Coloured ${total} card(s) — articles for vocab, noun genders for sentences.`
-          : "Nothing to colour — cards already coloured, or no German nouns detected.",
+          : t("deckCards.nothingToColour"),
       );
       await load();
     } catch (e) {
@@ -254,7 +254,7 @@ export default function DeckCards() {
           <div className="typepanel__bar">
             <strong>{t("deckCards.cardTypes")}</strong>
             <div className="typepanel__tools">
-              <button className="btn btn--primary btn--sm" onClick={autoDetectTypes} disabled={autoBusy} title="Check every card and set its type automatically from its content">
+              <button className="btn btn--primary btn--sm" onClick={autoDetectTypes} disabled={autoBusy} title={t("deckCards.autotypeTitle")}>
                 {autoBusy ? t("deckCards.detecting") : t("deckCards.autoDetect")}
               </button>
               <label className="typepanel__all">
@@ -308,7 +308,7 @@ export default function DeckCards() {
               ) : (
                 <div className="cardrow__view" onClick={() => startEdit(c)}>
                   <span className="badge">{c.card_type}</span>
-                  {c.has_reverse && <span className="badge badge--rev" title="Reviewed both ways (term ⇄ meaning), tracked separately">⇄</span>}
+                  {c.has_reverse && <span className="badge badge--rev" title={t("deckCards.bothWaysTitle")}>⇄</span>}
                   {(c.images?.length ?? 0) > 0 && (
                     <img className="cardrow__thumb" src={c.images![0].url} alt="" title={`${c.images!.length} photo(s)`} />
                   )}
@@ -340,7 +340,7 @@ export default function DeckCards() {
                   )}
                   <button
                     className="cardrow__colour"
-                    title="Colourise this card (German article / noun genders)"
+                    title={t("deckCards.colouriseCardTitle")}
                     disabled={colourCard === c.id}
                     onClick={(e) => {
                       e.stopPropagation();

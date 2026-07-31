@@ -282,15 +282,15 @@ export default function BookPage() {
                 <form className="booksplit__form" onSubmit={doSplit}>
                   <span className="books__hint">
                     {book.lessons.length === 0
-                      ? "This book hasn't been split yet — slice the PDF into one sub-PDF per lesson."
+                      ? t("bookPage.notSplitHint")
                       : "Split another range into lessons — only the units in From–To are (re)created; your other lessons stay."}{" "}
-                    Set where the first unit starts and how many pages each spans
+                    {t("bookPage.splitHint")}
                     (leave pages/unit blank to divide evenly across the range).
                   </span>
                   <div className="books__row">
                     <label className="cardeditor__field">
                       <span>{t("bookPage.lessonLabel")}</span>
-                      <input className="input" list="lesson-labels" value={split.label} onChange={(e) => setSplit({ ...split, label: e.target.value })} placeholder="Unit" />
+                      <input className="input" list="lesson-labels" value={split.label} onChange={(e) => setSplit({ ...split, label: e.target.value })} placeholder={t("bookPage.unitPlaceholder")} />
                       <datalist id="lesson-labels">
                         <option value="Unit" /><option value="Lesson" /><option value="Lektion" /><option value="Kapitel" /><option value="Chapter" />
                       </datalist>
@@ -334,12 +334,12 @@ export default function BookPage() {
                   </span>
                 )}
                 {l.processed && (
-                  <button className="bookblock__count bookblock__count--link" disabled={loadingLesson === l.id} onClick={() => openLesson(l)} title="Open PDF + vocab for review">
+                  <button className="bookblock__count bookblock__count--link" disabled={loadingLesson === l.id} onClick={() => openLesson(l)} title={t("bookPage.openLessonTitle")}>
                     {loadingLesson === l.id ? "…" : `${l.card_count} vocab ›`}
                   </button>
                 )}
                 {owner && book.has_pdf && (
-                  <button className="btn btn--ghost btn--sm" onClick={() => toggleLessonRegen(l)} title="Fix this lesson's pages">{t("bookPage.reSplit")}</button>
+                  <button className="btn btn--ghost btn--sm" onClick={() => toggleLessonRegen(l)} title={t("bookPage.fixPagesTitle")}>{t("bookPage.reSplit")}</button>
                 )}
                 <button className="btn btn--ghost btn--sm" disabled={loadingLesson === l.id} onClick={() => openLesson(l)}>
                   {loadingLesson === l.id ? "…" : t("bookPage.viewBtn")}
@@ -353,12 +353,12 @@ export default function BookPage() {
               {owner && regenLessonId === l.id && (
                 <div className="bookblock__lessonregen">
                   <span className="books__hint">
-                    Set where <strong>{l.title}</strong> really starts. "This lesson" fixes only it;
+                    {t("bookPage.lessonFixHint", { title: l.title })}
                     "From here → end" re-splits this and every later lesson with the same page size.
                   </span>
                   <div className="bookblock__regenrow">
-                    <label>Start page<input className="input input--sm" type="number" min={1} value={regenL.start} onChange={(e) => setRegenL({ ...regenL, start: e.target.value })} /></label>
-                    <label>Pages/unit<input className="input input--sm" type="number" min={1} value={regenL.ppu} onChange={(e) => setRegenL({ ...regenL, ppu: e.target.value })} placeholder="even" /></label>
+                    <label>{t("bookPage.startPageShort")}<input className="input input--sm" type="number" min={1} value={regenL.start} onChange={(e) => setRegenL({ ...regenL, start: e.target.value })} /></label>
+                    <label>{t("bookPage.pagesPerUnitShort")}<input className="input input--sm" type="number" min={1} value={regenL.ppu} onChange={(e) => setRegenL({ ...regenL, ppu: e.target.value })} placeholder="even" /></label>
                     <button className="btn btn--primary btn--sm" disabled={regenerating} onClick={() => doLessonRegen(l, false)}>{regenerating ? "…" : "This lesson"}</button>
                     <button className="btn btn--primary btn--sm" disabled={regenerating} onClick={() => doLessonRegen(l, true)}>{regenerating ? "…" : "From here → end"}</button>
                     <button className="btn btn--ghost btn--sm" onClick={() => setRegenLessonId(null)}>{t("bookPage.cancelSplit")}</button>
