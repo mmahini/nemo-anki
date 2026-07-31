@@ -1,5 +1,10 @@
+import datetime
+
 from django.contrib.auth import get_user_model
+from django.db.models import F
+from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 User = get_user_model()
@@ -60,3 +65,45 @@ class MeOnboardingTests(APITestCase):
     def test_requires_authentication(self):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get(self.url).status_code, 401)
+
+
+class OnboardingBackfillQueryTests(TestCase):
+    """Migration 0006 resets the accounts migration 0005 had grandfathered, and
+    tells them apart by `onboarded_at == date_joined` — the exact stamp 0005
+    wrote. Getting that predicate wrong would either miss existing users or wipe
+    a real completion, so it's pinned here rather than only living in a migration.
+    """
+
+    QUERY = {"onboarded_at": F("date_joined")}
+
+    def _user(self, email, *, joined_days_ago, onboarded_at="same"):
+        user = User.objects.create_user(email=email)
+        joined = timezone.now() - datetime.timedelta(days=joined_days_ago)
+        stamp = joined if onboarded_at == "same" else onboarded_at
+        User.objects.filter(pk=user.pk).update(date_joined=joined, onboarded_at=stamp)
+        return user
+
+    def test_resets_only_the_grandfathered_accounts(self):
+        # Stamped by 0005 with its own date_joined.
+        grandfathered = self._user("old@example.com", joined_days_ago=30)
+        # Actually walked the flow: stamped with "now", never equal to date_joined.
+        completed = self._user("done@example.com", joined_days_ago=2, onboarded_at=timezone.now())
+        # Signed up after 0005 and still waiting — already NULL.
+        pending = self._user("new@example.com", joined_days_ago=0, onboarded_at=None)
+
+        reset = User.objects.filter(**self.QUERY).update(onboarded_at=None)
+
+        self.assertEqual(reset, 1)
+        grandfathered.refresh_from_db()
+        completed.refresh_from_db()
+        pending.refresh_from_db()
+        self.assertIsNone(grandfathered.onboarded_at, "existing user should see the intro")
+        self.assertIsNotNone(completed.onboarded_at, "a real completion must survive")
+        self.assertIsNone(pending.onboarded_at)
+
+    def test_is_idempotent(self):
+        self._user("old@example.com", joined_days_ago=30)
+        self.assertEqual(User.objects.filter(**self.QUERY).update(onboarded_at=None), 1)
+        # Re-running (a replayed migration, a re-deploy) must not reset anyone
+        # who has since finished the flow.
+        self.assertEqual(User.objects.filter(**self.QUERY).update(onboarded_at=None), 0)
