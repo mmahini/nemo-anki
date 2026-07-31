@@ -8,6 +8,7 @@
     "signOut": "Sign out",
     "stats": "Performance",
     "practice": "Practice",
+    "quiz": "Quiz",
     "howItWorks": "How it works"
   },
   "signIn": {
@@ -68,6 +69,7 @@
     "creating": "Creating…",
     "addSubdeck": "＋ Add sub-deck",
     "importBtn": "↓ Import",
+    "placementTestBtn": "🎓 Quiz",
     "moreActions": "More actions"
   },
   "import": {
@@ -118,7 +120,10 @@
     "again": "Again",
     "hard": "Hard",
     "good": "Good",
-    "easy": "Easy"
+    "easy": "Easy",
+    "pronounceHint": "Say it out loud",
+    "pronounceCorrect": "✓ Nice pronunciation!",
+    "pronounceWrong": "✗ Not quite — try again"
   },
   "studyCard": {
     "backBtn": "← Deck",
@@ -226,6 +231,41 @@
     "doneToday": "Reviewed today — keep it going.",
     "keepStreak": "Don't break the streak — a few cards is enough.",
     "startToday": "Study a deck to start a streak."
+  },
+  "dashboard": {
+    "studyTitle": "What to study today",
+    "studySub": "{{new}} new · {{learning}} learning · {{due}} due",
+    "studyBtn": "▶ Start studying",
+    "allDoneTitle": "All reviews done for today 🎉",
+    "goalTitle": "Today's goal",
+    "goalCount": "{{done}} / {{goal}} cards",
+    "continueBtn": "Continue studying",
+    "nextTitle": "What's next",
+    "nextDeckSub": "{{count}} cards left",
+    "nextDone": "Nothing left for today — come back tomorrow",
+    "viewStats": "Full stats ←"
+  },
+  "placementTest": {
+    "backBtn": "← Decks",
+    "title": "Placement Test",
+    "description": "Answer a few original Reading and Listening questions (AI-generated, not from a real exam) to get an estimated level.",
+    "languageLabel": "Language",
+    "lengthLabel": "Test length",
+    "lengthQuick": "Quick (10 questions)",
+    "lengthFull": "Full (20 questions)",
+    "startBtn": "Start test",
+    "starting": "Generating questions…",
+    "progress": "Question {{current}} of {{total}}",
+    "section": {
+      "reading": "Reading",
+      "listening": "Listening"
+    },
+    "playAgain": "Play again",
+    "nextBtn": "Next →",
+    "finishBtn": "Finish test",
+    "resultTitle": "Your estimated level",
+    "resultScore": "{{correct}} of {{total}} correct",
+    "backToDecks": "Back to decks"
   },
   "bookPage": {
     "backBtn": "← Books",

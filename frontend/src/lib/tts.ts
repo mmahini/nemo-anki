@@ -11,6 +11,8 @@
  * browser exposes one (Chrome ships "Google Deutsch" etc.).
  */
 
+import { stopActiveListening } from "./audioLock";
+
 const GOOGLE_TTS_MAX = 200;
 
 export function canSpeak(): boolean {
@@ -21,7 +23,8 @@ function hasWebSpeech(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
 
-function bcp47(lang: string): string {
+/** BCP-47 language tag for Web Speech APIs (both synthesis and recognition). */
+export function bcp47(lang: string): string {
   if (lang === "de") return "de-DE";
   if (lang === "en") return "en-US";
   return "";
@@ -65,6 +68,12 @@ function chunk(text: string, max = GOOGLE_TTS_MAX): string[] {
 let currentAudio: HTMLAudioElement | null = null;
 let playToken = 0;
 
+/** Stop any in-flight speak() playback — call before starting the mic so the
+ * pronunciation check can't hear the TTS's own voice through the speakers. */
+export function stopSpeaking(): void {
+  stopAll();
+}
+
 function stopAll(): void {
   playToken += 1;
   if (currentAudio) {
@@ -100,6 +109,7 @@ function webSpeak(text: string, lang: string): void {
 export function speak(text: string, lang: string): void {
   text = (text || "").trim();
   if (!canSpeak() || !text) return;
+  stopActiveListening(); // don't let an open mic hear this playback and misjudge it
   stopAll();
 
   const tl = ttsLang(lang);

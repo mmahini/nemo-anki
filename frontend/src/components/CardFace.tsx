@@ -6,6 +6,7 @@ import CaseTable from "./CaseTable";
 import ConjTable from "./ConjTable";
 import GermanText from "./GermanText";
 import GrammarTable from "./GrammarTable";
+import PronunciationCheck from "./PronunciationCheck";
 import SpeakButton from "./SpeakButton";
 
 type AnyCard = Card | DraftCard;
@@ -32,6 +33,7 @@ function TermReveal({ card }: { card: AnyCard }) {
       <div className="face__termrow">
         <div className={`face__term ${tint}`}>{card.front}</div>
         <SpeakButton text={card.front} lang={cardLang(card)} title={t("cardEditor.hearWord")} />
+        <PronunciationCheck text={card.front} lang={cardLang(card)} />
       </div>
     </>
   );
@@ -72,6 +74,7 @@ export function CardFront({ card }: { card: AnyCard }) {
           )}
         </div>
         <SpeakButton text={card.front} lang={cardLang(card)} title={t("cardEditor.hearWord")} />
+        <PronunciationCheck text={card.front} lang={cardLang(card)} />
       </div>
       {card.card_type === "grammar" && card.notes && (
         <div className="face__hint">complete the sentence</div>

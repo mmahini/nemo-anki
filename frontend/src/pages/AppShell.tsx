@@ -39,16 +39,25 @@ function IconStats() {
     </svg>
   );
 }
+function IconQuiz() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 3l9 4.5-9 4.5-9-4.5L12 3z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M6 10.5V15c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.5" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
-/* Four destinations, so the labels fit and the mobile tab bar can breathe.
-   Import moved to a button on the deck list (that's where you already are when
+/* Import moved to a button on the deck list (that's where you already are when
    you want to add cards), Support to the account menu, and Writing +
-   Conversation merged into Practice. */
+   Conversation merged into Practice. Quiz (the placement test) is its own
+   destination — a full-screen flow, not a Practice tab. */
 const NAV = [
   { to: "/app", end: true, key: "nav.decks", Icon: IconDecks },
   { to: "/app/stats", end: false, key: "nav.stats", Icon: IconStats },
   { to: "/app/books", end: false, key: "nav.books", Icon: IconBooks },
   { to: "/app/practice", end: false, key: "nav.practice", Icon: IconPractice },
+  { to: "/app/placement-test", end: false, key: "nav.quiz", Icon: IconQuiz },
 ] as const;
 
 function AiUsageChip() {

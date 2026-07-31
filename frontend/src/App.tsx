@@ -18,6 +18,7 @@ import Books from "./pages/Books";
 import BookPage from "./pages/BookPage";
 import Study from "./pages/Study";
 import StudyCard from "./pages/StudyCard";
+import PlacementTest from "./pages/PlacementTest";
 import Practice from "./pages/Practice";
 import Support from "./pages/Support";
 import Subscribe from "./pages/Subscribe";
@@ -53,6 +54,7 @@ export default function App() {
             {/* Study runs full-screen, outside the shell chrome. */}
             <Route path="/app/study/:deckId" element={<Study />} />
             <Route path="/app/study/card/:cardId" element={<StudyCard />} />
+            <Route path="/app/placement-test" element={<PlacementTest />} />
             <Route element={<AppShell />}>
               <Route path="/app" element={<Decks />} />
               <Route path="/app/stats" element={<Stats />} />

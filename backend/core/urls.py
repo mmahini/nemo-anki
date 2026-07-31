@@ -19,6 +19,7 @@ urlpatterns = [
     path("api/", include("apps.books.urls")),
     path("api/", include("apps.subscriptions.urls")),
     path("api/", include("apps.support.urls")),
+    path("api/", include("apps.placement.urls")),
 ]
 
 if settings.DEBUG:

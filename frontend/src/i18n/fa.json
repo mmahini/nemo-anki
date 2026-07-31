@@ -8,6 +8,7 @@
     "signOut": "خروج",
     "stats": "عملکرد",
     "practice": "تمرین",
+    "quiz": "کوییز",
     "howItWorks": "راهنمای شروع"
   },
   "signIn": {
@@ -68,6 +69,7 @@
     "creating": "در حال ساختن…",
     "addSubdeck": "＋ افزودن زیردسته",
     "importBtn": "↓ وارد کردن",
+    "placementTestBtn": "🎓 کوییز",
     "moreActions": "کارهای بیشتر"
   },
   "import": {
@@ -118,7 +120,10 @@
     "again": "دوباره",
     "hard": "سخت",
     "good": "خوب",
-    "easy": "آسان"
+    "easy": "آسان",
+    "pronounceHint": "با صدای بلند تلفظ کنید",
+    "pronounceCorrect": "✓ تلفظ خوبی بود!",
+    "pronounceWrong": "✗ درست نبود — دوباره امتحان کنید"
   },
   "studyCard": {
     "backBtn": "→ دسته",
@@ -226,6 +231,41 @@
     "doneToday": "امروز مرور کردی — همین‌طور ادامه بده.",
     "keepStreak": "زنجیره را نشکن — چند کارت کافی است.",
     "startToday": "یک دسته مطالعه کن تا زنجیره‌ات شروع شود."
+  },
+  "dashboard": {
+    "studyTitle": "امروز چی بخونم",
+    "studySub": "{{new}} جدید · {{learning}} یادگیری · {{due}} مرور",
+    "studyBtn": "▶ شروع مطالعه",
+    "allDoneTitle": "همه‌ی مرورهای امروز تموم شد 🎉",
+    "goalTitle": "هدف امروز",
+    "goalCount": "{{done}} / {{goal}} کارت",
+    "continueBtn": "ادامه‌ی مطالعه",
+    "nextTitle": "بعدش چی کار کنم",
+    "nextDeckSub": "{{count}} کارت مونده",
+    "nextDone": "چیزی برای امروز نمونده — فردا برگرد",
+    "viewStats": "تحلیل کامل ←"
+  },
+  "placementTest": {
+    "backBtn": "→ دسته‌ها",
+    "title": "آزمون تعیین سطح",
+    "description": "چند سؤال Reading و Listening اورجینال (تولیدشده با هوش مصنوعی، نه از امتحان واقعی) جواب بده تا سطح تقریبی‌ات مشخص بشه.",
+    "languageLabel": "زبان",
+    "lengthLabel": "طول آزمون",
+    "lengthQuick": "سریع (۱۰ سؤال)",
+    "lengthFull": "کامل (۲۰ سؤال)",
+    "startBtn": "شروع آزمون",
+    "starting": "در حال ساختن سؤالات…",
+    "progress": "سؤال {{current}} از {{total}}",
+    "section": {
+      "reading": "Reading",
+      "listening": "Listening"
+    },
+    "playAgain": "پخش دوباره",
+    "nextBtn": "بعدی ←",
+    "finishBtn": "پایان آزمون",
+    "resultTitle": "سطح تخمینی‌ات",
+    "resultScore": "{{correct}} از {{total}} سؤال درست",
+    "backToDecks": "بازگشت به دسته‌ها"
   },
   "bookPage": {
     "backBtn": "→ کتاب‌ها",
