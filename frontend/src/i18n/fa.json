@@ -173,6 +173,7 @@
   },
   "books": {
     "title": "کتاب‌ها",
+    "backBtn": "→ خانه",
     "bookTitle": "عنوان کتاب",
     "bookTitlePlaceholder": "مثلاً Oxford Word Skills Intermediate",
     "bookLanguage": "زبان کتاب",
@@ -361,6 +362,7 @@
   },
   "support": {
     "title": "پشتیبانی",
+    "backBtn": "→ خانه",
     "subtitle": "سوالی داری یا به مشکلی خورده‌ای؟ همین‌جا بپرس — پشتیبانی در اولین فرصت جواب می‌دهد.",
     "emptyHint": "پیامت را بفرست تا در اسرع وقت جواب بدهیم.",
     "inputPlaceholder": "سوالت را بنویس…",

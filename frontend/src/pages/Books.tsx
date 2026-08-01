@@ -111,7 +111,12 @@ export default function Books() {
 
   return (
     <div className="books">
-      <h1>{t("books.title")}</h1>
+      <div className="books__head">
+        <h1>{t("books.title")}</h1>
+        <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app")}>
+          {t("books.backBtn")}
+        </button>
+      </div>
 
       {canManage && (
       <form className="books__upload panel" onSubmit={onUpload}>

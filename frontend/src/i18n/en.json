@@ -173,6 +173,7 @@
   },
   "books": {
     "title": "Books",
+    "backBtn": "← Home",
     "bookTitle": "Book title",
     "bookTitlePlaceholder": "e.g. Oxford Word Skills Intermediate",
     "bookLanguage": "Book language",
@@ -361,6 +362,7 @@
   },
   "support": {
     "title": "Support",
+    "backBtn": "← Home",
     "subtitle": "Have a question or ran into a problem? Ask here — our team will reply as soon as they can.",
     "emptyHint": "Send us a message and we'll get back to you.",
     "inputPlaceholder": "Type your question…",

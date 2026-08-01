@@ -161,9 +161,6 @@ export default function Stats() {
         <h1>{t("stats.title")}</h1>
         <p className="stats__sub">{t("stats.subtitle")}</p>
       </div>
-      <Link className="btn btn--ghost btn--sm" to="/app/decks">
-        {t("decks.backBtn")}
-      </Link>
     </div>
   );
 

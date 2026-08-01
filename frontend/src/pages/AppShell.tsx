@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import InviteButton from "../components/InviteButton";
@@ -75,12 +75,25 @@ function AiUsageChip() {
   );
 }
 
+/* The five top-level destinations. Only these show the mobile bottom tab bar;
+   anything deeper (deck cards, a book, import, support…) is a sub-page that
+   hides the bar and offers its own back button instead. Practice keeps the bar
+   across its tabs — they're a segmented control, not deeper navigation. */
+const MAIN_ROUTES = [
+  /^\/app\/?$/,
+  /^\/app\/decks\/?$/,
+  /^\/app\/stats\/?$/,
+  /^\/app\/practice(\/[\w-]+)?\/?$/,
+];
+
 export default function AppShell() {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
+  const isMain = MAIN_ROUTES.some((re) => re.test(pathname));
 
   return (
     <SubscriptionProvider>
-      <div className="shell">
+      <div className={`shell${isMain ? "" : " shell--subpage"}`}>
         <header className="shell__bar">
           <Link to="/app" className="shell__brand">Nemo&nbsp;Anki</Link>
           <nav className="shell__nav">
@@ -103,15 +116,17 @@ export default function AppShell() {
           <Outlet />
         </main>
 
-        {/* Mobile bottom tab bar (hidden on desktop via CSS). */}
-        <nav className="shell__tabbar">
-          {NAV.map(({ to, end, key, Icon }) => (
-            <NavLink key={to} to={to} end={end} className="tabbar__link">
-              <span className="tabbar__icon"><Icon /></span>
-              <span className="tabbar__label">{t(key)}</span>
-            </NavLink>
-          ))}
-        </nav>
+        {/* Mobile bottom tab bar (hidden on desktop via CSS) — main pages only. */}
+        {isMain && (
+          <nav className="shell__tabbar">
+            {NAV.map(({ to, end, key, Icon }) => (
+              <NavLink key={to} to={to} end={end} className="tabbar__link">
+                <span className="tabbar__icon"><Icon /></span>
+                <span className="tabbar__label">{t(key)}</span>
+              </NavLink>
+            ))}
+          </nav>
+        )}
       </div>
     </SubscriptionProvider>
   );

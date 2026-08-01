@@ -855,6 +855,9 @@ kbd {
 
 /* Support */
 .support__header { display: flex; align-items: center; gap: 14px; margin: 0 0 4px; }
+.support__back { margin-inline-start: auto; flex: none; }
+.books__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.books__head h1 { margin: 0; }
 .support__badge {
   display: flex; align-items: center; justify-content: center;
   width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0;
@@ -1367,6 +1370,8 @@ kbd {
   }
   /* leave room so content never hides behind the floating bar */
   .shell__main { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+  /* Sub-pages have no tab bar (they carry a back button instead), so no gap. */
+  .shell--subpage .shell__main { padding-bottom: 24px; }
 
   /* Account menu becomes a bottom sheet */
   .usermenu__backdrop { background: rgba(15, 20, 40, 0.45); }
