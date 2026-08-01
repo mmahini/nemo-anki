@@ -1292,6 +1292,7 @@ kbd {
 .shell__usage--over { color: var(--again); background: rgba(226, 59, 84, 0.12); }
 
 /* "Invite friends" — sits between the usage chip and the avatar. */
+.invite { position: relative; }
 .invitebtn {
   display: flex; align-items: center; gap: 6px;
   white-space: nowrap; font-size: 0.8rem; font-weight: 700;
@@ -1302,6 +1303,35 @@ kbd {
 .invitebtn svg { flex-shrink: 0; }
 /* Phones: the icon alone is enough next to the avatar. */
 @media (max-width: 640px) { .invitebtn__label { display: none; } }
+
+/* "Link copied" popup — a dropdown under the button, a bottom sheet on
+   phones (mirrors the user-menu panel). */
+.invite__backdrop { position: fixed; inset: 0; z-index: 30; background: transparent; }
+.invite__panel {
+  position: absolute; top: calc(100% + 10px); right: 0; z-index: 40; width: 300px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 16px;
+}
+/* The bar is forced LTR; keep the popup's Persian content RTL like the menu. */
+[dir="rtl"] .invite__panel { direction: rtl; }
+.invite__done { margin: 0 0 10px; font-weight: 700; color: var(--good); }
+.invite__link {
+  margin: 0 0 10px; padding: 8px 10px; border-radius: 10px;
+  background: var(--line-soft); font-size: 0.8rem; color: var(--ink-soft);
+  word-break: break-all; user-select: all; text-align: left;
+}
+.invite__hint { margin: 0 0 14px; font-size: 0.85rem; color: var(--ink-soft); line-height: 1.6; }
+.invite__actions { display: flex; gap: 8px; }
+.invite__actions .btn { flex: 1; }
+@media (max-width: 640px) {
+  .invite__backdrop { background: rgba(15, 20, 40, 0.45); }
+  .invite__panel {
+    position: fixed; top: auto; bottom: 0; left: 0; right: 0; width: auto;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+    animation: sheet-up 0.2s ease;
+  }
+}
 .usermenu__badge--trial { background: rgba(76, 110, 245, 0.12); color: var(--brand-dark); }
 .usermenu__badge--active { background: rgba(31, 157, 87, 0.12); color: var(--good); }
 .usermenu__badge--expired { background: rgba(226, 59, 84, 0.12); color: var(--again); }
