@@ -10,7 +10,10 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       VitePWA({
-        registerType: "autoUpdate",
+        // "prompt": a detected update waits for the user — the UpdateToast
+        // shows "new version available" with an update button — instead of
+        // yanking the page out from under them mid-review.
+        registerType: "prompt",
         // We register the service worker ourselves (src/pwa.ts) so we can also
         // poll for updates while the app stays open — installed PWAs (desktop/
         // Android) are often left running for a long time, and a plain SW only
@@ -24,7 +27,10 @@ export default defineConfig(({ mode }) => {
           theme_color: "#4c6ef5",
           background_color: "#f6f7fb",
           display: "standalone",
-          start_url: "/",
+          // Installed app opens straight into the app, not the marketing
+          // landing (LandingPage also redirects when running standalone, for
+          // installs that predate this manifest).
+          start_url: "/app",
           icons: [
             { src: "pwa-64x64.png", sizes: "64x64", type: "image/png" },
             { src: "pwa-192x192.png", sizes: "192x192", type: "image/png" },

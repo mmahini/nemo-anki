@@ -15,6 +15,11 @@
     "howItWorks": "How it works",
     "invite": "Invite friends"
   },
+  "pwa": {
+    "updateReady": "A new version is ready",
+    "updateBtn": "Update",
+    "updating": "Updating…"
+  },
   "invite": {
     "title": "Invite a friend — they get a free month of Basic",
     "shareText": "Learn a language with me on Nemo Anki! Sign up with my link and your first month of Basic is free:",

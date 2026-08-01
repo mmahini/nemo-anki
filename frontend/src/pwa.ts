@@ -7,15 +7,25 @@ import { registerSW } from "virtual:pwa-register";
 // user happened to close and reopen the app.
 const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
-/** Register the service worker and keep it fresh. `registerType: "autoUpdate"`
- * (see vite.config.ts) makes a detected update apply and reload immediately —
- * no "reload to update" prompt — so once this fires, users on an installed
- * PWA see the latest version without ever uninstalling/reinstalling. */
+/** Fired on window when a new version is downloaded and waiting. */
+export const PWA_UPDATE_EVENT = "nemo:pwa-update";
+
+let updateSW: ((reloadPage?: boolean) => Promise<void>) | null = null;
+let updateReady = false;
+
+/** Register the service worker and keep it fresh. `registerType: "prompt"`
+ * (see vite.config.ts) parks a detected update in "waiting" until the user
+ * accepts it — UpdateToast listens for PWA_UPDATE_EVENT and offers an
+ * "update now" button that calls applyPwaUpdate(). */
 export function initPwaUpdates(): void {
   if (!("serviceWorker" in navigator)) return;
 
-  const updateSW = registerSW({
+  updateSW = registerSW({
     immediate: true,
+    onNeedRefresh() {
+      updateReady = true;
+      window.dispatchEvent(new CustomEvent(PWA_UPDATE_EVENT));
+    },
     onRegisteredSW(_url, registration) {
       if (!registration) return;
       window.setInterval(() => {
@@ -32,6 +42,15 @@ export function initPwaUpdates(): void {
       });
     },
   });
+}
 
-  void updateSW;
+/** An update is downloaded and waiting (for components that mount after the
+ * event already fired). */
+export function pwaUpdateReady(): boolean {
+  return updateReady;
+}
+
+/** Activate the waiting service worker and reload onto the new version. */
+export function applyPwaUpdate(): Promise<void> {
+  return updateSW ? updateSW(true) : Promise.resolve();
 }
