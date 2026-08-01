@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 
@@ -109,6 +109,14 @@ const FEATURES = [
 export default function LandingPage() {
   const { user } = useAuth();
   const cta = user ? "Go to your decks" : "Start studying";
+
+  // Installed PWA: skip the marketing page and go straight into the app
+  // (ProtectedRoute lands signed-out users on sign-in). New installs open at
+  // /app via the manifest's start_url; this covers installs that predate it.
+  const standalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (navigator as { standalone?: boolean }).standalone === true;
+  if (standalone) return <Navigate to="/app" replace />;
 
   return (
     <main className="landing">

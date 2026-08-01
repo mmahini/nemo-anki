@@ -1767,6 +1767,23 @@ kbd {
 .welcome__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .welcome__actions .btn--primary { min-width: 140px; justify-content: center; }
 
+/* "New version ready" toast — floats bottom-centre; the button activates the
+   waiting service worker and reloads. */
+.updatetoast {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  z-index: 90; display: flex; align-items: center; gap: 14px;
+  max-width: min(92vw, 440px); white-space: nowrap;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 999px; box-shadow: var(--shadow-md);
+  padding: 8px 8px 8px 18px;
+}
+.updatetoast__msg { font-size: 0.88rem; font-weight: 600; }
+.updatetoast .btn { border-radius: 999px; }
+/* Sit above the floating mobile tab bar. */
+@media (max-width: 720px) {
+  .updatetoast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+
 /* Referral gift banner — the invited user's very first hello. On the
    bilingual language step it holds one line per language. */
 .wgift {

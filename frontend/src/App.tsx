@@ -24,6 +24,7 @@ import Practice from "./pages/Practice";
 import Support from "./pages/Support";
 import Subscribe from "./pages/Subscribe";
 import BackendStatus from "./components/BackendStatus";
+import UpdateToast from "./components/UpdateToast";
 
 // Emit a Wiser CDP pageview on every route change (no-op unless the pixel is configured).
 function CdpRouteTracker() {
@@ -50,6 +51,7 @@ export default function App() {
       <BrowserRouter>
         <CdpRouteTracker />
         <BackendStatus />
+        <UpdateToast />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth/sign-in" element={<SignIn />} />
