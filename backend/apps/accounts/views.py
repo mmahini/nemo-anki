@@ -16,6 +16,26 @@ def _tokens_for(user: User) -> dict[str, str]:
     return {"access": str(refresh.access_token), "refresh": str(refresh)}
 
 
+def _apply_referral(user: User, code: str) -> bool:
+    """Link a brand-new account to its inviter and gift the signup reward
+    (a month of Basic). Quietly a no-op on an unknown or own code — a stale
+    invite link must never block signing up."""
+    code = (code or "").strip()
+    if not code:
+        return False
+    referrer = User.objects.filter(referral_code=code).exclude(pk=user.pk).first()
+    if referrer is None:
+        return False
+    user.referred_by = referrer
+    user.save(update_fields=["referred_by"])
+    # Imported lazily to keep accounts decoupled from the subscriptions app.
+    from apps.subscriptions.models import Subscription
+    from apps.subscriptions.plans import REFERRAL_BONUS_DAYS, REFERRAL_BONUS_TIER
+
+    Subscription.for_user(user).grant_bonus(REFERRAL_BONUS_TIER, days=REFERRAL_BONUS_DAYS)
+    return True
+
+
 @method_decorator(ratelimit(key="ip", rate="5/m", method="POST", block=True), name="post")
 @method_decorator(ratelimit(key="post:email", rate="10/h", method="POST", block=True), name="post")
 class RequestOTPView(APIView):
@@ -75,6 +95,11 @@ class VerifyOTPView(APIView):
 
         otp.mark_used()
         user, created = User.objects.get_or_create(email=otp.email)
+        # Referral only counts at account creation — signing back in through an
+        # invite link must not hand out another month.
+        referral_applied = created and _apply_referral(
+            user, serializer.validated_data.get("referral_code", "")
+        )
         return Response(
             {
                 **_tokens_for(user),
@@ -82,6 +107,9 @@ class VerifyOTPView(APIView):
                 # First-ever verification creates the account; the client uses
                 # this to emit a one-time Wiser CDP `signup` event.
                 "is_new_user": created,
+                # The invite reward was granted — the client tells the user in
+                # the welcome flow.
+                "referral_applied": referral_applied,
             },
             status=status.HTTP_200_OK,
         )

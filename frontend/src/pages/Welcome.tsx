@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/AuthContext";
 import { updateMe } from "../auth/api";
 import { applyLanguage } from "../i18n";
+import { hasReferralGift } from "../lib/referral";
 
 /** Nemo — the guide. Rendered in a circle, which is also what keeps the source
  * image's corner watermark out of frame. */
@@ -49,6 +50,9 @@ export default function Welcome() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(0);
+  // They arrived through a friend's invite link and got the Basic month —
+  // announced here, at the very start, so the reward feels like a welcome.
+  const [referralGift] = useState(hasReferralGift);
   const [name, setName] = useState(user?.display_name ?? "");
   const [lang, setLang] = useState<"en" | "fa">(user?.ui_language ?? "en");
   const [saving, setSaving] = useState(false);
@@ -174,6 +178,20 @@ export default function Welcome() {
   return (
     <main className="welcome">
       <div className="welcome__card">
+        {referralGift && (
+          <div className="wgift" role="status">
+            {step === 0 ? (
+              /* Language not chosen yet — bilingual, like the rest of step 0. */
+              <>
+                <span dir="ltr" lang="en">🎁 {t("welcome.referralGift", { lng: "en" })}</span>
+                <span dir="rtl" lang="fa">🎁 {t("welcome.referralGift", { lng: "fa" })}</span>
+              </>
+            ) : (
+              <span>🎁 {t("welcome.referralGift")}</span>
+            )}
+          </div>
+        )}
+
         {/* The language step has its own buttons, so it shows no chrome. */}
         {step > 0 && (
           <div className="wprogress" role="progressbar" aria-valuenow={step + 1} aria-valuemin={1} aria-valuemax={steps.length}>

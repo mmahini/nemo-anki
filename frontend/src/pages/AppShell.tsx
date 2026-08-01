@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import InviteButton from "../components/InviteButton";
 import SubscriptionBanner from "../components/SubscriptionBanner";
 import UserMenu from "../components/UserMenu";
 import { SubscriptionProvider, useSubscription } from "../subscription/SubscriptionContext";
@@ -92,6 +93,7 @@ export default function AppShell() {
           </nav>
           <div className="shell__account">
             <AiUsageChip />
+            <InviteButton />
             <UserMenu />
           </div>
         </header>

@@ -103,6 +103,18 @@ class Subscription(models.Model):
         self.status = self.computed_state
         self.save()
 
+    def grant_bonus(self, tier: str, days: int) -> None:
+        """Gift paid-tier access without a purchase (the referral reward).
+        Stacks like activate(), but records no plan — there was no sale."""
+        if tier not in TIERS:
+            raise ValueError(f"Unknown tier: {tier}")
+        now = timezone.now()
+        base = max(self.current_period_end or now, now)
+        self.current_period_end = base + timedelta(days=days)
+        self.tier = tier
+        self.status = self.computed_state
+        self.save()
+
     def recompute_status(self) -> str:
         """Sync the cached status label to the live state. Returns the state."""
         self.status = self.computed_state

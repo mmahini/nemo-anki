@@ -35,6 +35,11 @@ PLAN_CHOICES = [(key, f'{TIERS[cfg["tier"]]["label"]} · {cfg["label"]}') for ke
 
 TRIAL_DAYS = 7
 
+# Referral programme: signing up through a friend's invite link gifts the new
+# account a month of Basic (see accounts.views._apply_referral).
+REFERRAL_BONUS_TIER = BASIC
+REFERRAL_BONUS_DAYS = _MONTH
+
 # Phase 1: manual crypto transfer. See docs/plans/subscription.md phase 2.
 PAYMENT = {
     "method": "crypto",

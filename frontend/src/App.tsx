@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { cdpPage, initCdpPixel } from "./lib/cdp-pixel";
+import { captureReferralCode } from "./lib/referral";
 import { AuthProvider } from "./auth/AuthContext";
 import LandingPage from "./components/LandingPage";
 import ProtectedRoute from "./pages/ProtectedRoute";
@@ -38,6 +39,12 @@ function CdpRouteTracker() {
 }
 
 export default function App() {
+  // Stash an invite link's ?ref= code before any routing; it's redeemed at
+  // verify-otp (see lib/referral.ts).
+  useEffect(() => {
+    captureReferralCode();
+  }, []);
+
   return (
     <AuthProvider>
       <BrowserRouter>
