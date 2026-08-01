@@ -70,6 +70,15 @@ services:
         sync: false
       - key: DJANGO_SUPERUSER_PASSWORD
         sync: false
+      # Web Push — notifies staff of new support messages. VAPID_PUBLIC_KEY
+      # must match the frontend's VITE_VAPID_PUBLIC_KEY below (same keypair).
+      # Unset here → push sends are silently skipped, not an error.
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_CLAIM_EMAIL
+        value: admin@nemoapps.xyz
 
   # Frontend SPA — moved off Vercel (geo-blocked in some regions) onto Render
   # so it's reachable everywhere the backend is. Static Sites are free and
@@ -103,3 +112,8 @@ services:
       # trailing "/api" (paths already start with /api).
       - key: VITE_API_URL
         value: https://nemo-anki-backend.onrender.com
+      # Web Push public key — not secret, but sync: false anyway so it's set
+      # once alongside the backend's matching VAPID_PUBLIC_KEY and stays in
+      # sync (must be the exact same keypair on both services).
+      - key: VITE_VAPID_PUBLIC_KEY
+        sync: false

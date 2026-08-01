@@ -215,6 +215,8 @@ export type AuthUser = {
   subscription: SubscriptionSummary;
   /** Has the welcome flow been completed? False routes into /welcome. */
   onboarded: boolean;
+  /** Django admin access — gates the "enable support alerts" push opt-in. */
+  is_staff: boolean;
 };
 
 export type RequestOtpResponse = {
@@ -933,6 +935,27 @@ export function fetchSupportThread(): Promise<SupportThread> {
 
 export function sendSupportMessage(body: string): Promise<SupportThread> {
   return jsonRequest("/api/support/thread/", { method: "POST", body: JSON.stringify({ body }) });
+}
+
+/** The raw shape PushManager.subscribe() resolves to — passed straight
+ * through to the backend (see PushSubscriptionSerializer). */
+export type PushSubscriptionJSON = {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+};
+
+export function subscribeToSupportPush(subscription: PushSubscriptionJSON): Promise<void> {
+  return jsonRequest<void>("/api/support/push-subscribe/", {
+    method: "POST",
+    body: JSON.stringify(subscription),
+  });
+}
+
+export function unsubscribeFromSupportPush(endpoint: string): Promise<void> {
+  return jsonRequest<void>("/api/support/push-subscribe/", {
+    method: "DELETE",
+    body: JSON.stringify({ endpoint }),
+  });
 }
 
 // ====== Placement Test ======

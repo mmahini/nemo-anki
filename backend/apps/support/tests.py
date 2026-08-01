@@ -1,8 +1,10 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from .models import SupportMessage, SupportThread
+from .models import PushSubscription, SupportMessage, SupportThread
 
 User = get_user_model()
 
@@ -58,3 +60,89 @@ class SupportThreadTests(APITestCase):
         self.client.force_authenticate(None)
         res = self.client.get(self.url)
         self.assertEqual(res.status_code, 401)
+
+    @patch("apps.support.views.notify_staff_of_message")
+    def test_new_message_triggers_staff_notification(self, mock_notify):
+        self.client.post(self.url, {"body": "hello"})
+        mock_notify.assert_called_once()
+
+
+class PushSubscribeTests(APITestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(email="staff@example.com", is_staff=True)
+        self.user = User.objects.create_user(email="learner2@example.com")
+        self.url = reverse("support-push-subscribe")
+        self.payload = {
+            "endpoint": "https://fcm.googleapis.com/fcm/send/abc123",
+            "keys": {"p256dh": "p256dh-value", "auth": "auth-value"},
+        }
+
+    def test_staff_can_subscribe(self):
+        self.client.force_authenticate(self.staff)
+        res = self.client.post(self.url, self.payload, format="json")
+        self.assertEqual(res.status_code, 204)
+        sub = PushSubscription.objects.get(endpoint=self.payload["endpoint"])
+        self.assertEqual(sub.user, self.staff)
+
+    def test_non_staff_cannot_subscribe(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.post(self.url, self.payload, format="json")
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(PushSubscription.objects.count(), 0)
+
+    def test_resubscribing_same_endpoint_updates_not_duplicates(self):
+        self.client.force_authenticate(self.staff)
+        self.client.post(self.url, self.payload, format="json")
+        updated = {**self.payload, "keys": {"p256dh": "new-p256dh", "auth": "new-auth"}}
+        self.client.post(self.url, updated, format="json")
+        self.assertEqual(PushSubscription.objects.count(), 1)
+        self.assertEqual(PushSubscription.objects.first().p256dh, "new-p256dh")
+
+    def test_unsubscribe_removes_it(self):
+        self.client.force_authenticate(self.staff)
+        self.client.post(self.url, self.payload, format="json")
+        res = self.client.delete(self.url, {"endpoint": self.payload["endpoint"]}, format="json")
+        self.assertEqual(res.status_code, 204)
+        self.assertEqual(PushSubscription.objects.count(), 0)
+
+
+class NotifyStaffOfMessageTests(APITestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(email="staff2@example.com", is_staff=True)
+        self.learner = User.objects.create_user(email="learner3@example.com")
+        self.thread = SupportThread.objects.create(user=self.learner)
+        self.message = SupportMessage.objects.create(thread=self.thread, body="hi")
+        self.sub = PushSubscription.objects.create(
+            user=self.staff, endpoint="https://fcm.googleapis.com/fcm/send/xyz",
+            p256dh="p", auth="a",
+        )
+
+    @patch("django.conf.settings.VAPID_PRIVATE_KEY", "")
+    def test_skips_silently_when_vapid_unconfigured(self):
+        from .notifications import notify_staff_of_message
+
+        notify_staff_of_message(self.thread, self.message)  # must not raise
+
+    @patch("django.conf.settings.VAPID_PRIVATE_KEY", "test-key")
+    @patch("pywebpush.webpush")
+    def test_sends_to_each_staff_subscription(self, mock_webpush):
+        from .notifications import notify_staff_of_message
+
+        notify_staff_of_message(self.thread, self.message)
+        mock_webpush.assert_called_once()
+        kwargs = mock_webpush.call_args.kwargs
+        self.assertEqual(kwargs["subscription_info"]["endpoint"], self.sub.endpoint)
+
+    @patch("django.conf.settings.VAPID_PRIVATE_KEY", "test-key")
+    @patch("pywebpush.webpush")
+    def test_expired_subscription_is_deleted(self, mock_webpush):
+        from pywebpush import WebPushException
+
+        from .notifications import notify_staff_of_message
+
+        class _Resp:
+            status_code = 410
+
+        mock_webpush.side_effect = WebPushException("gone", response=_Resp())
+        notify_staff_of_message(self.thread, self.message)
+        self.assertEqual(PushSubscription.objects.count(), 0)

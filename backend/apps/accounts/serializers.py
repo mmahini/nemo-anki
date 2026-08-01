@@ -29,9 +29,11 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "email", "display_name", "ui_language", "date_joined",
-            "feature_flags", "subscription", "onboarded",
+            "feature_flags", "subscription", "onboarded", "is_staff",
         ]
-        read_only_fields = ["id", "email", "date_joined", "feature_flags", "subscription"]
+        read_only_fields = [
+            "id", "email", "date_joined", "feature_flags", "subscription", "is_staff",
+        ]
 
     def get_feature_flags(self, obj) -> list[str]:
         return obj.effective_flags
