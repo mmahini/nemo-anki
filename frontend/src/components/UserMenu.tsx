@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/AuthContext";
 import { updateMe } from "../auth/api";
 import { applyLanguage } from "../i18n";
+import { disableSupportPush, enableSupportPush, isSubscribedToPush, pushSupported } from "../push";
 import { useSubscription } from "../subscription/SubscriptionContext";
 
 /** Top-right account menu: subscription, language and sign-out. Opens as a
@@ -15,6 +16,8 @@ export default function UserMenu() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,6 +28,29 @@ export default function UserMenu() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
+
+  useEffect(() => {
+    if (!user?.is_staff || !pushSupported()) return;
+    isSubscribedToPush().then(setPushOn).catch(() => {});
+  }, [user?.is_staff]);
+
+  async function toggleSupportPush() {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (pushOn) {
+        await disableSupportPush();
+        setPushOn(false);
+      } else {
+        await enableSupportPush();
+        setPushOn(true);
+      }
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : t("common.error"));
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function toggleLanguage() {
     const next = user?.ui_language === "fa" ? "en" : "fa";
@@ -98,6 +124,20 @@ export default function UserMenu() {
             >
               {t("nav.support")}
             </Link>
+
+            {user?.is_staff && pushSupported() && (
+              <button
+                className="usermenu__item"
+                role="menuitem"
+                onClick={toggleSupportPush}
+                disabled={pushBusy}
+              >
+                <span>{t("nav.supportAlerts")}</span>
+                <span className="usermenu__value">
+                  {pushOn ? t("nav.supportAlertsOn") : t("nav.supportAlertsOff")}
+                </span>
+              </button>
+            )}
 
             <button className="usermenu__item" role="menuitem" onClick={toggleLanguage}>
               <span>{t("nav.language")}</span>

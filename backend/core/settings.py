@@ -200,3 +200,10 @@ GEMINI_VERIFY_SSL = os.getenv("GEMINI_VERIFY_SSL", "1") != "0"
 # (local dev) the code is surfaced as `dev_code` so sign-in still works offline.
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 OTP_FROM_EMAIL = os.getenv("OTP_FROM_EMAIL", "Nemo Anki <noreply@nemoapps.xyz>")
+
+# Web Push — notifies staff when a user sends a support message. Unset in an
+# environment (e.g. fresh local checkout) means push sends are silently
+# skipped rather than erroring.
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
+VAPID_CLAIM_EMAIL = os.getenv("VAPID_CLAIM_EMAIL", "admin@nemoapps.xyz")

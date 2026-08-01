@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import SupportMessage, SupportThread
+from .models import PushSubscription, SupportMessage, SupportThread
 
 
 class SupportMessageInline(admin.TabularInline):
@@ -35,3 +35,9 @@ class SupportThreadAdmin(admin.ModelAdmin):
     @admin.display(description="Awaiting reply", boolean=True)
     def needs_reply(self, obj: SupportThread) -> bool:
         return obj.awaiting_reply
+
+
+@admin.register(PushSubscription)
+class PushSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("user", "created_at")
+    search_fields = ("user__email",)

@@ -39,6 +39,9 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           navigateFallbackDenylist: [/^\/api\//, /^\/media\//],
+          // Adds push/notificationclick handlers to the generated SW without
+          // switching off generateSW mode (see public/push-sw.js).
+          importScripts: ["push-sw.js"],
           runtimeCaching: [
             {
               urlPattern: ({ url }) => url.pathname.startsWith("/api/"),
