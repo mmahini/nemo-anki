@@ -10,6 +10,7 @@ import SignIn from "./pages/SignIn";
 import Verify from "./pages/Verify";
 import Welcome from "./pages/Welcome";
 import AppShell from "./pages/AppShell";
+import Home from "./pages/Home";
 import Decks from "./pages/Decks";
 import Stats from "./pages/Stats";
 import DeckCards from "./pages/DeckCards";
@@ -65,7 +66,8 @@ export default function App() {
             <Route path="/app/study/card/:cardId" element={<StudyCard />} />
             <Route path="/app/placement-test" element={<PlacementTest />} />
             <Route element={<AppShell />}>
-              <Route path="/app" element={<Decks />} />
+              <Route path="/app" element={<Home />} />
+              <Route path="/app/decks" element={<Decks />} />
               <Route path="/app/stats" element={<Stats />} />
               <Route path="/app/decks/:deckId" element={<DeckCards />} />
               <Route path="/app/decks/:deckId/add" element={<AddCard />} />

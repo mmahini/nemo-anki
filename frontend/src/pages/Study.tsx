@@ -145,7 +145,7 @@ export default function Study() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (editing) return;
-      if (e.key === "Escape") return void navigate("/app");
+      if (e.key === "Escape") return void navigate("/app/decks");
       if (e.key === "u" || e.key === "U") return void undo();
       if (e.key === "e" || e.key === "E") {
         if (current) setEditing(true);
@@ -181,7 +181,7 @@ export default function Study() {
   return (
     <div className="study">
       <header className="study__bar">
-        <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app")}>{t("study.backToDecks")}</button>
+        <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app/decks")}>{t("study.backToDecks")}</button>
         <div className="study__progress">
           <span className="count count--new">{counts.new}</span>
           <span className="count count--learn">{counts.learning}</span>
@@ -199,7 +199,7 @@ export default function Study() {
           <div className="study__done-emoji">🎉</div>
           <h2>{t("study.allDone")}</h2>
           <p>{t("study.allDoneHint")}</p>
-          <button className="btn btn--primary" onClick={() => navigate("/app")}>{t("study.backToDecksBtn")}</button>
+          <button className="btn btn--primary" onClick={() => navigate("/app/decks")}>{t("study.backToDecksBtn")}</button>
         </div>
       ) : (
         <div className="study__stage">
