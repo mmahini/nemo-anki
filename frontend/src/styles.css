@@ -1125,9 +1125,6 @@ kbd {
   /* Support */
   .support__chat { max-height: 320px; }
   .support__msg-body { max-width: 88%; }
-  .support__input { flex-wrap: wrap; }
-  .support__text-input { flex: 1 0 100%; order: -1; }
-  .support__input .btn--primary { flex: 1; }
 
   /* Practice — Write tab */
   .writing__actions { flex-wrap: wrap; gap: 8px; }
