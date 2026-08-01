@@ -19,7 +19,10 @@
     "title": "Invite a friend — they get a free month of Basic",
     "shareText": "Learn a language with me on Nemo Anki! Sign up with my link and your first month of Basic is free:",
     "copied": "Link copied!",
-    "copyManually": "Copy your invite link:"
+    "linkTitle": "Your invite link",
+    "popupHint": "Send it to your friends — signing up through it gives them a free month of Basic.",
+    "shareBtn": "Send link…",
+    "closeBtn": "Close"
   },
   "signIn": {
     "title": "Sign in to Nemo Anki",
