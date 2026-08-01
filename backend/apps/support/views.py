@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import PushSubscription, SupportMessage, SupportThread
-from .notifications import notify_staff_of_message
+from .notifications import notify_staff_of_message, notify_telegram_of_message
 from .serializers import PushSubscriptionSerializer, SupportThreadSerializer
 
 
@@ -25,6 +25,7 @@ class SupportThreadView(APIView):
         message = SupportMessage.objects.create(thread=thread, body=body)
         thread.save(update_fields=["updated_at"])
         notify_staff_of_message(thread, message)
+        notify_telegram_of_message(thread, message)
         return Response(SupportThreadSerializer(thread).data, status=status.HTTP_201_CREATED)
 
 
