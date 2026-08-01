@@ -11,6 +11,14 @@ OTP_LENGTH = 5
 OTP_TTL = timedelta(minutes=10)
 OTP_MAX_ATTEMPTS = 5
 
+# No 0/O/1/l/i — referral codes get read aloud and retyped from chat apps.
+REFERRAL_CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+REFERRAL_CODE_LENGTH = 8
+
+
+def generate_referral_code() -> str:
+    return "".join(secrets.choice(REFERRAL_CODE_ALPHABET) for _ in range(REFERRAL_CODE_LENGTH))
+
 
 class UserManager(BaseUserManager):
     use_in_migrations = True
@@ -58,6 +66,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     # which is what routes a fresh account into it. A timestamp rather than a
     # boolean so we can tell *when* someone joined the flow as it changes.
     onboarded_at = models.DateTimeField(null=True, blank=True)
+    # This user's own invite code — the `?ref=` value in the links they share.
+    referral_code = models.CharField(
+        max_length=12, unique=True, default=generate_referral_code
+    )
+    # Who invited this user. Set once at account creation (verify-otp) and never
+    # rewritten, so referral rewards can't be re-triggered on later sign-ins.
+    referred_by = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="referrals"
+    )
     date_joined = models.DateTimeField(default=timezone.now)
 
     USERNAME_FIELD = "email"

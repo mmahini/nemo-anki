@@ -217,6 +217,8 @@ export type AuthUser = {
   onboarded: boolean;
   /** Django admin access — gates the "enable support alerts" push opt-in. */
   is_staff: boolean;
+  /** This user's own invite code — the `?ref=` value in links they share. */
+  referral_code: string;
 };
 
 export type RequestOtpResponse = {
@@ -226,7 +228,12 @@ export type RequestOtpResponse = {
   dev_code?: string;
 };
 
-export type VerifyOtpResponse = AuthTokens & { user: AuthUser; is_new_user: boolean };
+export type VerifyOtpResponse = AuthTokens & {
+  user: AuthUser;
+  is_new_user: boolean;
+  /** The invite reward (a month of Basic) was granted to this new account. */
+  referral_applied: boolean;
+};
 
 export type CardType = "vocab" | "sentence" | "grammar" | "verb";
 export type Article = "none" | "der" | "die" | "das" | "plural";
@@ -330,10 +337,18 @@ export function requestOtp(email: string): Promise<RequestOtpResponse> {
   });
 }
 
-export function verifyOtp(otpId: string, code: string): Promise<VerifyOtpResponse> {
+export function verifyOtp(
+  otpId: string,
+  code: string,
+  referralCode?: string | null,
+): Promise<VerifyOtpResponse> {
   return jsonRequest<VerifyOtpResponse>("/api/auth/verify-otp", {
     method: "POST",
-    body: JSON.stringify({ otp_id: otpId, code }),
+    body: JSON.stringify({
+      otp_id: otpId,
+      code,
+      ...(referralCode ? { referral_code: referralCode } : {}),
+    }),
   });
 }
 

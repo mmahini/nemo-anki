@@ -12,7 +12,14 @@
     "stats": "Performance",
     "practice": "Practice",
     "quiz": "Quiz",
-    "howItWorks": "How it works"
+    "howItWorks": "How it works",
+    "invite": "Invite friends"
+  },
+  "invite": {
+    "title": "Invite a friend — they get a free month of Basic",
+    "shareText": "Learn a language with me on Nemo Anki! Sign up with my link and your first month of Basic is free:",
+    "copied": "Link copied!",
+    "copyManually": "Copy your invite link:"
   },
   "signIn": {
     "title": "Sign in to Nemo Anki",
@@ -508,7 +515,8 @@
     "back": "Back",
     "next": "Next",
     "start": "Start learning",
-    "saving": "Setting up…"
+    "saving": "Setting up…",
+    "referralGift": "You joined through a friend's invite — your first month of Basic is on us."
   },
   "cardEditor": {
     "articleTitle": "German article (colour-coded)",

@@ -7,6 +7,11 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from apps.subscriptions.models import Subscription
+from apps.subscriptions.plans import BASIC, REFERRAL_BONUS_DAYS
+
+from .models import EmailOTP
+
 User = get_user_model()
 
 
@@ -107,3 +112,68 @@ class OnboardingBackfillQueryTests(TestCase):
         # Re-running (a replayed migration, a re-deploy) must not reset anyone
         # who has since finished the flow.
         self.assertEqual(User.objects.filter(**self.QUERY).update(onboarded_at=None), 0)
+
+
+class ReferralTests(APITestCase):
+    """Signing up through an invite link records the inviter and gifts a month
+    of Basic — but only on account creation, and never for a bad code."""
+
+    def setUp(self):
+        self.referrer = User.objects.create_user(email="inviter@example.com")
+        self.url = reverse("auth-verify-otp")
+
+    def _verify(self, email: str, referral_code: str = ""):
+        otp = EmailOTP.issue(email=email)
+        payload = {"otp_id": str(otp.id), "code": otp.code}
+        if referral_code:
+            payload["referral_code"] = referral_code
+        return self.client.post(self.url, payload)
+
+    def test_signup_with_invite_grants_a_month_of_basic(self):
+        res = self._verify("invited@example.com", self.referrer.referral_code)
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data["referral_applied"])
+
+        invited = User.objects.get(email="invited@example.com")
+        self.assertEqual(invited.referred_by, self.referrer)
+        sub = Subscription.for_user(invited)
+        self.assertEqual(sub.computed_state, Subscription.ACTIVE)
+        self.assertEqual(sub.active_tier, BASIC)
+        expected_end = timezone.now() + datetime.timedelta(days=REFERRAL_BONUS_DAYS)
+        self.assertAlmostEqual(
+            sub.current_period_end.timestamp(), expected_end.timestamp(), delta=60
+        )
+        # A gift, not a purchase — no plan recorded.
+        self.assertEqual(sub.plan, "")
+
+    def test_unknown_code_still_signs_up_without_reward(self):
+        res = self._verify("invited@example.com", "nosuchcode")
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data["referral_applied"])
+        invited = User.objects.get(email="invited@example.com")
+        self.assertIsNone(invited.referred_by)
+        self.assertEqual(Subscription.for_user(invited).computed_state, Subscription.TRIAL)
+
+    def test_returning_user_gets_no_reward(self):
+        existing = User.objects.create_user(email="veteran@example.com")
+        res = self._verify("veteran@example.com", self.referrer.referral_code)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data["referral_applied"])
+        existing.refresh_from_db()
+        self.assertIsNone(existing.referred_by)
+        self.assertEqual(Subscription.for_user(existing).computed_state, Subscription.TRIAL)
+
+    def test_every_user_gets_a_unique_referral_code(self):
+        another = User.objects.create_user(email="other@example.com")
+        self.assertTrue(self.referrer.referral_code)
+        self.assertTrue(another.referral_code)
+        self.assertNotEqual(self.referrer.referral_code, another.referral_code)
+
+    def test_referral_code_is_exposed_but_read_only_on_me(self):
+        self.client.force_authenticate(self.referrer)
+        me = reverse("me")
+        res = self.client.get(me)
+        self.assertEqual(res.data["referral_code"], self.referrer.referral_code)
+        self.client.patch(me, {"referral_code": "hacked123"})
+        self.referrer.refresh_from_db()
+        self.assertNotEqual(self.referrer.referral_code, "hacked123")

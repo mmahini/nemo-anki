@@ -11,6 +11,11 @@ class RequestOTPSerializer(serializers.Serializer):
 class VerifyOTPSerializer(serializers.Serializer):
     otp_id = serializers.UUIDField()
     code = serializers.CharField(min_length=OTP_LENGTH, max_length=OTP_LENGTH)
+    # The `?ref=` value from an invite link, sent along by the client. Only
+    # honoured when this verification creates the account.
+    referral_code = serializers.CharField(
+        max_length=32, required=False, allow_blank=True, default=""
+    )
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -30,9 +35,11 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             "id", "email", "display_name", "ui_language", "date_joined",
             "feature_flags", "subscription", "onboarded", "is_staff",
+            "referral_code",
         ]
         read_only_fields = [
             "id", "email", "date_joined", "feature_flags", "subscription", "is_staff",
+            "referral_code",
         ]
 
     def get_feature_flags(self, obj) -> list[str]:

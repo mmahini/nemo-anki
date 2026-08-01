@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { verifyOtp } from "../auth/api";
 import { useAuth } from "../auth/AuthContext";
+import { clearReferralCode, markReferralGift, storedReferralCode } from "../lib/referral";
 
 type VerifyLocationState = {
   otpId?: string;
@@ -32,7 +33,11 @@ export default function Verify() {
     setError(null);
     setSubmitting(true);
     try {
-      const r = await verifyOtp(state.otpId, code.trim());
+      const r = await verifyOtp(state.otpId, code.trim(), storedReferralCode());
+      // One shot either way: applied (reward granted) or ignored (existing
+      // account / bad code) — don't let a stale code tag along forever.
+      clearReferralCode();
+      if (r.referral_applied) markReferralGift();
       signIn(
         { access: r.access, refresh: r.refresh, user: r.user },
         { isNewUser: r.is_new_user },

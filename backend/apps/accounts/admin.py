@@ -7,11 +7,14 @@ from .models import EmailOTP, User
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
     ordering = ("email",)
-    list_display = ("email", "display_name", "is_active", "is_staff", "date_joined")
-    search_fields = ("email", "display_name")
+    list_display = ("email", "display_name", "referred_by", "is_active", "is_staff", "date_joined")
+    search_fields = ("email", "display_name", "referral_code")
+    readonly_fields = ("referral_code",)
+    raw_id_fields = ("referred_by",)
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Profile", {"fields": ("display_name", "ui_language")}),
+        ("Referral", {"fields": ("referral_code", "referred_by")}),
         ("Feature flags", {"fields": ("feature_flags",)}),
         ("Permissions", {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")}),
         # Clearing onboarded_at sends this user back through the welcome flow —
