@@ -277,7 +277,7 @@
     "viewStats": "تحلیل کامل ←"
   },
   "placementTest": {
-    "backBtn": "→ دسته‌ها",
+    "backBtn": "→ کوییز",
     "title": "آزمون تعیین سطح",
     "description": "چند سؤال Reading و Listening اورجینال (تولیدشده با هوش مصنوعی، نه از امتحان واقعی) جواب بده تا سطح تقریبی‌ات مشخص بشه.",
     "languageLabel": "زبان",
@@ -296,7 +296,7 @@
     "finishBtn": "پایان آزمون",
     "resultTitle": "سطح تخمینی‌ات",
     "resultScore": "{{correct}} از {{total}} سؤال درست",
-    "backToDecks": "بازگشت به دسته‌ها"
+    "backHome": "بازگشت به خانه"
   },
   "bookPage": {
     "backBtn": "→ کتاب‌ها",
