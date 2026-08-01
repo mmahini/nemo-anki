@@ -1,5 +1,6 @@
 {
   "nav": {
+    "home": "Home",
     "decks": "Decks",
     "books": "Books",
     "support": "Support",
@@ -14,6 +15,17 @@
     "quiz": "Quiz",
     "howItWorks": "How it works",
     "invite": "Invite friends"
+  },
+  "home": {
+    "greeting": "Hi, {{name}} 👋",
+    "greetingNoName": "Welcome back 👋",
+    "noDecksTitle": "Start your first deck",
+    "noDecksHint": "Create a deck, or bring your words in through Books or Import below.",
+    "goDecksBtn": "Go to decks",
+    "booksTitle": "Books",
+    "booksBody": "Upload a coursebook PDF and pull the vocabulary out of each lesson.",
+    "importTitle": "Import",
+    "importBody": "Paste a word list or bring an Anki deck — the cards get built for you."
   },
   "pwa": {
     "updateReady": "A new version is ready",

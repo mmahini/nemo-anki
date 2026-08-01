@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 
 import { createDeck, deleteDeck, fetchDecks, updateDeck, type Deck } from "../auth/api";
 import Modal from "../components/Modal";
-import DailyDashboard from "../components/DailyDashboard";
 
 /** Indentation depth from the `::` chain in full_name. */
 function depth(d: Deck): number {
@@ -156,20 +155,12 @@ export default function Decks() {
             <span className="legend__item"><i className="dot dot--due" /> {t("decks.legend.due")}</span>
           </div>
           <div className="decks__actions">
-            <Link className="btn btn--ghost btn--sm" to="/app/import">
-              {t("decks.importBtn")}
-            </Link>
-            <Link className="btn btn--ghost btn--sm" to="/app/placement-test">
-              {t("decks.placementTestBtn")}
-            </Link>
             <button className="btn btn--primary btn--sm" onClick={() => openAdd()}>
               {t("decks.addBtn")}
             </button>
           </div>
         </div>
       </div>
-
-      {decks.length > 0 && <DailyDashboard decks={decks} />}
 
       <ul className="decklist">
         {decks.filter((d) => !hidden(d)).map((d) => {
