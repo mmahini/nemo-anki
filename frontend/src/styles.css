@@ -547,6 +547,9 @@ kbd {
 
 /* Placement test */
 .pt-intro { display: flex; flex-direction: column; gap: 18px; align-items: stretch; text-align: center; }
+/* Quiz setup as an in-shell page (the run stage is full-screen instead). */
+.ptsetup { display: flex; justify-content: center; padding-top: 8px; }
+.ptsetup .reviewcard { width: 100%; max-width: 560px; }
 .pt-intro h1 { margin: 0; }
 .pt-intro__desc { color: var(--ink-soft); margin: 0; }
 .pt-intro .field { align-items: center; }

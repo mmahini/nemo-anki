@@ -277,7 +277,7 @@
     "viewStats": "Full stats ←"
   },
   "placementTest": {
-    "backBtn": "← Decks",
+    "backBtn": "← Quiz",
     "title": "Placement Test",
     "description": "Answer a few original Reading and Listening questions (AI-generated, not from a real exam) to get an estimated level.",
     "languageLabel": "Language",
@@ -296,7 +296,7 @@
     "finishBtn": "Finish test",
     "resultTitle": "Your estimated level",
     "resultScore": "{{correct}} of {{total}} correct",
-    "backToDecks": "Back to decks"
+    "backHome": "Back to Home"
   },
   "bookPage": {
     "backBtn": "← Books",

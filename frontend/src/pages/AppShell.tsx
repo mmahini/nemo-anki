@@ -84,6 +84,7 @@ const MAIN_ROUTES = [
   /^\/app\/decks\/?$/,
   /^\/app\/stats\/?$/,
   /^\/app\/practice(\/[\w-]+)?\/?$/,
+  /^\/app\/placement-test\/?$/,
 ];
 
 export default function AppShell() {
