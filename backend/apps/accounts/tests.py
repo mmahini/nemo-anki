@@ -1,4 +1,5 @@
 import datetime
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db.models import F
@@ -154,6 +155,7 @@ class ReferralTests(APITestCase):
         self.assertIsNone(invited.referred_by)
         self.assertEqual(Subscription.for_user(invited).computed_state, Subscription.TRIAL)
 
+
     def test_returning_user_gets_no_reward(self):
         existing = User.objects.create_user(email="veteran@example.com")
         res = self._verify("veteran@example.com", self.referrer.referral_code)
@@ -177,3 +179,25 @@ class ReferralTests(APITestCase):
         self.client.patch(me, {"referral_code": "hacked123"})
         self.referrer.refresh_from_db()
         self.assertNotEqual(self.referrer.referral_code, "hacked123")
+
+
+class NewUserTelegramNotificationTests(APITestCase):
+    def setUp(self):
+        self.url = reverse("auth-verify-otp")
+
+    def _verify(self, email: str):
+        otp = EmailOTP.issue(email=email)
+        return self.client.post(self.url, {"otp_id": str(otp.id), "code": otp.code})
+
+    @patch("apps.accounts.views.notify_new_user_signup")
+    def test_first_signup_notifies(self, mock_notify):
+        self._verify("brandnew@example.com")
+        mock_notify.assert_called_once()
+        notified_user = mock_notify.call_args.args[0]
+        self.assertEqual(notified_user.email, "brandnew@example.com")
+
+    @patch("apps.accounts.views.notify_new_user_signup")
+    def test_returning_signin_does_not_notify(self, mock_notify):
+        User.objects.create_user(email="already@example.com")
+        self._verify("already@example.com")
+        mock_notify.assert_not_called()

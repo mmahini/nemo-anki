@@ -79,6 +79,12 @@ services:
         sync: false
       - key: VAPID_CLAIM_EMAIL
         value: admin@nemoapps.xyz
+      # Telegram — posts events (new support messages, new signups, ...)
+      # into the team's group. Unset here → skipped, not an error.
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
 
   # Frontend SPA — moved off Vercel (geo-blocked in some regions) onto Render
   # so it's reachable everywhere the backend is. Static Sites are free and

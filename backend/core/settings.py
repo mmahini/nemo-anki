@@ -207,3 +207,8 @@ OTP_FROM_EMAIL = os.getenv("OTP_FROM_EMAIL", "Nemo Anki <noreply@nemoapps.xyz>")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_CLAIM_EMAIL = os.getenv("VAPID_CLAIM_EMAIL", "admin@nemoapps.xyz")
+
+# Telegram — posts events (new support messages, new signups, ...) into the
+# team's group. Unset means the notification is silently skipped.
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
