@@ -161,9 +161,6 @@ export default function Stats() {
         <h1>{t("stats.title")}</h1>
         <p className="stats__sub">{t("stats.subtitle")}</p>
       </div>
-      <Link className="btn btn--ghost btn--sm" to="/app">
-        {t("decks.backBtn")}
-      </Link>
     </div>
   );
 
@@ -174,7 +171,7 @@ export default function Stats() {
         <div className="panel decks__empty">
           <h2>{t("stats.blankTitle")}</h2>
           <p>{t("stats.blankHint")}</p>
-          <Link className="btn btn--primary" to="/app">
+          <Link className="btn btn--primary" to="/app/decks">
             {t("stats.blankCta")}
           </Link>
         </div>

@@ -162,7 +162,7 @@ export default function ImportPage() {
           <h1>{t("import.title")}</h1>
           {/* Reached from the deck list rather than the nav, so it needs its own
               way back — otherwise this page is a dead end on mobile. */}
-          <Link className="btn btn--ghost btn--sm" to="/app">
+          <Link className="btn btn--ghost btn--sm" to="/app/decks">
             {t("decks.backBtn")}
           </Link>
         </div>
@@ -353,7 +353,7 @@ export default function ImportPage() {
                   reversed: ankiResult.reversed,
                   decks: ankiResult.decks,
                 })}{" "}
-                <Link to="/app">{t("import.goStudy")}</Link>
+                <Link to="/app/decks">{t("import.goStudy")}</Link>
                 {ankiResult.truncated && (
                   <div className="import__ankiwarn">
                     {t("import.ankiTruncated", { max: ankiResult.max_notes.toLocaleString() })}

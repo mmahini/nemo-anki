@@ -66,6 +66,11 @@ class SupportThreadTests(APITestCase):
         self.client.post(self.url, {"body": "hello"})
         mock_notify.assert_called_once()
 
+    @patch("apps.support.views.notify_telegram_of_message")
+    def test_new_message_triggers_telegram_notification(self, mock_notify):
+        self.client.post(self.url, {"body": "hello"})
+        mock_notify.assert_called_once()
+
 
 class PushSubscribeTests(APITestCase):
     def setUp(self):
@@ -146,3 +151,39 @@ class NotifyStaffOfMessageTests(APITestCase):
         mock_webpush.side_effect = WebPushException("gone", response=_Resp())
         notify_staff_of_message(self.thread, self.message)
         self.assertEqual(PushSubscription.objects.count(), 0)
+
+
+class NotifyTelegramOfMessageTests(APITestCase):
+    def setUp(self):
+        self.learner = User.objects.create_user(email="learner4@example.com")
+        self.thread = SupportThread.objects.create(user=self.learner)
+        self.message = SupportMessage.objects.create(thread=self.thread, body="hi there")
+
+    @patch("django.conf.settings.TELEGRAM_BOT_TOKEN", "")
+    def test_skips_silently_when_unconfigured(self):
+        from .notifications import notify_telegram_of_message
+
+        notify_telegram_of_message(self.thread, self.message)  # must not raise
+
+    @patch("django.conf.settings.TELEGRAM_CHAT_ID", "-123")
+    @patch("django.conf.settings.TELEGRAM_BOT_TOKEN", "test-token")
+    @patch("requests.post")
+    def test_posts_message_body_to_telegram(self, mock_post):
+        from .notifications import notify_telegram_of_message
+
+        mock_post.return_value.ok = True
+        notify_telegram_of_message(self.thread, self.message)
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertIn("test-token", args[0])
+        self.assertEqual(kwargs["json"]["chat_id"], "-123")
+        self.assertIn("hi there", kwargs["json"]["text"])
+        self.assertIn(self.learner.email, kwargs["json"]["text"])
+
+    @patch("django.conf.settings.TELEGRAM_CHAT_ID", "-123")
+    @patch("django.conf.settings.TELEGRAM_BOT_TOKEN", "test-token")
+    @patch("requests.post", side_effect=Exception("network down"))
+    def test_network_failure_does_not_raise(self, mock_post):
+        from .notifications import notify_telegram_of_message
+
+        notify_telegram_of_message(self.thread, self.message)  # must not raise

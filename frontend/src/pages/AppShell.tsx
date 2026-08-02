@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import InviteButton from "../components/InviteButton";
@@ -7,19 +7,18 @@ import UserMenu from "../components/UserMenu";
 import { SubscriptionProvider, useSubscription } from "../subscription/SubscriptionContext";
 
 /* Small inline nav icons for the mobile bottom bar. */
+function IconHome() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 10.5L12 4l8 6.5V20a1 1 0 01-1 1h-5v-6h-4v6H5a1 1 0 01-1-1v-9.5z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  );
+}
 function IconDecks() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden>
       <path d="M12 3l9 5-9 5-9-5 9-5z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
       <path d="M3 13l9 5 9-5" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" opacity=".6" />
-    </svg>
-  );
-}
-function IconBooks() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M12 5.5C10.5 4.3 8.4 4 4 4v13c4.4 0 6.5.3 8 1.5 1.5-1.2 3.6-1.5 8-1.5V4c-4.4 0-6.5.3-8 1.5z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M12 5.5v13" stroke="currentColor" strokeWidth="2" />
     </svg>
   );
 }
@@ -49,14 +48,14 @@ function IconQuiz() {
   );
 }
 
-/* Import moved to a button on the deck list (that's where you already are when
-   you want to add cards), Support to the account menu, and Writing +
+/* Home carries the daily dashboard plus the Books/Import doorways, so neither
+   needs a nav slot; Support lives in the account menu, and Writing +
    Conversation merged into Practice. Quiz (the placement test) is its own
    destination — a full-screen flow, not a Practice tab. */
 const NAV = [
-  { to: "/app", end: true, key: "nav.decks", Icon: IconDecks },
+  { to: "/app", end: true, key: "nav.home", Icon: IconHome },
+  { to: "/app/decks", end: false, key: "nav.decks", Icon: IconDecks },
   { to: "/app/stats", end: false, key: "nav.stats", Icon: IconStats },
-  { to: "/app/books", end: false, key: "nav.books", Icon: IconBooks },
   { to: "/app/practice", end: false, key: "nav.practice", Icon: IconPractice },
   { to: "/app/placement-test", end: false, key: "nav.quiz", Icon: IconQuiz },
 ] as const;
@@ -76,12 +75,26 @@ function AiUsageChip() {
   );
 }
 
+/* The five top-level destinations. Only these show the mobile bottom tab bar;
+   anything deeper (deck cards, a book, import, support…) is a sub-page that
+   hides the bar and offers its own back button instead. Practice keeps the bar
+   across its tabs — they're a segmented control, not deeper navigation. */
+const MAIN_ROUTES = [
+  /^\/app\/?$/,
+  /^\/app\/decks\/?$/,
+  /^\/app\/stats\/?$/,
+  /^\/app\/practice(\/[\w-]+)?\/?$/,
+  /^\/app\/placement-test\/?$/,
+];
+
 export default function AppShell() {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
+  const isMain = MAIN_ROUTES.some((re) => re.test(pathname));
 
   return (
     <SubscriptionProvider>
-      <div className="shell">
+      <div className={`shell${isMain ? "" : " shell--subpage"}`}>
         <header className="shell__bar">
           <Link to="/app" className="shell__brand">Nemo&nbsp;Anki</Link>
           <nav className="shell__nav">
@@ -104,15 +117,17 @@ export default function AppShell() {
           <Outlet />
         </main>
 
-        {/* Mobile bottom tab bar (hidden on desktop via CSS). */}
-        <nav className="shell__tabbar">
-          {NAV.map(({ to, end, key, Icon }) => (
-            <NavLink key={to} to={to} end={end} className="tabbar__link">
-              <span className="tabbar__icon"><Icon /></span>
-              <span className="tabbar__label">{t(key)}</span>
-            </NavLink>
-          ))}
-        </nav>
+        {/* Mobile bottom tab bar (hidden on desktop via CSS) — main pages only. */}
+        {isMain && (
+          <nav className="shell__tabbar">
+            {NAV.map(({ to, end, key, Icon }) => (
+              <NavLink key={to} to={to} end={end} className="tabbar__link">
+                <span className="tabbar__icon"><Icon /></span>
+                <span className="tabbar__label">{t(key)}</span>
+              </NavLink>
+            ))}
+          </nav>
+        )}
       </div>
     </SubscriptionProvider>
   );

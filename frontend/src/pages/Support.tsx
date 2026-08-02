@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { fetchSupportThread, sendSupportMessage, type SupportMessage } from "../auth/api";
@@ -12,6 +13,7 @@ function formatTime(iso: string): string {
 
 export default function Support() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -93,6 +95,12 @@ export default function Support() {
           <h1>{t("support.title")}</h1>
           <p className="import__sub">{t("support.subtitle")}</p>
         </div>
+        <button
+          className="btn btn--ghost btn--sm support__back"
+          onClick={() => navigate("/app")}
+        >
+          {t("support.backBtn")}
+        </button>
       </div>
 
       <div className="panel support__chat">

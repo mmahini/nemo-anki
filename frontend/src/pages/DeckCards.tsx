@@ -207,7 +207,7 @@ export default function DeckCards() {
     <div className="browse">
       <div className="browse__head">
         <div>
-          <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app")}>{t("decks.backBtn")}</button>
+          <button className="btn btn--ghost btn--sm" onClick={() => navigate("/app/decks")}>{t("decks.backBtn")}</button>
           <h1>{deck?.full_name ?? "Deck"}</h1>
           <p className="browse__sub">{t("deckCards.cardCount", { count })}</p>
         </div>

@@ -10,6 +10,7 @@ import SignIn from "./pages/SignIn";
 import Verify from "./pages/Verify";
 import Welcome from "./pages/Welcome";
 import AppShell from "./pages/AppShell";
+import Home from "./pages/Home";
 import Decks from "./pages/Decks";
 import Stats from "./pages/Stats";
 import DeckCards from "./pages/DeckCards";
@@ -20,6 +21,7 @@ import BookPage from "./pages/BookPage";
 import Study from "./pages/Study";
 import StudyCard from "./pages/StudyCard";
 import PlacementTest from "./pages/PlacementTest";
+import PlacementTestRun from "./pages/PlacementTestRun";
 import Practice from "./pages/Practice";
 import Support from "./pages/Support";
 import Subscribe from "./pages/Subscribe";
@@ -63,9 +65,13 @@ export default function App() {
             {/* Study runs full-screen, outside the shell chrome. */}
             <Route path="/app/study/:deckId" element={<Study />} />
             <Route path="/app/study/card/:cardId" element={<StudyCard />} />
-            <Route path="/app/placement-test" element={<PlacementTest />} />
+            {/* The quiz itself is full-screen too; its setup page lives in the
+                shell as a main page (see PlacementTest). */}
+            <Route path="/app/placement-test/run" element={<PlacementTestRun />} />
             <Route element={<AppShell />}>
-              <Route path="/app" element={<Decks />} />
+              <Route path="/app" element={<Home />} />
+              <Route path="/app/placement-test" element={<PlacementTest />} />
+              <Route path="/app/decks" element={<Decks />} />
               <Route path="/app/stats" element={<Stats />} />
               <Route path="/app/decks/:deckId" element={<DeckCards />} />
               <Route path="/app/decks/:deckId/add" element={<AddCard />} />

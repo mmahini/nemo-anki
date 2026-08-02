@@ -1,5 +1,6 @@
 {
   "nav": {
+    "home": "Home",
     "decks": "Decks",
     "books": "Books",
     "support": "Support",
@@ -14,6 +15,17 @@
     "quiz": "Quiz",
     "howItWorks": "How it works",
     "invite": "Invite friends"
+  },
+  "home": {
+    "greeting": "Hi, {{name}} 👋",
+    "greetingNoName": "Welcome back 👋",
+    "noDecksTitle": "Start your first deck",
+    "noDecksHint": "Create a deck, or bring your words in through Books or Import below.",
+    "goDecksBtn": "Go to decks",
+    "booksTitle": "Books",
+    "booksBody": "Upload a coursebook PDF and pull the vocabulary out of each lesson.",
+    "importTitle": "Import",
+    "importBody": "Paste a word list or bring an Anki deck — the cards get built for you."
   },
   "pwa": {
     "updateReady": "A new version is ready",
@@ -161,6 +173,7 @@
   },
   "books": {
     "title": "Books",
+    "backBtn": "← Home",
     "bookTitle": "Book title",
     "bookTitlePlaceholder": "e.g. Oxford Word Skills Intermediate",
     "bookLanguage": "Book language",
@@ -264,7 +277,7 @@
     "viewStats": "Full stats ←"
   },
   "placementTest": {
-    "backBtn": "← Decks",
+    "backBtn": "← Quiz",
     "title": "Placement Test",
     "description": "Answer a few original Reading and Listening questions (AI-generated, not from a real exam) to get an estimated level.",
     "languageLabel": "Language",
@@ -283,7 +296,7 @@
     "finishBtn": "Finish test",
     "resultTitle": "Your estimated level",
     "resultScore": "{{correct}} of {{total}} correct",
-    "backToDecks": "Back to decks"
+    "backHome": "Back to Home"
   },
   "bookPage": {
     "backBtn": "← Books",
@@ -349,6 +362,7 @@
   },
   "support": {
     "title": "Support",
+    "backBtn": "← Home",
     "subtitle": "Have a question or ran into a problem? Ask here — our team will reply as soon as they can.",
     "emptyHint": "Send us a message and we'll get back to you.",
     "inputPlaceholder": "Type your question…",
