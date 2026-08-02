@@ -8,6 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .email import send_otp_email
 from .models import EmailOTP, User
+from .notifications import notify_new_user_signup
 from .serializers import RequestOTPSerializer, UserSerializer, VerifyOTPSerializer
 
 
@@ -100,6 +101,8 @@ class VerifyOTPView(APIView):
         referral_applied = created and _apply_referral(
             user, serializer.validated_data.get("referral_code", "")
         )
+        if created:
+            notify_new_user_signup(user)
         return Response(
             {
                 **_tokens_for(user),
