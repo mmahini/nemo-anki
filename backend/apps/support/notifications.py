@@ -44,3 +44,28 @@ def notify_staff_of_message(thread, message) -> None:
                 logger.warning("Push send failed for %s: %s", sub.endpoint, e)
         except Exception:  # noqa: BLE001 — never let a push failure break the request
             logger.exception("Unexpected error sending push to %s", sub.endpoint)
+
+
+def notify_telegram_of_message(thread, message) -> None:
+    """Post a new user support message into the team's Telegram group.
+    Best-effort — unconfigured or failing Telegram must never break the
+    message-send request."""
+    if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_CHAT_ID:
+        return
+
+    import requests
+
+    text = (
+        f"\U0001f4ac New support message\n"
+        f"From: {thread.user.email}\n\n"
+        f"{message.body}"
+    )
+    url = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage"
+    try:
+        res = requests.post(
+            url, json={"chat_id": settings.TELEGRAM_CHAT_ID, "text": text}, timeout=5
+        )
+        if not res.ok:
+            logger.warning("Telegram send failed (%s): %s", res.status_code, res.text)
+    except Exception:  # noqa: BLE001 — never let a Telegram failure break the request
+        logger.exception("Unexpected error sending Telegram notification")
