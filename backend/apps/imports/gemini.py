@@ -60,37 +60,63 @@ TEXT: {front}
 
 
 def enrich_card(
-    front: str, language: str = "", card_type: str = "vocab", back_language: str = "English"
+    front: str, language: str = "", card_type: str = "vocab", back_language: str = "English",
+    previous_proposal: dict | None = None,
 ) -> dict:
     """Translate + add reading/article/example for a single term (Translate button).
 
     `back_language` is the language the translation ("back") is written in.
+    `previous_proposal` — the {back, reading, article, plural, example} the user
+    already saw — is only passed by the Telegram bot's Regenerate button (see
+    apps.notifications.management.commands.poll_telegram_updates); it asks
+    Gemini to genuinely reconsider the whole card rather than just repeating
+    itself, and is otherwise omitted so this call is unchanged for every other
+    caller (EnrichView, WordToCardView).
     """
     front = (front or "").strip()
     if not front:
         return {}
     if settings.GEMINI_API_KEY:
         try:
-            return _enrich_with_gemini(front, language, card_type, back_language)
+            return _enrich_with_gemini(front, language, card_type, back_language, previous_proposal)
         except Exception:  # noqa: BLE001 — degrade to local detection
             return _enrich_fallback(front)
     return _enrich_fallback(front)
 
 
-def _enrich_with_gemini(front: str, language: str, card_type: str, back_language: str) -> dict:
+def _enrich_with_gemini(
+    front: str, language: str, card_type: str, back_language: str,
+    previous_proposal: dict | None = None,
+) -> dict:
     prompt = _ENRICH_PROMPT.format(
         language_name=_LANG_NAMES.get(language, "the target language"),
         back_language=(back_language or "English").strip(),
         card_type=card_type if card_type in ALLOWED_TYPES else "vocab",
         front=front[:500],
     )
+    if previous_proposal:
+        prompt += (
+            "\n\nThe user already saw this full proposal and tapped Regenerate:\n"
+            f'- Translation: "{previous_proposal.get("back", "")}"\n'
+            f'- Reading: "{previous_proposal.get("reading", "")}"\n'
+            f'- Article: "{previous_proposal.get("article", "")}"\n'
+            f'- Plural: "{previous_proposal.get("plural", "")}"\n'
+            f'- Example: "{previous_proposal.get("example", "")}"\n'
+            "Reconsider the whole card honestly, not just the translation — keep whatever is "
+            "already correct, but genuinely rethink anything that could be better (a different "
+            "nuance, a more natural reading, a clearer example). Never change something just to "
+            "look different, and never make it worse."
+        )
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
         f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
     )
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"},
+        "generationConfig": {
+            "temperature": 0.5 if previous_proposal else 0.2,
+            "responseMimeType": "application/json",
+        },
     }
     res = requests.post(url, json=payload, timeout=30)
     res.raise_for_status()
@@ -104,6 +130,91 @@ def _enrich_with_gemini(front: str, language: str, card_type: str, back_language
         "plural": str(obj.get("plural", "")).strip(),
         "example": str(obj.get("example", "")).strip(),
     }
+
+
+_ENRICH_OPTIONS_PROMPT = """For the {language_name} {card_type} below, return ONLY a JSON \
+object (no markdown, no commentary) with these keys:
+- "translations": a JSON array of up to {n} DIFFERENT plausible translations \
+into {back_language}, ranked by likely correctness, each a short string.
+- "pronunciations": a JSON array of up to {n} DIFFERENT plausible phonetic \
+transcriptions (IPA or a simple respelling) of the {language_name} text, each \
+a short string, or [] if not applicable.
+- "article": for a {language_name} noun one of "der","die","das","plural"; \
+otherwise "none".
+- "plural": for a noun, its plural form WITH the plural article (e.g. \
+"die Tische"); "" if not a noun or it has no plural.
+- "example": one short, natural example sentence in {language_name}, or "".
+
+TEXT: {front}
+"""
+
+
+def enrich_card_options(
+    front: str, language: str = "", card_type: str = "vocab", back_language: str = "English", n: int = 3
+) -> dict:
+    """Like enrich_card, but offers several ranked translation and
+    pronunciation candidates instead of committing to one — backs the
+    Telegram bot's pick-one-or-type-your-own word lookup (see
+    apps.notifications.management.commands.poll_telegram_updates).
+    """
+    front = (front or "").strip()
+    if not front:
+        return {"translations": [], "pronunciations": [], "article": "none", "plural": "", "example": ""}
+    if settings.GEMINI_API_KEY:
+        try:
+            return _enrich_options_with_gemini(front, language, card_type, back_language, n)
+        except Exception:  # noqa: BLE001 — degrade to manual entry
+            pass
+    fallback = _enrich_fallback(front)
+    return {
+        "translations": [], "pronunciations": [],
+        "article": fallback["article"], "plural": fallback["plural"], "example": fallback["example"],
+    }
+
+
+def _enrich_options_with_gemini(front: str, language: str, card_type: str, back_language: str, n: int) -> dict:
+    prompt = _ENRICH_OPTIONS_PROMPT.format(
+        language_name=_LANG_NAMES.get(language, "the target language"),
+        back_language=(back_language or "English").strip(),
+        card_type=card_type if card_type in ALLOWED_TYPES else "vocab",
+        n=n,
+        front=front[:500],
+    )
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json"},
+    }
+    res = requests.post(url, json=payload, timeout=30)
+    res.raise_for_status()
+    raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+    obj = _extract_json_object(raw)
+    article = obj.get("article") if obj.get("article") in ALLOWED_ARTICLES else _detect_article(front)
+    return {
+        "translations": _dedupe_strings(obj.get("translations"), n),
+        "pronunciations": _dedupe_strings(obj.get("pronunciations"), n),
+        "article": article,
+        "plural": str(obj.get("plural", "")).strip(),
+        "example": str(obj.get("example", "")).strip(),
+    }
+
+
+def _dedupe_strings(values, n: int) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    seen: set[str] = set()
+    out: list[str] = []
+    for v in values:
+        s = str(v).strip()
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+        if len(out) >= n:
+            break
+    return out
 
 
 def _extract_json_object(raw: str) -> dict:
@@ -124,6 +235,57 @@ def _detect_article(front: str) -> str:
 def _enrich_fallback(front: str) -> dict:
     """No LLM: at least pull a leading der/die/das so the colour works."""
     return {"back": "", "reading": "", "article": _detect_article(front), "plural": "", "example": ""}
+
+
+_IMAGE_QUERY_PROMPT = """A language-flashcard app wants to auto-attach a small \
+illustrative photo to this {language_name} {card_type} card.
+Front: "{front}"
+Meaning: "{back}"
+
+Decide whether a photo could unambiguously depict this specific meaning. Concrete \
+objects, animals, places, foods, and physical actions usually can. Days of the \
+week, numbers, abstract concepts, emotions, grammar/function words, and terms \
+whose most common photos online are unrelated to this meaning (e.g. a proper \
+noun that collides with an event or brand name) usually can NOT — be honest and \
+default to false when unsure, rather than risking a misleading picture.
+
+If depictable, phrase the query so the item itself is the obvious, sole subject \
+— prefer "glass of milk" over "breakfast table with milk", "red apple" over \
+"fruit basket" — since a busy multi-object scene is as misleading here as an \
+unrelated picture.
+
+Return ONLY JSON (no markdown, no commentary):
+{{"depictable": true|false, "query": "<if depictable, a short unambiguous \
+English image-search phrase naming this single item as the sole subject; \
+otherwise \"\">"}}
+"""
+
+
+def image_search_query(front: str, back: str, language: str = "", card_type: str = "vocab") -> str:
+    """Ask Gemini whether `front`/`back` is something a photo can reliably
+    depict and, if so, for a short unambiguous English image-search phrase.
+    Returns "" (skip the image) when it isn't depictable, no GEMINI_API_KEY is
+    configured, or the call fails — auto-picture-suggestion is best-effort and
+    must never block card creation. Backs apps.cards.image_search
+    .find_and_attach_thumbnail, shared by the web "find image" button and the
+    Telegram bot's word wizard.
+    """
+    front = (front or "").strip()
+    if not front or not settings.GEMINI_API_KEY:
+        return ""
+    try:
+        prompt = _IMAGE_QUERY_PROMPT.format(
+            language_name=_LANG_NAMES.get(language, "the target language"),
+            card_type=card_type if card_type in ALLOWED_TYPES else "vocab",
+            front=front[:200],
+            back=(back or "")[:200],
+        )
+        obj = _extract_json_object(_gemini_text(prompt, timeout=20, temperature=0.0))
+        if not obj.get("depictable"):
+            return ""
+        return str(obj.get("query", "")).strip()
+    except Exception:  # noqa: BLE001 — degrade to no image
+        return ""
 
 
 _CONJUGATE_PROMPT = """You are a language teacher. Conjugate the {language_name} \

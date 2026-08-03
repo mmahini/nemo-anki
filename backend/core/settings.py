@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 import os
 
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,6 +29,7 @@ INSTALLED_APPS = [
     "apps.subscriptions",
     "apps.support",
     "apps.placement",
+    "apps.notifications",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -201,14 +203,37 @@ GEMINI_VERIFY_SSL = os.getenv("GEMINI_VERIFY_SSL", "1") != "0"
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 OTP_FROM_EMAIL = os.getenv("OTP_FROM_EMAIL", "Nemo Anki <noreply@nemoapps.xyz>")
 
-# Web Push — notifies staff when a user sends a support message. Unset in an
-# environment (e.g. fresh local checkout) means push sends are silently
-# skipped rather than erroring.
-VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
-VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
-VAPID_CLAIM_EMAIL = os.getenv("VAPID_CLAIM_EMAIL", "admin@nemoapps.xyz")
+# Celery — runs the every-minute study-reminder scan (apps.notifications.tasks).
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_TIMEZONE = "UTC"
+CELERY_BEAT_SCHEDULE = {
+    "check-study-reminders": {
+        "task": "apps.notifications.tasks.check_study_reminders",
+        "schedule": crontab(minute="*"),
+    },
+}
 
-# Telegram — posts events (new support messages, new signups, ...) into the
-# team's group. Unset means the notification is silently skipped.
+# Web Push (VAPID) — one shared keypair for both study-reminder push
+# (apps.notifications.tasks.send_reminder_push) and staff push alerts on new
+# support messages (apps.support.notifications.notify_staff_of_message).
+# Generate a keypair locally (e.g. `npx web-push generate-vapid-keys`) and put
+# it only in .env; VAPID_PUBLIC_KEY also needs to be exposed to the frontend
+# build as VITE_VAPID_PUBLIC_KEY since the browser needs it for
+# pushManager.subscribe(). Unset means push sends are silently skipped rather
+# than erroring.
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
+VAPID_SUBJECT_EMAIL = os.getenv("VAPID_SUBJECT_EMAIL", "support@nemoapps.xyz")
+
+# Telegram — one shared bot handles both the interactive per-user bot
+# (TelegramLink, /lang, /sentence, reminders — see apps.notifications) and
+# one-way staff/group alerts (new signups, new support messages — see
+# core.telegram.send_telegram_message, apps.support.notifications). Unset
+# TELEGRAM_BOT_TOKEN disables both: TelegramConnectView returns 503 and
+# poll_telegram_updates idles; the staff alert senders no-op. Create a bot via
+# @BotFather to get a token + its @username.
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")

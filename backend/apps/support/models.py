@@ -29,7 +29,7 @@ class PushSubscription(models.Model):
     trigger a real phone/desktop notification (see notifications.py)."""
 
     user = models.ForeignKey(
-        "accounts.User", on_delete=models.CASCADE, related_name="push_subscriptions"
+        "accounts.User", on_delete=models.CASCADE, related_name="staff_push_subscriptions"
     )
     endpoint = models.URLField(max_length=500, unique=True)
     p256dh = models.CharField(max_length=255)

@@ -20,6 +20,7 @@ urlpatterns = [
     path("api/", include("apps.subscriptions.urls")),
     path("api/", include("apps.support.urls")),
     path("api/", include("apps.placement.urls")),
+    path("api/", include("apps.notifications.urls")),
 ]
 
 if settings.DEBUG:

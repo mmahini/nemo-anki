@@ -77,6 +77,24 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     date_joined = models.DateTimeField(default=timezone.now)
 
+    STUDY_REMINDER_CHANNEL_CHOICES = [("push", "Push"), ("telegram", "Telegram")]
+
+    # Daily "time to study" reminder. Null time means the reminder is off.
+    # The timezone is an IANA name captured from the browser (not a
+    # user-facing picker) so the every-minute Celery beat task can tell what
+    # the reminder time actually means in wall-clock terms for this user —
+    # the server itself always runs in UTC.
+    study_reminder_time = models.TimeField(null=True, blank=True)
+    study_reminder_timezone = models.CharField(max_length=64, default="UTC")
+    # Which channel delivers the reminder — mutually exclusive, not both at
+    # once. "telegram" requires a linked apps.notifications.TelegramLink.
+    study_reminder_channel = models.CharField(
+        max_length=8, choices=STUDY_REMINDER_CHANNEL_CHOICES, default="push"
+    )
+    # Local (not UTC) date the last reminder push was sent, so the beat task
+    # doesn't re-send within the same day.
+    study_reminder_last_sent = models.DateField(null=True, blank=True)
+
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: list[str] = []
 

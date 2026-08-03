@@ -11,7 +11,7 @@ help:
 	@echo "  make up                 — start the stack (build + run, foreground)"
 	@echo "  make down               — stop the stack"
 	@echo "  make build              — rebuild images"
-	@echo "  make logs               — tail backend + frontend logs"
+	@echo "  make logs               — tail backend + frontend + celery logs"
 	@echo "  make verify             — backend tests + frontend typecheck"
 	@echo "  make test-backend       — Django tests (incl. scheduler suite)"
 	@echo "  make typecheck-frontend — tsc --noEmit on the frontend"
@@ -32,7 +32,7 @@ build:
 	docker compose build
 
 logs:
-	docker compose logs -f backend frontend
+	docker compose logs -f backend frontend celery-worker celery-beat telegram-poller
 
 test test-backend:
 	docker compose exec backend python manage.py test

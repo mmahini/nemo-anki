@@ -77,7 +77,7 @@ services:
         sync: false
       - key: VAPID_PUBLIC_KEY
         sync: false
-      - key: VAPID_CLAIM_EMAIL
+      - key: VAPID_SUBJECT_EMAIL
         value: admin@nemoapps.xyz
       # Telegram — posts events (new support messages, new signups, ...)
       # into the team's group. Unset here → skipped, not an error.

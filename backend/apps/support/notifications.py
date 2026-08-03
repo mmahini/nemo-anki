@@ -34,7 +34,7 @@ def notify_staff_of_message(thread, message) -> None:
                 },
                 data=payload,
                 vapid_private_key=settings.VAPID_PRIVATE_KEY,
-                vapid_claims={"sub": f"mailto:{settings.VAPID_CLAIM_EMAIL}"},
+                vapid_claims={"sub": f"mailto:{settings.VAPID_SUBJECT_EMAIL}"},
             )
         except WebPushException as e:
             status_code = getattr(e.response, "status_code", None)
