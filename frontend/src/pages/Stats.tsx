@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -38,14 +38,58 @@ function dateFmt(lang: string, opts: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat(lang === "fa" ? "fa-IR-u-nu-latn" : "en-GB", opts);
 }
 
-/** A stat tile — the right form when the answer is a single number. */
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+/** A stat tile — the right form when the answer is a single number; an
+ * optional sparkline/meter underneath shows its shape without another chart. */
+function Tile({
+  label,
+  value,
+  sub,
+  viz,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  viz?: ReactNode;
+}) {
   return (
     <div className="tile">
       <span className="tile__label">{label}</span>
       <span className="tile__value">{value}</span>
+      {viz && <span className="tile__viz">{viz}</span>}
       {sub && <span className="tile__sub">{sub}</span>}
     </div>
+  );
+}
+
+/** Decorative trend line for a stat tile (one hue, no axes — the tile's value
+ * carries the number; this only shows the shape over the selected range). */
+function Sparkline({ points }: { points: number[] }) {
+  const W = 120;
+  const H = 28;
+  const PAD = 2;
+  const max = Math.max(...points, 1);
+  const step = points.length > 1 ? (W - PAD * 2) / (points.length - 1) : 0;
+  const path = points
+    .map((v, i) => {
+      const x = PAD + i * step;
+      const y = H - PAD - (v / max) * (H - PAD * 2);
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg className="sparkline" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden>
+      <path d={path} fill="none" stroke={ONE_HUE} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** A ratio against a limit, as a same-ramp meter (never a two-slice pie). */
+function Meter({ ratio }: { ratio: number }) {
+  const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+  return (
+    <span className="tilemeter" aria-hidden>
+      <span className="tilemeter__fill" style={{ width: `${pct}%` }} />
+    </span>
   );
 }
 
@@ -161,6 +205,9 @@ export default function Stats() {
         <h1>{t("stats.title")}</h1>
         <p className="stats__sub">{t("stats.subtitle")}</p>
       </div>
+      <Link className="btn btn--ghost btn--sm" to="/app">
+        {t("stats.backBtn")}
+      </Link>
     </div>
   );
 
@@ -204,6 +251,7 @@ export default function Stats() {
         <div className="statshero__main">
           <span className="statshero__label">{t("stats.retention")}</span>
           <span className="statshero__value">{fmtPercent(r.retention, 1)}</span>
+          {r.retention != null && <Meter ratio={r.retention} />}
           <span className="statshero__sub">
             {r.mature_answers > 0
               ? t("stats.retentionSub", { count: r.mature_answers, range: rangeLabel })
@@ -211,21 +259,29 @@ export default function Stats() {
           </span>
         </div>
         <div className="statshero__tiles">
-          <Tile label={t("stats.reviewsDone")} value={fmtCount(r.reviews)} sub={rangeLabel} />
+          <Tile
+            label={t("stats.reviewsDone")}
+            value={fmtCount(r.reviews)}
+            sub={rangeLabel}
+            viz={<Sparkline points={r.days.map((d) => d.count)} />}
+          />
           <Tile
             label={t("stats.timeStudied")}
             value={fmtDuration(r.seconds)}
             sub={r.reviews ? t("stats.perCard", { value: `${r.avg_seconds_per_card}s` }) : undefined}
+            viz={<Sparkline points={r.days.map((d) => d.seconds)} />}
           />
           <Tile
             label={t("stats.perDay")}
             value={fmtCount(r.avg_per_active_day)}
             sub={t("stats.activeDays", { count: r.active_days })}
+            viz={<Meter ratio={r.days.length ? r.active_days / r.days.length : 0} />}
           />
           <Tile
             label={t("stats.dueNow")}
             value={fmtCount(c.due_now)}
             sub={t("stats.ofCards", { count: c.total })}
+            viz={<Meter ratio={c.total ? c.due_now / c.total : 0} />}
           />
         </div>
       </section>

@@ -419,6 +419,7 @@
   },
   "stats": {
     "title": "Performance",
+    "backBtn": "← Home",
     "subtitle": "How your reviews are going, and what's coming next.",
     "loading": "Crunching your reviews…",
     "rangeLabel": "Range",
