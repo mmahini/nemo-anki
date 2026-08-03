@@ -1492,6 +1492,17 @@ kbd {
   padding: 22px 24px; margin-bottom: 18px;
 }
 .statshero__main { display: flex; flex-direction: column; gap: 2px; min-width: 190px; }
+/* Tile visualizations: a decorative trend line or a ratio meter under the
+   value — one hue (the charts' sequential hue), no axes, no interaction. */
+.tile__viz { display: block; margin: 6px 0 2px; }
+.sparkline { display: block; width: 100%; max-width: 150px; height: 28px; }
+.tilemeter {
+  display: block; width: 100%; max-width: 150px; height: 8px; margin: 6px 0 2px;
+  border-radius: 999px; background: var(--line-soft); overflow: hidden;
+}
+.tilemeter__fill { display: block; height: 100%; border-radius: 999px; background: var(--sr-3); transition: width 0.3s ease; }
+.tile__viz .tilemeter { margin: 0; }
+.statshero__main .tilemeter { max-width: 190px; margin: 8px 0 6px; }
 .statshero__label { font-size: 0.78rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
 /* Proportional figures: tabular-nums would leave a big number looking loose. */
 .statshero__value { font-size: 3.1rem; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; }

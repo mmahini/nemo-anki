@@ -108,6 +108,15 @@ export default function UserMenu() {
             </Link>
 
             <Link
+              to="/app/stats"
+              className="usermenu__item"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+            >
+              {t("nav.stats")}
+            </Link>
+
+            <Link
               to="/welcome"
               className="usermenu__item"
               role="menuitem"

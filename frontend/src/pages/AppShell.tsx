@@ -30,15 +30,6 @@ function IconPractice() {
     </svg>
   );
 }
-function IconStats() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 20V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M4 20h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M8.5 20v-6M13 20V8.5M17.5 20v-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
 function IconQuiz() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -55,7 +46,6 @@ function IconQuiz() {
 const NAV = [
   { to: "/app", end: true, key: "nav.home", Icon: IconHome },
   { to: "/app/decks", end: false, key: "nav.decks", Icon: IconDecks },
-  { to: "/app/stats", end: false, key: "nav.stats", Icon: IconStats },
   { to: "/app/practice", end: false, key: "nav.practice", Icon: IconPractice },
   { to: "/app/placement-test", end: false, key: "nav.quiz", Icon: IconQuiz },
 ] as const;
@@ -82,7 +72,6 @@ function AiUsageChip() {
 const MAIN_ROUTES = [
   /^\/app\/?$/,
   /^\/app\/decks\/?$/,
-  /^\/app\/stats\/?$/,
   /^\/app\/practice(\/[\w-]+)?\/?$/,
   /^\/app\/placement-test\/?$/,
 ];
