@@ -1775,6 +1775,35 @@ kbd {
 .welcome__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .welcome__actions .btn--primary { min-width: 140px; justify-content: center; }
 
+/* Nemo hero card — today's queue + goal + streak in one friendly card. */
+.nemocard {
+  display: flex; align-items: center; gap: 20px;
+  padding: 24px 28px; overflow: hidden;
+  background: linear-gradient(135deg, rgba(76, 110, 245, 0.08), rgba(31, 157, 87, 0.07)), var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.nemocard__body { flex: 1; min-width: 0; display: grid; gap: 10px; justify-items: start; }
+.nemocard__title { margin: 0; font-size: 1.3rem; line-height: 1.35; }
+.nemocard__sub { margin: 0; font-size: 0.88rem; color: var(--ink-soft); }
+.nemocard__goal { display: grid; gap: 7px; width: 100%; max-width: 380px; }
+.nemocard__goal .scorecard__meter { margin-top: 0; }
+.nemocard__goaltext { font-size: 0.84rem; font-weight: 600; color: var(--ink-soft); }
+.nemocard__cta { margin-top: 2px; }
+.nemocard__next { font-size: 0.8rem; color: var(--ink-faint); }
+.nemocard__img {
+  flex: none; width: 168px; height: auto; align-self: flex-end;
+  margin-bottom: -34px; /* let him dip below the card edge, like he's swimming through */
+  filter: drop-shadow(0 8px 16px rgba(20, 28, 46, 0.18));
+}
+/* The fish faces the text in LTR; mirror him so he still does in RTL. */
+[dir="rtl"] .nemocard__img { transform: scaleX(-1); }
+@media (max-width: 640px) {
+  .nemocard { padding: 18px; gap: 8px; }
+  .nemocard__title { font-size: 1.12rem; }
+  .nemocard__img { width: 116px; margin-bottom: -24px; }
+}
+
 /* Home — greeting, daily dashboard, and the Books/Import doorway cards. */
 .home { display: grid; gap: 20px; align-content: start; }
 .home__greeting { margin: 0; }

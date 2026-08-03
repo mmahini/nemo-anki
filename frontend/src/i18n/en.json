@@ -264,16 +264,13 @@
     "startToday": "Study a deck to start a streak."
   },
   "dashboard": {
-    "studyTitle": "What to study today",
+    "heroTitle": "Nemo's lined up {{count}} cards for you today!",
     "studySub": "{{new}} new · {{learning}} learning · {{due}} due",
-    "studyBtn": "▶ Start studying",
-    "allDoneTitle": "All reviews done for today 🎉",
-    "goalTitle": "Today's goal",
-    "goalCount": "{{done}} / {{goal}} cards",
-    "continueBtn": "Continue studying",
-    "nextTitle": "What's next",
-    "nextDeckSub": "{{count}} cards left",
-    "nextDone": "Nothing left for today — come back tomorrow",
+    "heroDoneTitle": "All clear for today! 🎉",
+    "heroDoneSub": "Nothing left to review — Nemo's off for a swim. See you tomorrow!",
+    "goalCount": "{{done}} / {{goal}} cards today",
+    "heroCta": "Let's go!",
+    "nextUp": "Up next: {{name}}",
     "viewStats": "Full stats ←"
   },
   "placementTest": {
