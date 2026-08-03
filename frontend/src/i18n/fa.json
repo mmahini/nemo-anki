@@ -264,16 +264,13 @@
     "startToday": "یک دسته مطالعه کن تا زنجیره‌ات شروع شود."
   },
   "dashboard": {
-    "studyTitle": "امروز چی بخونم",
+    "heroTitle": "نمو امروز {{count}} کارت برات کنار گذاشته!",
     "studySub": "{{new}} جدید · {{learning}} یادگیری · {{due}} مرور",
-    "studyBtn": "▶ شروع مطالعه",
-    "allDoneTitle": "همه‌ی مرورهای امروز تموم شد 🎉",
-    "goalTitle": "هدف امروز",
-    "goalCount": "{{done}} / {{goal}} کارت",
-    "continueBtn": "ادامه‌ی مطالعه",
-    "nextTitle": "بعدش چی کار کنم",
-    "nextDeckSub": "{{count}} کارت مونده",
-    "nextDone": "چیزی برای امروز نمونده — فردا برگرد",
+    "heroDoneTitle": "امروز همه‌چیز تمومه! 🎉",
+    "heroDoneSub": "چیزی برای مرور نمونده — نمو رفته شنا. فردا می‌بینمت!",
+    "goalCount": "{{done}} از {{goal}} کارتِ امروز",
+    "heroCta": "بزن بریم!",
+    "nextUp": "بعدی: {{name}}",
     "viewStats": "تحلیل کامل ←"
   },
   "placementTest": {

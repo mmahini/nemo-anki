@@ -5,10 +5,9 @@ import { useTranslation } from "react-i18next";
 import { fetchActivity, type Deck, type ReviewActivity as Activity } from "../auth/api";
 
 /**
- * Landing-page dashboard: what to study today, how much has been done today,
- * and what to study next. Replaces the old one-line `<ReviewActivity />` nudge
- * with the same underlying data (deck counts already loaded by the caller,
- * plus `fetchActivity()`), just answering three questions instead of one.
+ * Home hero card: Nemo presents today's queue, the goal bar and the streak in
+ * one friendly card, with the study CTA. Same data as before (deck counts from
+ * the caller + fetchActivity()), just fewer boxes and more personality.
  */
 export default function DailyDashboard({ decks }: { decks: Deck[] }) {
   const { t } = useTranslation();
@@ -39,66 +38,60 @@ export default function DailyDashboard({ decks }: { decks: Deck[] }) {
   const doneToday = activity?.today.count ?? 0;
   const goal = doneToday + totalStudyable;
   const goalPct = goal > 0 ? Math.min(100, Math.round((doneToday / goal) * 100)) : 100;
+  const streak = activity?.streak ?? 0;
 
   return (
     <section className="dashboard">
-      <div className="dashboard__tiles">
-        <div className="dashboard__tile">
-          <span className="tile__label">{t("dashboard.studyTitle")}</span>
+      <div className="nemocard">
+        <div className="nemocard__body">
           {totalStudyable > 0 ? (
             <>
-              <span className="tile__value">{totalStudyable}</span>
-              <span className="tile__sub">
+              <h2 className="nemocard__title">
+                {t("dashboard.heroTitle", { count: totalStudyable })}
+              </h2>
+              <p className="nemocard__sub">
                 {t("dashboard.studySub", { new: totalNew, learning: totalLearning, due: totalDue })}
-              </span>
-              <button
-                className="btn btn--primary btn--sm dashboard__cta"
-                onClick={() => nextDeck && navigate(`/app/study/${nextDeck.id}`)}
-              >
-                {t("dashboard.studyBtn")}
-              </button>
+              </p>
             </>
           ) : (
-            <span className="tile__sub">{t("dashboard.allDoneTitle")}</span>
-          )}
-        </div>
-
-        <div className="dashboard__tile">
-          <span className="tile__label">{t("dashboard.goalTitle")}</span>
-          <span className="scorecard__meter">
-            <span className="scorecard__fill" data-tone="good" style={{ width: `${goalPct}%` }} />
-          </span>
-          <span className="tile__sub">{t("dashboard.goalCount", { done: doneToday, goal })}</span>
-          <span className="tile__sub">
-            🔥 {activity?.streak ?? 0} {t("activity.dayStreak")}
-          </span>
-          {nextDeck ? (
-            <button
-              className="btn btn--primary btn--sm dashboard__cta"
-              onClick={() => navigate(`/app/study/${nextDeck.id}`)}
-            >
-              {t("dashboard.continueBtn")}
-            </button>
-          ) : (
-            <span className="tile__sub">{t("dashboard.allDoneTitle")}</span>
-          )}
-        </div>
-
-        <div className="dashboard__tile">
-          <span className="tile__label">{t("dashboard.nextTitle")}</span>
-          {nextDeck ? (
             <>
-              <span className="tile__value">{nextDeck.name}</span>
-              <span className="tile__sub">
-                {t("dashboard.nextDeckSub", {
-                  count: nextDeck.counts.new + nextDeck.counts.learning + nextDeck.counts.due,
-                })}
+              <h2 className="nemocard__title">{t("dashboard.heroDoneTitle")}</h2>
+              <p className="nemocard__sub">{t("dashboard.heroDoneSub")}</p>
+            </>
+          )}
+
+          <div className="nemocard__goal">
+            <span className="scorecard__meter">
+              <span
+                className="scorecard__fill"
+                data-tone="good"
+                style={{ width: `${goalPct}%` }}
+              />
+            </span>
+            <span className="nemocard__goaltext">
+              {t("dashboard.goalCount", { done: doneToday, goal })}
+              {streak > 0 && <> · 🔥 {streak} {t("activity.dayStreak")}</>}
+            </span>
+          </div>
+
+          {nextDeck && (
+            <>
+              <button
+                className="btn btn--primary btn--lg nemocard__cta"
+                onClick={() => navigate(`/app/study/${nextDeck.id}`)}
+              >
+                {t("dashboard.heroCta")}
+              </button>
+              <span className="nemocard__next">
+                {t("dashboard.nextUp", { name: nextDeck.name })}
               </span>
             </>
-          ) : (
-            <span className="tile__sub">{t("dashboard.nextDone")}</span>
           )}
         </div>
+
+        {/* Decorative — the text carries everything. Mirrored in RTL so the
+            fish keeps facing the words. */}
+        <img className="nemocard__img" src="/nemo-side.webp" alt="" aria-hidden />
       </div>
 
       <Link className="dashboard__more" to="/app/stats">
