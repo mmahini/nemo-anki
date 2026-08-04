@@ -3,10 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../auth/AuthContext";
-import { updateMe } from "../auth/api";
+import { telegramConnect, telegramDisconnect, telegramStatus, updateMe } from "../auth/api";
 import { applyLanguage } from "../i18n";
+import { subscribeToPush } from "../lib/pushNotifications";
 import { disableSupportPush, enableSupportPush, isSubscribedToPush, pushSupported } from "../push";
 import { useSubscription } from "../subscription/SubscriptionContext";
+
+const TELEGRAM_POLL_INTERVAL_MS = 2000;
+const TELEGRAM_POLL_MAX_ATTEMPTS = 60; // ~2 minutes
 
 /** Top-right account menu: subscription, language and sign-out. Opens as a
  * dropdown on desktop and a bottom sheet on mobile (styled in styles.css). */
@@ -18,7 +22,17 @@ export default function UserMenu() {
   const [open, setOpen] = useState(false);
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [reminderError, setReminderError] = useState<string | null>(null);
+  const [connectingTelegram, setConnectingTelegram] = useState(false);
+  const [disconnectingTelegram, setDisconnectingTelegram] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -62,6 +76,122 @@ export default function UserMenu() {
       return;
     }
     refreshUser().catch(() => {});
+  }
+
+  async function handleReminderChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value; // "" (cleared) or "HH:MM"
+    setReminderError(null);
+    if (!value) {
+      try {
+        await updateMe({ study_reminder_time: null });
+        refreshUser().catch(() => {});
+      } catch {
+        setReminderError(t("studyReminder.saveFailed"));
+      }
+      return;
+    }
+    if ((user?.study_reminder_channel ?? "push") === "push") {
+      try {
+        await subscribeToPush();
+      } catch (err) {
+        setReminderError(
+          err instanceof Error && err.message === "permission-denied"
+            ? t("studyReminder.permissionDenied")
+            : t("studyReminder.unsupported"),
+        );
+        return;
+      }
+    }
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    try {
+      await updateMe({ study_reminder_time: `${value}:00`, study_reminder_timezone: tz });
+      refreshUser().catch(() => {});
+    } catch {
+      setReminderError(t("studyReminder.saveFailed"));
+    }
+  }
+
+  async function handleReminderChannelChange(channel: "push" | "telegram") {
+    setReminderError(null);
+    try {
+      await updateMe({ study_reminder_channel: channel });
+      await refreshUser();
+    } catch {
+      setReminderError(t("studyReminder.saveFailed"));
+      return;
+    }
+    if (channel === "telegram" && !user?.telegram_connected) {
+      startTelegramConnect();
+    }
+  }
+
+  async function startTelegramConnect() {
+    setReminderError(null);
+    setConnectingTelegram(true);
+    let deepLink: string;
+    try {
+      ({ deep_link: deepLink } = await telegramConnect());
+    } catch {
+      setConnectingTelegram(false);
+      setReminderError(t("studyReminder.telegramUnavailable"));
+      return;
+    }
+    window.open(deepLink, "_blank");
+
+    let attempts = 0;
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      attempts += 1;
+      try {
+        const { connected } = await telegramStatus();
+        if (connected) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setConnectingTelegram(false);
+          refreshUser().catch(() => {});
+          return;
+        }
+      } catch {
+        // Transient — keep polling until attempts run out.
+      }
+      if (attempts >= TELEGRAM_POLL_MAX_ATTEMPTS) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setConnectingTelegram(false);
+      }
+    }, TELEGRAM_POLL_INTERVAL_MS);
+  }
+
+  async function handleTelegramDisconnect() {
+    if (!window.confirm(t("studyReminder.confirmDisconnectTelegram"))) return;
+    setReminderError(null);
+    setDisconnectingTelegram(true);
+    try {
+      // Only unlinks the chat — study_reminder_channel stays "telegram" on
+      // purpose, since the user picked that channel intentionally; the chip
+      // just goes back to prompting "Connect Telegram" until they reconnect.
+      await telegramDisconnect();
+      await refreshUser();
+    } catch {
+      setReminderError(t("studyReminder.saveFailed"));
+    } finally {
+      setDisconnectingTelegram(false);
+    }
+  }
+
+  /** The Telegram chip does double duty: picking the channel starts the
+   * connect handshake, and clicking it again once connected disconnects
+   * (behind a confirm) — no separate disconnect control needed. Guarded
+   * against re-entry: each connect attempt rotates the backend's connect
+   * token, so a second click while one is already in flight would open a
+   * second t.me tab and silently invalidate the first — see the `disabled`
+   * prop below for the actual click-blocking, this is a second layer in
+   * case the click still lands (e.g. before React re-renders). */
+  function handleTelegramChipClick() {
+    if (connectingTelegram || disconnectingTelegram) return;
+    if (user?.study_reminder_channel === "telegram" && user?.telegram_connected) {
+      handleTelegramDisconnect();
+      return;
+    }
+    handleReminderChannelChange("telegram");
   }
 
   // Prefer the name they gave during onboarding; fall back to the email.
@@ -152,6 +282,58 @@ export default function UserMenu() {
               <span>{t("nav.language")}</span>
               <span className="usermenu__value">{user?.ui_language === "fa" ? "فارسی" : "English"}</span>
             </button>
+
+            <div className="usermenu__item usermenu__item--stacked" role="menuitem">
+              <span className="usermenu__itemlabel">{t("studyReminder.label")}</span>
+              <div className="usermenu__reminderchannels">
+                <button
+                  type="button"
+                  className={`usermenu__chip${
+                    (user?.study_reminder_channel ?? "push") === "push" ? " usermenu__chip--active" : ""
+                  }`}
+                  onClick={() => handleReminderChannelChange("push")}
+                >
+                  {t("studyReminder.channelPush")}
+                </button>
+                <button
+                  type="button"
+                  className={`usermenu__chip${
+                    user?.study_reminder_channel === "telegram" ? " usermenu__chip--active" : ""
+                  }`}
+                  onClick={handleTelegramChipClick}
+                  disabled={disconnectingTelegram || connectingTelegram}
+                >
+                  {t("studyReminder.channelTelegram")}
+                </button>
+              </div>
+
+              {user?.study_reminder_channel === "telegram" && !user?.telegram_connected ? (
+                <button
+                  type="button"
+                  className="input input--sm"
+                  onClick={startTelegramConnect}
+                  disabled={connectingTelegram}
+                >
+                  {connectingTelegram ? t("studyReminder.waitingForTelegram") : t("studyReminder.connectTelegram")}
+                </button>
+              ) : (
+                <input
+                  type="time"
+                  className="input input--sm"
+                  value={user?.study_reminder_time?.slice(0, 5) ?? ""}
+                  onChange={handleReminderChange}
+                />
+              )}
+
+              <span className="usermenu__value">
+                {reminderError ??
+                  (disconnectingTelegram
+                    ? t("studyReminder.disconnectingTelegram")
+                    : user?.study_reminder_channel === "telegram" && user?.telegram_connected
+                      ? t("studyReminder.telegramConnected")
+                      : t("studyReminder.hint"))}
+              </span>
+            </div>
 
             <button
               className="usermenu__item usermenu__item--danger"

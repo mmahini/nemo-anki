@@ -25,6 +25,9 @@ db.sqlite3
 db.sqlite3-journal
 media/
 
+# Celery (local dev — celery beat's file-based schedule db)
+celerybeat-schedule
+
 # Node
 node_modules/
 dist/
@@ -33,6 +36,9 @@ dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Vite PWA dev-mode output
+dev-dist/
 
 # IDE / OS
 .vscode/

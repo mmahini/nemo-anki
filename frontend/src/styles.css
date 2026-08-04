@@ -1286,6 +1286,13 @@ kbd {
 .usermenu__item--stacked { flex-direction: column; align-items: flex-start; gap: 6px; }
 .usermenu__itemlabel { font-weight: 600; }
 .usermenu__badge { display: inline-block; max-width: 100%; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.usermenu__reminderchannels { display: flex; gap: 6px; }
+.usermenu__chip {
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
+  background: none; color: var(--ink-soft); font-size: 0.78rem; font-weight: 700; cursor: pointer;
+}
+.usermenu__chip--active { background: var(--brand); border-color: var(--brand); color: #fff; }
+.usermenu__chip:disabled { opacity: 0.6; cursor: default; }
 
 /* Account group (AI-usage chip + avatar) pinned to the right of the bar — so
    the avatar stays top-right even when the chip is absent. */

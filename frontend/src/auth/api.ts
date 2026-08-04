@@ -219,6 +219,14 @@ export type AuthUser = {
   is_staff: boolean;
   /** This user's own invite code — the `?ref=` value in links they share. */
   referral_code: string;
+  /** Daily "time to study" reminder, "HH:MM:SS" — null means off. */
+  study_reminder_time: string | null;
+  /** IANA timezone the reminder time is interpreted in (auto-set from the browser). */
+  study_reminder_timezone: string;
+  /** Which channel delivers the reminder — mutually exclusive. */
+  study_reminder_channel: "push" | "telegram";
+  /** Has the Telegram "Connect" handshake completed (a linked chat_id)? Read-only. */
+  telegram_connected: boolean;
 };
 
 export type RequestOtpResponse = {
@@ -357,7 +365,17 @@ export function fetchMe(): Promise<AuthUser> {
 }
 
 export function updateMe(
-  payload: Partial<Pick<AuthUser, "display_name" | "ui_language" | "onboarded">>,
+  payload: Partial<
+    Pick<
+      AuthUser,
+      | "display_name"
+      | "ui_language"
+      | "onboarded"
+      | "study_reminder_time"
+      | "study_reminder_timezone"
+      | "study_reminder_channel"
+    >
+  >,
 ): Promise<AuthUser> {
   return jsonRequest<AuthUser>("/api/me", {
     method: "PATCH",
@@ -1016,4 +1034,38 @@ export function submitPlacementTest(
     method: "POST",
     body: JSON.stringify({ answers }),
   });
+}
+
+// ====== Notifications (study reminder) ======
+
+/** Registers this browser's Web Push subscription against the current user. */
+export function pushSubscribe(payload: { endpoint: string; p256dh: string; auth: string }): Promise<void> {
+  return jsonRequest("/api/notifications/push-subscribe", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function pushUnsubscribe(endpoint: string): Promise<void> {
+  return jsonRequest("/api/notifications/push-unsubscribe", {
+    method: "POST",
+    body: JSON.stringify({ endpoint }),
+  });
+}
+
+/** Starts (or restarts) the "Connect Telegram" handshake — returns a t.me
+ * deep link; opening it and pressing Start links the user's chat_id. */
+export function telegramConnect(): Promise<{ deep_link: string }> {
+  return jsonRequest("/api/notifications/telegram/connect", { method: "POST" });
+}
+
+/** Polled after opening the deep link to detect when the handshake completes. */
+export function telegramStatus(): Promise<{ connected: boolean }> {
+  return jsonRequest("/api/notifications/telegram/status", { method: "GET" });
+}
+
+/** Unlinks the connected Telegram chat (the link itself, and any language
+ * preference set via /lang, are kept — only chat_id is cleared). */
+export function telegramDisconnect(): Promise<void> {
+  return jsonRequest("/api/notifications/telegram/disconnect", { method: "POST" });
 }

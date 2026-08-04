@@ -24,7 +24,7 @@ services:
     container_name: nemo-anki-backend
     restart: unless-stopped
     command: >
-      sh -c "python manage.py makemigrations accounts decks cards imports books subscriptions placement &&
+      sh -c "python manage.py makemigrations accounts decks cards imports books subscriptions placement notifications &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
     environment:
@@ -39,12 +39,108 @@ services:
       CORS_ALLOWED_ORIGINS: http://localhost:5176,http://127.0.0.1:5176
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT_EMAIL: ${VAPID_SUBJECT_EMAIL:-support@nemoapps.xyz}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
     volumes:
       - ./backend:/app
       - backend_media:/app/media
     ports:
       # Host 8004 -> container 8000 (avoids clash with the sibling backends).
       - "8004:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: nemo-anki-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  celery-worker:
+    build: ./backend
+    container_name: nemo-anki-celery-worker
+    restart: unless-stopped
+    command: celery -A core worker -l info
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-secret-change-me}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-1}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
+      POSTGRES_DB: ${POSTGRES_DB:-nemo_anki}
+      POSTGRES_USER: ${POSTGRES_USER:-nemo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nemo}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT_EMAIL: ${VAPID_SUBJECT_EMAIL:-support@nemoapps.xyz}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery-beat:
+    build: ./backend
+    container_name: nemo-anki-celery-beat
+    restart: unless-stopped
+    command: celery -A core beat -l info
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-secret-change-me}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-1}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
+      POSTGRES_DB: ${POSTGRES_DB:-nemo_anki}
+      POSTGRES_USER: ${POSTGRES_USER:-nemo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nemo}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT_EMAIL: ${VAPID_SUBJECT_EMAIL:-support@nemoapps.xyz}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  telegram-poller:
+    build: ./backend
+    container_name: nemo-anki-telegram-poller
+    restart: unless-stopped
+    command: python manage.py poll_telegram_updates
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-secret-change-me}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-1}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
+      POSTGRES_DB: ${POSTGRES_DB:-nemo_anki}
+      POSTGRES_USER: ${POSTGRES_USER:-nemo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nemo}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+    volumes:
+      - ./backend:/app
     depends_on:
       db:
         condition: service_healthy

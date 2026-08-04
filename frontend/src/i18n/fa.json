@@ -16,6 +16,21 @@
     "howItWorks": "راهنمای شروع",
     "invite": "دعوت از دوستان"
   },
+  "studyReminder": {
+    "label": "یادآوری روزانه",
+    "hint": "هر روز در این ساعت یک نوتیفیکیشن دریافت می‌کنی.",
+    "permissionDenied": "نوتیفیکیشن‌ها در تنظیمات مرورگرت مسدود شده‌اند.",
+    "unsupported": "این مرورگر از نوتیفیکیشن پشتیبانی نمی‌کند.",
+    "saveFailed": "ذخیره یادآوری انجام نشد — دوباره امتحان کن.",
+    "channelPush": "نوتیفیکیشن",
+    "channelTelegram": "تلگرام",
+    "connectTelegram": "اتصال به تلگرام",
+    "waitingForTelegram": "منتظریم توی تلگرام دکمه‌ی Start رو بزنی…",
+    "telegramConnected": "تلگرام وصل شد",
+    "disconnectingTelegram": "در حال قطع اتصال…",
+    "confirmDisconnectTelegram": "قطع اتصال تلگرام؟\n\nدریافت یادآوری‌ها از طریق تلگرام متوقف می‌شود. هر زمان بخواهید می‌توانید دوباره وصل کنید.",
+    "telegramUnavailable": "یادآوری تلگرام هنوز راه‌اندازی نشده."
+  },
   "home": {
     "greeting": "سلام، {{name}} 👋",
     "greetingNoName": "خوش آمدی 👋",

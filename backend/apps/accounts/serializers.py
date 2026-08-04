@@ -1,3 +1,5 @@
+import zoneinfo
+
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -29,6 +31,9 @@ class UserSerializer(serializers.ModelSerializer):
     # server stamps the time. Exposed as a boolean because the timestamp is an
     # implementation detail the UI has no use for.
     onboarded = serializers.BooleanField(required=False)
+    # Has this user completed the Telegram "Connect" handshake (a linked
+    # chat_id)? Read-only — set only by apps.notifications.poll_telegram_updates.
+    telegram_connected = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -36,14 +41,25 @@ class UserSerializer(serializers.ModelSerializer):
             "id", "email", "display_name", "ui_language", "date_joined",
             "feature_flags", "subscription", "onboarded", "is_staff",
             "referral_code",
+            "study_reminder_time", "study_reminder_timezone", "study_reminder_channel",
+            "telegram_connected",
         ]
         read_only_fields = [
             "id", "email", "date_joined", "feature_flags", "subscription", "is_staff",
-            "referral_code",
+            "referral_code", "telegram_connected",
         ]
 
     def get_feature_flags(self, obj) -> list[str]:
         return obj.effective_flags
+
+    def get_telegram_connected(self, obj) -> bool:
+        link = getattr(obj, "telegram_link", None)
+        return bool(link and link.chat_id)
+
+    def validate_study_reminder_timezone(self, value: str) -> str:
+        if value not in zoneinfo.available_timezones():
+            raise serializers.ValidationError("Unknown timezone.")
+        return value
 
     def to_representation(self, obj) -> dict:
         data = super().to_representation(obj)
