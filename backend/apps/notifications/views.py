@@ -1,7 +1,10 @@
+import secrets
+import threading
+
 from django.conf import settings
 from django.db import transaction
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -95,3 +98,36 @@ class TelegramDisconnectView(APIView):
             link.chat_id = None
             link.save(update_fields=["chat_id"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TelegramWebhookView(APIView):
+    """Receives bot updates pushed by Telegram (setWebhook mode — the
+    production replacement for the poll_telegram_updates long-poll loop, so
+    the bot runs on the web service with no separate worker).
+
+    Auth: Telegram echoes the secret we registered with setWebhook in the
+    X-Telegram-Bot-Api-Secret-Token header; anything else is rejected. The
+    update is processed on a daemon thread and 200 returned immediately —
+    handlers can spend many seconds on Gemini calls, and a slow response
+    would make Telegram time out and re-deliver the same update.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes: list = []
+
+    def post(self, request):
+        secret = settings.TELEGRAM_WEBHOOK_SECRET
+        header = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if not (secret and secrets.compare_digest(header, secret)):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        # Imported lazily: the command module pulls in Gemini/R2 helpers that
+        # the plain API views never need.
+        from .management.commands.poll_telegram_updates import _process_update_safely
+
+        update = request.data if isinstance(request.data, dict) else {}
+        api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}"
+        threading.Thread(
+            target=_process_update_safely, args=(update, api), daemon=True
+        ).start()
+        return Response({"ok": True})

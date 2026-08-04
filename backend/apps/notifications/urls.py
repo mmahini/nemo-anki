@@ -6,6 +6,7 @@ from .views import (
     TelegramConnectView,
     TelegramDisconnectView,
     TelegramStatusView,
+    TelegramWebhookView,
 )
 
 urlpatterns = [
@@ -14,4 +15,5 @@ urlpatterns = [
     path("notifications/telegram/connect", TelegramConnectView.as_view(), name="telegram-connect"),
     path("notifications/telegram/status", TelegramStatusView.as_view(), name="telegram-status"),
     path("notifications/telegram/disconnect", TelegramDisconnectView.as_view(), name="telegram-disconnect"),
+    path("notifications/telegram/webhook", TelegramWebhookView.as_view(), name="telegram-webhook"),
 ]

@@ -208,6 +208,10 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_TIMEZONE = "UTC"
+# "True" makes .delay() run the task inline, no broker/worker needed — how the
+# single-server deployment (web service + in-process reminder ticker, see
+# apps.notifications.ticker) sends reminders without Redis/Celery services.
+CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "") == "True"
 CELERY_BEAT_SCHEDULE = {
     "check-study-reminders": {
         "task": "apps.notifications.tasks.check_study_reminders",
@@ -237,3 +241,9 @@ VAPID_SUBJECT_EMAIL = os.getenv("VAPID_SUBJECT_EMAIL", "support@nemoapps.xyz")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+# Webhook mode (production): Telegram POSTs updates to
+# /api/notifications/telegram/webhook and echoes this secret in the
+# X-Telegram-Bot-Api-Secret-Token header (registered via setWebhook). Unset →
+# the endpoint rejects everything; local dev keeps using poll_telegram_updates
+# (run `deleteWebhook` first — Telegram allows only one delivery mode at a time).
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")

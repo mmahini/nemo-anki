@@ -1,0 +1,21 @@
+# Keeps the free-tier Render backend from idling to sleep, so the Telegram
+# webhook answers fast and the in-process study-reminder ticker
+# (backend/apps/notifications/ticker.py) is awake at reminder time. Render
+# free services spin down after ~15 idle minutes; GitHub cron isn't exact
+# (often a few minutes late) so every-10-minutes keeps the gaps comfortably
+# under the threshold most of the time.
+name: keep-backend-awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        run: |
+          curl -sS -o /dev/null -w "health: %{http_code}\n" --max-time 90 \
+            https://nemo-anki-backend.onrender.com/api/health/
