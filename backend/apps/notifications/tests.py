@@ -1663,3 +1663,45 @@ class TelegramCallbackQueryEdgeCaseTests(APITestCase):
         process_telegram_update(update, "https://api.telegram.org/botX")
         self.assertTrue(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
         self.assertFalse(Card.objects.filter(front="Haus").exists())
+
+
+@override_settings(TELEGRAM_BOT_TOKEN="test-token", TELEGRAM_WEBHOOK_SECRET="hook-secret")
+class TelegramWebhookTests(APITestCase):
+    """The webhook endpoint is the production delivery path for bot updates
+    (no poller worker) — its secret gate and dispatch are worth pinning."""
+
+    URL = "/api/notifications/telegram/webhook"
+    UPDATE = {"update_id": 7, "message": {"chat": {"id": 123}, "text": "/help"}}
+
+    def _post(self, secret: str | None):
+        headers = {"HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN": secret} if secret else {}
+        return self.client.post(self.URL, self.UPDATE, format="json", **headers)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._process_update_safely")
+    def test_valid_secret_dispatches_the_update(self, mock_process):
+        res = self._post("hook-secret")
+        self.assertEqual(res.status_code, 200)
+        # Processing happens on a short-lived thread; give it a moment.
+        for _ in range(50):
+            if mock_process.called:
+                break
+            import time as _time
+
+            _time.sleep(0.02)
+        mock_process.assert_called_once()
+        update, api = mock_process.call_args.args
+        self.assertEqual(update["update_id"], 7)
+        self.assertIn("test-token", api)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._process_update_safely")
+    def test_wrong_secret_is_rejected(self, mock_process):
+        self.assertEqual(self._post("nope").status_code, 403)
+        self.assertEqual(self._post(None).status_code, 403)
+        mock_process.assert_not_called()
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._process_update_safely")
+    def test_unconfigured_secret_rejects_everything(self, mock_process):
+        with override_settings(TELEGRAM_WEBHOOK_SECRET=""):
+            self.assertEqual(self._post("").status_code, 403)
+            self.assertEqual(self._post("hook-secret").status_code, 403)
+        mock_process.assert_not_called()

@@ -91,6 +91,20 @@ services:
         sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
+      # Single-server mode: the interactive bot + study reminders run on THIS
+      # web service, with no Redis/Celery/poller services. Telegram delivers
+      # updates by webhook (TelegramWebhookView; register via setWebhook with
+      # this secret), the reminder tick is an in-process thread
+      # (apps.notifications.ticker, pg-advisory-locked so gunicorn's workers
+      # don't double-fire), and eager Celery runs the send tasks inline. The
+      # worker/redis services below remain the scale-up path — to move to
+      # them, unset these three and call deleteWebhook so polling can start.
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: STUDY_REMINDER_TICKER
+        value: "1"
+      - key: CELERY_TASK_ALWAYS_EAGER
+        value: "True"
 
   # Frontend SPA — moved off Vercel (geo-blocked in some regions) onto Render
   # so it's reachable everywhere the backend is. Static Sites are free and
