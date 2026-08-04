@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import threading
@@ -120,15 +121,21 @@ def _edit_message_with_photo(
     return _telegram_call(api, "editMessageMedia", payload) is not None
 
 
-def _send_photo(api: str, chat_id, data: bytes, caption: str) -> bool:
+def _send_photo(api: str, chat_id, data: bytes, caption: str, reply_markup: dict | None = None) -> bool:
     """Uploads raw JPEG bytes directly to Telegram. Takes bytes rather than
     a Django FieldFile so a caller that just fetched/resized an image (see
     _finalize) can forward those same bytes instead of reading them back
-    from storage right after saving them there."""
+    from storage right after saving them there. reply_markup, if given, is
+    JSON-encoded — this is a multipart request (because of `files`), and
+    Telegram expects structured fields like this as a JSON string there,
+    not a raw object."""
+    payload = {"chat_id": chat_id, "caption": caption}
+    if reply_markup:
+        payload["reply_markup"] = json.dumps(reply_markup)
     try:
         resp = requests.post(
             f"{api}/sendPhoto",
-            data={"chat_id": chat_id, "caption": caption},
+            data=payload,
             files={"photo": ("card.jpg", data, "image/jpeg")},
             timeout=15,
         )
@@ -305,15 +312,20 @@ def _finalize(api: str, chat_id, pending: PendingTelegramCard) -> None:
     _, image_data = attach_thumbnail_from_url(card, pending.image_url) if pending.image_url else (None, None)
     pending.delete()
     caption = f"✅ Added to {card.deck.full_name}"
+    # The confirmation is also the user's only cue for what to do next —
+    # without the menu attached here, PendingTelegramCard is already gone,
+    # so their next plain message falls straight into a fresh word lookup
+    # with no guidance, which reads as the bot losing its place.
+    menu = _main_menu_keyboard()
     if image_data:
         # The card is already saved either way — if only the richer photo
         # message fails (bad/expired image URL, Telegram rejects the file),
         # still confirm via plain text rather than leaving the user with no
         # acknowledgement that Create actually worked.
-        if not _send_photo(api, chat_id, image_data, caption):
-            _reply(api, chat_id, caption)
+        if not _send_photo(api, chat_id, image_data, caption, reply_markup=menu):
+            _reply(api, chat_id, caption, reply_markup=menu)
     else:
-        _reply(api, chat_id, caption)
+        _reply(api, chat_id, caption, reply_markup=menu)
 
 
 def _regenerate(link: TelegramLink, api: str, chat_id, pending: PendingTelegramCard) -> None:
