@@ -12,7 +12,12 @@ from apps.cards.models import Card
 
 from .management.commands.poll_telegram_updates import _process_update_safely, process_telegram_update
 from .models import PendingTelegramCard, PushSubscription, TelegramLink, TelegramPollerState
-from .tasks import check_study_reminders, send_reminder_push, send_reminder_telegram
+from .tasks import (
+    check_study_reminders,
+    find_and_attach_proposal_image,
+    send_reminder_push,
+    send_reminder_telegram,
+)
 
 User = get_user_model()
 
@@ -586,27 +591,19 @@ class TelegramApiFailureHandlingTests(APITestCase):
         result = _reply("https://api.telegram.org/botX", 999, "hello")
         self.assertFalse(result)
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_finalize_falls_back_to_text_when_sendphoto_is_rejected(self, mock_post, mock_url):
-        mock_url.return_value = ""
+    def test_finalize_falls_back_to_text_when_sendphoto_is_rejected(self, mock_post):
         pending = PendingTelegramCard.objects.create(
             user=self.user, card_type="vocab", language="de", front="Haus",
             back="house", awaiting_field="",
         )
-        # First call is the auto-thumbnail attach path (none, since mock_url
-        # returns "" — no sendPhoto for the proposal). The Create tap below
-        # triggers _finalize; attach a fake image so _finalize's sendPhoto
-        # branch runs and rejects, forcing the plain-text fallback.
+        # The Create tap below triggers _finalize; attach a fake image so
+        # its sendPhoto branch runs and rejects, forcing the plain-text
+        # fallback.
         with patch(
             "apps.notifications.management.commands.poll_telegram_updates.attach_thumbnail_from_url"
         ) as mock_attach:
-            fake_image = Mock()
-            fake_image.image = Mock()
-            fake_image.image.open = Mock()
-            fake_image.image.read = Mock(return_value=b"fake-jpeg-bytes")
-            fake_image.image.close = Mock()
-            mock_attach.return_value = fake_image
+            mock_attach.return_value = (Mock(), b"fake-jpeg-bytes")
             pending.image_url = "https://example.com/house.jpg"
             pending.save(update_fields=["image_url"])
             mock_post.return_value = Mock(json=lambda: {"ok": False, "description": "PHOTO_INVALID_DIMENSIONS"})
@@ -622,6 +619,61 @@ class TelegramApiFailureHandlingTests(APITestCase):
         methods_called = [call.args[0] for call in mock_post.call_args_list]
         self.assertTrue(any(url.endswith("/sendPhoto") for url in methods_called))
         self.assertTrue(any(url.endswith("/sendMessage") for url in methods_called))
+
+
+class TelegramTypingIndicatorTests(APITestCase):
+    """A "typing…" cue is sent before each multi-second Gemini call, so the
+    user gets some feedback instead of a silent wait — see _send_typing."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        self.link = TelegramLink.objects.create(
+            user=self.user, chat_id=777, default_language="de", default_back_language="English",
+        )
+
+    def _update(self, text):
+        return {"update_id": 1, "message": {"text": text, "chat": {"id": 777}}}
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_word_lookup_sends_typing_before_enrich(self, mock_post, mock_enrich):
+        mock_enrich.return_value = {"translations": [], "pronunciations": [], "article": "none", "plural": "", "example": ""}
+        process_telegram_update(self._update("Haus"), "https://api.telegram.org/botX")
+
+        first_call_args, first_call_kwargs = mock_post.call_args_list[0]
+        self.assertIn("sendChatAction", first_call_args[0])
+        self.assertEqual(first_call_kwargs["json"]["action"], "typing")
+
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_sentence_input_sends_typing_before_enrich(self, mock_post, mock_enrich, mock_delay):
+        mock_enrich.return_value = {"back": "", "reading": "", "article": "none", "plural": "", "example": ""}
+        process_telegram_update(self._update("/sentence Ich gehe."), "https://api.telegram.org/botX")
+
+        first_call_args, first_call_kwargs = mock_post.call_args_list[0]
+        self.assertIn("sendChatAction", first_call_args[0])
+        self.assertEqual(first_call_kwargs["json"]["action"], "typing")
+
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_regenerate_sends_typing_before_enrich(self, mock_post, mock_enrich, mock_delay):
+        pending = PendingTelegramCard.objects.create(
+            user=self.user, language="de", front="Haus", back="house", awaiting_field="",
+        )
+        mock_enrich.return_value = {"back": "home", "reading": "", "article": "none", "plural": "", "example": ""}
+        update = {
+            "update_id": 1,
+            "callback_query": {"id": "cb1", "data": f"regenerate:{pending.id}", "message": {"chat": {"id": 777}}},
+        }
+        process_telegram_update(update, "https://api.telegram.org/botX")
+
+        # answerCallbackQuery fires first (unconditionally, before any AI work);
+        # the typing cue is the next call, ahead of enrich_card's proposal reply.
+        second_call_args, second_call_kwargs = mock_post.call_args_list[1]
+        self.assertIn("sendChatAction", second_call_args[0])
+        self.assertEqual(second_call_kwargs["json"]["action"], "typing")
 
 
 class TelegramLangCommandTests(APITestCase):
@@ -726,14 +778,13 @@ class TelegramPendingLookupTests(APITestCase):
         self.assertIsNone(self.link.pending_lookup_expires_at)
         pending = PendingTelegramCard.objects.get(user=self.user)
         self.assertEqual(pending.front, "Haus")
-        # "Got it" confirmation, then the resumed translation prompt.
-        self.assertEqual(mock_post.call_count, 2)
+        # "Got it" confirmation, a typing cue, then the resumed translation prompt.
+        self.assertEqual(mock_post.call_count, 3)
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_lang_automatically_resumes_a_fresh_sentence_stash(self, mock_post, mock_enrich, mock_url):
-        mock_url.return_value = ""
+    def test_lang_automatically_resumes_a_fresh_sentence_stash(self, mock_post, mock_enrich, mock_delay):
         mock_enrich.return_value = {
             "back": "I am going to the cinema today.", "reading": "", "article": "none",
             "plural": "", "example": "",
@@ -832,11 +883,10 @@ class TelegramInputLengthTests(APITestCase):
         self.assertEqual(pending.front, expected)
         self.assertEqual(len(pending.front), 200)
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_oversized_sentence_is_truncated_when_language_already_set(self, mock_post, mock_enrich, mock_url):
-        mock_url.return_value = ""
+    def test_oversized_sentence_is_truncated_when_language_already_set(self, mock_post, mock_enrich, mock_delay):
         mock_enrich.return_value = {
             "back": "...", "reading": "", "article": "none", "plural": "", "example": "",
         }
@@ -900,7 +950,8 @@ class TelegramWordLookupTests(APITestCase):
         self.assertEqual(pending.front, "Haus")
         self.assertEqual(pending.translation_options, ["house", "home", "building"])
         self.assertEqual(pending.awaiting_field, "back")
-        mock_post.assert_called_once()
+        # A typing cue, then the translation-options message.
+        self.assertEqual(mock_post.call_count, 2)
         _, kwargs = mock_post.call_args
         rows = kwargs["json"]["reply_markup"]["inline_keyboard"]
         self.assertEqual([r[0]["text"] for r in rows[:3]], ["house", "home", "building"])
@@ -993,10 +1044,9 @@ class TelegramWizardFlowTests(APITestCase):
         self.assertEqual(self.pending.awaiting_field, "reading")
         self.assertEqual(Card.objects.count(), 0)
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_choose_reading_shows_proposal_without_creating_a_card(self, mock_post, mock_url):
-        mock_url.return_value = ""
+    def test_choose_reading_shows_proposal_without_creating_a_card(self, mock_post, mock_delay):
         self.pending.back = "house"
         self.pending.awaiting_field = "reading"
         self.pending.save(update_fields=["back", "awaiting_field"])
@@ -1014,10 +1064,8 @@ class TelegramWizardFlowTests(APITestCase):
         self.assertEqual(buttons[0][0]["callback_data"], f"create:{self.pending.id}")
         self.assertEqual(buttons[1][0]["callback_data"], f"edit:{self.pending.id}")
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_create_button_finalizes_and_saves_exactly_one_card(self, mock_post, mock_url):
-        mock_url.return_value = ""
+    def test_create_button_finalizes_and_saves_exactly_one_card(self, mock_post):
         self.pending.back = "house"
         self.pending.reading = "howss"
         self.pending.awaiting_field = ""
@@ -1031,10 +1079,9 @@ class TelegramWizardFlowTests(APITestCase):
         self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
         self.assertEqual(Card.objects.count(), 1)
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_typed_pronunciation_shows_proposal_without_creating_a_card(self, mock_post, mock_url):
-        mock_url.return_value = ""
+    def test_typed_pronunciation_shows_proposal_without_creating_a_card(self, mock_post, mock_delay):
         self.pending.back = "house"
         self.pending.awaiting_field = "reading"
         self.pending.save(update_fields=["back", "awaiting_field"])
@@ -1044,10 +1091,9 @@ class TelegramWizardFlowTests(APITestCase):
         self.assertEqual(self.pending.reading, "HOWSS")
         self.assertEqual(Card.objects.count(), 0)
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_skip_shows_proposal_with_blank_reading(self, mock_post, mock_url):
-        mock_url.return_value = ""
+    def test_skip_shows_proposal_with_blank_reading(self, mock_post, mock_delay):
         self.pending.back = "house"
         self.pending.awaiting_field = "reading"
         self.pending.save(update_fields=["back", "awaiting_field"])
@@ -1104,9 +1150,11 @@ class TelegramWizardFlowTests(APITestCase):
 
 
 class TelegramProposalImageTests(APITestCase):
-    """The Create/Edit proposal auto-suggests a picture by URL only (no
-    download) — see apps.cards.image_search.find_thumbnail_url_for. The
-    actual download happens exactly once, if/when Create is tapped, via
+    """The Create/Edit proposal is sent as text immediately; the picture (if
+    any) is searched for in the background and edited into that same
+    message afterward — see apps.notifications.tasks
+    .find_and_attach_proposal_image. The actual download happens exactly
+    once, if/when Create is tapped, via
     apps.cards.image_search.attach_thumbnail_from_url."""
 
     def setUp(self):
@@ -1124,39 +1172,99 @@ class TelegramProposalImageTests(APITestCase):
     def _callback(self, data):
         return {"update_id": 1, "callback_query": {"id": "cb1", "data": data, "message": {"chat": {"id": 777}}}}
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_proposal_sends_photo_by_url_when_found(self, mock_post, mock_url):
-        mock_url.return_value = "https://images.example/apple.jpg"
-        process_telegram_update(self._update("/skip"), "https://api.telegram.org/botX")
+    def test_proposal_is_sent_immediately_and_the_image_search_is_backgrounded(self, mock_post, mock_delay):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
 
-        mock_url.assert_called_once_with("Haus", "house", "de", "vocab")
-        self.pending.refresh_from_db()
-        self.assertEqual(self.pending.image_url, "https://images.example/apple.jpg")
-        mock_post.assert_called_once()
-        args, kwargs = mock_post.call_args
-        self.assertIn("sendPhoto", args[0])
-        self.assertEqual(kwargs["json"]["photo"], "https://images.example/apple.jpg")
-        self.assertEqual(kwargs["json"]["chat_id"], 777)
-
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
-    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_proposal_falls_back_to_plain_text_when_no_url_found(self, mock_post, mock_url):
-        mock_url.return_value = ""
         process_telegram_update(self._update("/skip"), "https://api.telegram.org/botX")
 
         self.pending.refresh_from_db()
-        self.assertEqual(self.pending.image_url, "")
+        self.assertEqual(self.pending.image_url, "")  # cleared, not searched for synchronously
         mock_post.assert_called_once()
         args, kwargs = mock_post.call_args
         self.assertIn("sendMessage", args[0])
         self.assertIn("Word: Haus", kwargs["json"]["text"])
+        mock_delay.assert_called_once_with(
+            self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+        )
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_background_task_edits_the_message_when_an_image_is_found(self, mock_post):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {}})
+        with patch(
+            "apps.cards.image_search.find_thumbnail_url_for", return_value="https://images.example/apple.jpg"
+        ):
+            find_and_attach_proposal_image(
+                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+            )
+
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "https://images.example/apple.jpg")
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertIn("editMessageMedia", args[0])
+        self.assertEqual(kwargs["json"]["message_id"], 555)
+        self.assertEqual(kwargs["json"]["media"]["media"], "https://images.example/apple.jpg")
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_background_task_does_nothing_when_no_image_is_found(self, mock_post):
+        with patch("apps.cards.image_search.find_thumbnail_url_for", return_value=""):
+            find_and_attach_proposal_image(
+                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+            )
+
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "")
+        mock_post.assert_not_called()
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_background_task_skips_editing_if_the_card_was_already_created(self, mock_post):
+        pending_id = self.pending.id
+        self.pending.delete()
+        with patch(
+            "apps.cards.image_search.find_thumbnail_url_for", return_value="https://images.example/apple.jpg"
+        ):
+            find_and_attach_proposal_image(
+                pending_id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+            )
+
+        mock_post.assert_not_called()
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_background_task_skips_editing_if_regenerated_in_the_meantime(self, mock_post):
+        with patch(
+            "apps.cards.image_search.find_thumbnail_url_for", return_value="https://images.example/apple.jpg"
+        ):
+            # A Regenerate changed the back after this task's snapshot was taken.
+            find_and_attach_proposal_image(
+                self.pending.id, 777, 555, "Haus", "a different meaning", "de", "vocab", "", "Das ist mein Haus.",
+            )
+
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "")
+        mock_post.assert_not_called()
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_background_task_skips_editing_if_only_reading_or_example_changed(self, mock_post):
+        # The specific gap this staleness check exists for: a Regenerate can
+        # keep the same translation while only changing the reading/example
+        # — front/back alone wouldn't have caught this as stale.
+        with patch(
+            "apps.cards.image_search.find_thumbnail_url_for", return_value="https://images.example/apple.jpg"
+        ):
+            find_and_attach_proposal_image(
+                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "howss", "a different example",
+            )
+
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "")
+        mock_post.assert_not_called()
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.attach_thumbnail_from_url")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_create_downloads_the_stored_url_exactly_once(self, mock_post, mock_attach):
-        image = Mock()
-        mock_attach.return_value = image
+        mock_attach.return_value = (Mock(), b"fake-jpeg-bytes")
         self.pending.image_url = "https://images.example/apple.jpg"
         self.pending.awaiting_field = ""
         self.pending.save(update_fields=["image_url", "awaiting_field"])
@@ -1198,11 +1306,10 @@ class TelegramSentenceInputTests(APITestCase):
     def _update(self, text):
         return {"update_id": 1, "message": {"text": text, "chat": {"id": 777}}}
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_sentence_lands_directly_on_a_proposal(self, mock_post, mock_enrich, mock_url):
-        mock_url.return_value = ""
+    def test_sentence_lands_directly_on_a_proposal(self, mock_post, mock_enrich, mock_delay):
         mock_enrich.return_value = {
             "back": "I am going to the cinema today.", "reading": "", "article": "none",
             "plural": "", "example": "",
@@ -1218,8 +1325,8 @@ class TelegramSentenceInputTests(APITestCase):
         mock_enrich.assert_called_once_with(
             "Ich gehe heute ins Kino.", "de", "sentence", "English",
         )
-        # A single message — no translation/pronunciation picker in between.
-        mock_post.assert_called_once()
+        # A typing cue, then a single message — no translation/pronunciation picker in between.
+        self.assertEqual(mock_post.call_count, 2)
         _, kwargs = mock_post.call_args
         self.assertIn("Sentence: Ich gehe heute ins Kino.", kwargs["json"]["text"])
         self.assertNotIn("Which translation is correct?", kwargs["json"]["text"])
@@ -1258,11 +1365,10 @@ class TelegramSentenceInputTests(APITestCase):
         _, kwargs = mock_post.call_args
         self.assertIn("AI limit", kwargs["json"]["text"])
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_create_files_a_sentence_card_in_the_sentences_deck(self, mock_post, mock_enrich, mock_url):
-        mock_url.return_value = ""
+    def test_create_files_a_sentence_card_in_the_sentences_deck(self, mock_post, mock_enrich, mock_delay):
         mock_enrich.return_value = {"back": "I am going to the cinema.", "reading": "", "article": "none", "plural": "", "example": ""}
         process_telegram_update(self._update("/sentence Ich gehe ins Kino."), "https://api.telegram.org/botX")
         pending = PendingTelegramCard.objects.get(user=self.user)
@@ -1275,11 +1381,10 @@ class TelegramSentenceInputTests(APITestCase):
         self.assertEqual(card.deck.full_name, "Sentences (de)")
         self.assertFalse(PendingTelegramCard.objects.filter(id=pending.id).exists())
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_a_later_word_lookup_resets_card_type_back_to_vocab(self, mock_post, mock_enrich, mock_url):
-        mock_url.return_value = ""
+    def test_a_later_word_lookup_resets_card_type_back_to_vocab(self, mock_post, mock_enrich, mock_delay):
         mock_enrich.return_value = {"back": "I am going.", "reading": "", "article": "none", "plural": "", "example": ""}
         process_telegram_update(self._update("/sentence Ich gehe."), "https://api.telegram.org/botX")
         self.assertEqual(PendingTelegramCard.objects.get(user=self.user).card_type, "sentence")
@@ -1294,10 +1399,10 @@ class TelegramSentenceInputTests(APITestCase):
         self.assertEqual(pending.card_type, "vocab")
         self.assertEqual(pending.front, "Baum")
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_sentence_input_clears_stale_options_from_a_previous_word_lookup(self, mock_post, mock_options, mock_url):
+    def test_sentence_input_clears_stale_options_from_a_previous_word_lookup(self, mock_post, mock_options, mock_delay):
         mock_options.return_value = {
             "translations": ["tree", "wood"], "pronunciations": ["baʊm"],
             "article": "der", "plural": "die Bäume", "example": "",
@@ -1309,7 +1414,6 @@ class TelegramSentenceInputTests(APITestCase):
         # Finish the vocab wizard so awaiting_field is cleared, then switch to /sentence.
         pending.awaiting_field = ""
         pending.save(update_fields=["awaiting_field"])
-        mock_url.return_value = ""
         with patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card") as mock_enrich:
             mock_enrich.return_value = {"back": "I am going.", "reading": "", "article": "none", "plural": "", "example": ""}
             process_telegram_update(self._update("/sentence Ich gehe."), "https://api.telegram.org/botX")
@@ -1319,11 +1423,10 @@ class TelegramSentenceInputTests(APITestCase):
         self.assertEqual(pending.translation_options, [])
         self.assertEqual(pending.pronunciation_options, [])
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_regenerate_passes_sentence_card_type_to_enrich_card(self, mock_post, mock_enrich, mock_url):
-        mock_url.return_value = ""
+    def test_regenerate_passes_sentence_card_type_to_enrich_card(self, mock_post, mock_enrich, mock_delay):
         mock_enrich.return_value = {"back": "I am going.", "reading": "", "article": "none", "plural": "", "example": ""}
         process_telegram_update(self._update("/sentence Ich gehe."), "https://api.telegram.org/botX")
         pending = PendingTelegramCard.objects.get(user=self.user)
@@ -1336,15 +1439,16 @@ class TelegramSentenceInputTests(APITestCase):
         args, _ = mock_enrich.call_args
         self.assertEqual(args[2], "sentence")
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_image_search_receives_sentence_card_type(self, mock_post, mock_enrich, mock_url):
-        mock_url.return_value = ""
+    def test_image_search_receives_sentence_card_type(self, mock_post, mock_enrich, mock_delay):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
         mock_enrich.return_value = {"back": "I am going.", "reading": "", "article": "none", "plural": "", "example": ""}
         process_telegram_update(self._update("/sentence Ich gehe."), "https://api.telegram.org/botX")
 
-        mock_url.assert_called_once_with("Ich gehe.", "I am going.", "de", "sentence")
+        pending = PendingTelegramCard.objects.get(user=self.user)
+        mock_delay.assert_called_once_with(pending.id, 777, 555, "Ich gehe.", "I am going.", "de", "sentence", "", "")
 
 
 class TelegramRegenerateTests(APITestCase):
@@ -1366,11 +1470,10 @@ class TelegramRegenerateTests(APITestCase):
     def _callback(self, data, chat_id=777):
         return {"update_id": 1, "callback_query": {"id": "cb1", "data": data, "message": {"chat": {"id": chat_id}}}}
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_regenerate_lands_directly_on_a_new_proposal(self, mock_post, mock_enrich, mock_url):
-        mock_url.return_value = ""
+    def test_regenerate_lands_directly_on_a_new_proposal(self, mock_post, mock_enrich, mock_delay):
         mock_enrich.return_value = {
             "back": "home", "reading": "hoʊm", "article": "das",
             "plural": "die Häuser", "example": "Ich bin zu Hause.",
@@ -1382,19 +1485,18 @@ class TelegramRegenerateTests(APITestCase):
         self.assertEqual(self.pending.reading, "hoʊm")
         self.assertEqual(self.pending.example, "Ich bin zu Hause.")
         self.assertEqual(Card.objects.count(), 0)
-        # answerCallbackQuery + the new proposal — no picker screens in between.
-        self.assertEqual(mock_post.call_count, 2)
+        # answerCallbackQuery + a typing cue + the new proposal — no picker screens in between.
+        self.assertEqual(mock_post.call_count, 3)
         args, kwargs = mock_post.call_args
         self.assertIn("sendMessage", args[0])
         self.assertIn("Meaning: home", kwargs["json"]["text"])
         buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
         self.assertEqual(buttons[2][0]["callback_data"], f"regenerate:{self.pending.id}")
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_regenerate_passes_the_full_previous_proposal(self, mock_post, mock_enrich, mock_url):
-        mock_url.return_value = ""
+    def test_regenerate_passes_the_full_previous_proposal(self, mock_post, mock_enrich, mock_delay):
         mock_enrich.return_value = {"back": "home", "reading": "", "article": "das", "plural": "", "example": ""}
         process_telegram_update(self._callback(f"regenerate:{self.pending.id}"), "https://api.telegram.org/botX")
 
@@ -1406,11 +1508,10 @@ class TelegramRegenerateTests(APITestCase):
             },
         )
 
-    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_blank_translation_keeps_the_previous_meaning(self, mock_post, mock_enrich, mock_url):
-        mock_url.return_value = ""
+    def test_blank_translation_keeps_the_previous_meaning(self, mock_post, mock_enrich, mock_delay):
         mock_enrich.return_value = {"back": "", "reading": "", "article": "none", "plural": "", "example": ""}
         process_telegram_update(self._callback(f"regenerate:{self.pending.id}"), "https://api.telegram.org/botX")
 

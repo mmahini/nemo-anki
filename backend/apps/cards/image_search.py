@@ -164,10 +164,13 @@ def find_thumbnail_url_for(front: str, back: str, language: str = "", card_type:
 def attach_thumbnail_from_url(card, url: str, *, replace_auto: bool = True):
     """Download the image at `url` (as previously found by
     find_thumbnail_url_for) and attach it to `card` as an auto-found
-    CardImage. None if `url` is blank or the download/resize fails."""
+    CardImage. Returns (CardImage, raw JPEG bytes) — the caller (Telegram's
+    _finalize) forwards those same bytes to sendPhoto instead of reading
+    them back from storage right after this just wrote them there.
+    (None, None) if `url` is blank or the download/resize fails."""
     if not url:
-        return None
+        return None, None
     data = _fetch_and_resize(url)
     if not data:
-        return None
-    return _attach_thumbnail(card, data, replace_auto=replace_auto)
+        return None, None
+    return _attach_thumbnail(card, data, replace_auto=replace_auto), data

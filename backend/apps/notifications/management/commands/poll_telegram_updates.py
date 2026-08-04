@@ -12,7 +12,7 @@ from requests.adapters import HTTPAdapter
 from rest_framework.exceptions import Throttled
 from urllib3.util.retry import Retry
 
-from apps.cards.image_search import attach_thumbnail_from_url, find_thumbnail_url_for
+from apps.cards.image_search import attach_thumbnail_from_url
 from apps.imports.gemini import enrich_card, enrich_card_options
 from apps.imports.services import create_sentence_card, create_vocab_card
 from apps.notifications.models import PendingTelegramCard, TelegramLink, TelegramPollerState
@@ -52,26 +52,32 @@ def _redact_token(text: str) -> str:
     return text.replace(token, "<redacted>") if token else text
 
 
-def _telegram_post(api: str, method: str, payload: dict) -> bool:
-    """POSTs to the Telegram Bot API and reports whether Telegram actually
-    accepted the call. A 200 response doesn't mean success — Telegram
-    returns HTTP 200 with {"ok": false} for plenty of rejections (bot
-    blocked by the user, bad chat_id, message too long, etc.), so callers
-    that only checked "didn't raise" were treating those as silent
-    successes."""
+def _telegram_call(api: str, method: str, payload: dict) -> dict | None:
+    """POSTs to the Telegram Bot API and returns Telegram's `result` payload,
+    or None if the call failed or was rejected. A 200 response doesn't mean
+    success — Telegram returns HTTP 200 with {"ok": false} for plenty of
+    rejections (bot blocked by the user, bad chat_id, message too long,
+    etc.), so callers that only checked "didn't raise" were treating those
+    as silent successes."""
     try:
         resp = requests.post(f"{api}/{method}", json=payload, timeout=10)
         data = resp.json()
     except requests.RequestException as e:
         logger.warning("Telegram %s request failed: %s", method, _redact_token(str(e)))
-        return False
+        return None
     except ValueError:
         logger.warning("Telegram %s returned a non-JSON response (status %s)", method, resp.status_code)
-        return False
+        return None
     if not data.get("ok"):
         logger.warning("Telegram %s rejected: %s", method, data.get("description"))
-        return False
-    return True
+        return None
+    return data.get("result")
+
+
+def _telegram_post(api: str, method: str, payload: dict) -> bool:
+    """Like _telegram_call, for callers that only care whether Telegram
+    accepted the call, not the result payload."""
+    return _telegram_call(api, method, payload) is not None
 
 
 def _reply(api: str, chat_id, text: str, reply_markup: dict | None = None) -> bool:
@@ -81,12 +87,38 @@ def _reply(api: str, chat_id, text: str, reply_markup: dict | None = None) -> bo
     return _telegram_post(api, "sendMessage", payload)
 
 
-def _send_photo(api: str, chat_id, image_field, caption: str) -> bool:
-    image_field.open("rb")
-    try:
-        data = image_field.read()
-    finally:
-        image_field.close()
+def _reply_and_get_message_id(api: str, chat_id, text: str, reply_markup: dict | None = None) -> int | None:
+    """Like _reply, but returns the sent message's id instead of a bool —
+    needed so a later background step (see find_and_attach_proposal_image)
+    can edit this exact message once it has something to add."""
+    payload = {"chat_id": chat_id, "text": text}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    result = _telegram_call(api, "sendMessage", payload)
+    return result.get("message_id") if result else None
+
+
+def _edit_message_with_photo(
+    api: str, chat_id, message_id: int, photo_url: str, caption: str, reply_markup: dict | None = None
+) -> bool:
+    """Turns an already-sent text message into a photo message — used to
+    attach a proposal's image after the fact, once the background search
+    finds one, without making the user wait for it up front."""
+    payload = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "media": {"type": "photo", "media": photo_url, "caption": caption},
+    }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    return _telegram_call(api, "editMessageMedia", payload) is not None
+
+
+def _send_photo(api: str, chat_id, data: bytes, caption: str) -> bool:
+    """Uploads raw JPEG bytes directly to Telegram. Takes bytes rather than
+    a Django FieldFile so a caller that just fetched/resized an image (see
+    _finalize) can forward those same bytes instead of reading them back
+    from storage right after saving them there."""
     try:
         resp = requests.post(
             f"{api}/sendPhoto",
@@ -102,6 +134,12 @@ def _send_photo(api: str, chat_id, image_field, caption: str) -> bool:
         logger.warning("Telegram sendPhoto rejected: %s", result.get("description"))
         return False
     return True
+
+
+def _send_typing(api: str, chat_id) -> None:
+    """Best-effort "bot is typing…" cue shown before a multi-second Gemini
+    call — purely cosmetic, so its outcome is never checked."""
+    _telegram_post(api, "sendChatAction", {"chat_id": chat_id, "action": "typing"})
 
 
 def _handle_start(api: str, chat_id, text: str) -> None:
@@ -212,29 +250,43 @@ def _proposal_keyboard(pending_id: int) -> dict:
 
 
 def _send_proposal(api: str, chat_id, pending: PendingTelegramCard) -> None:
-    """Show the word/meaning/reading/example gathered so far — plus an
-    auto-suggested picture, if Gemini judges the meaning depictable (see
-    apps.cards.image_search.find_thumbnail_url_for) — with Create/Edit
-    buttons. Only a source URL is looked up here (no download): Telegram
-    fetches it directly for the preview, and it's saved on `pending` so the
-    real, one-time download happens only if/when Create is tapped."""
-    pending.image_url = find_thumbnail_url_for(pending.front, pending.back, pending.language, pending.card_type)
+    """Show the word/meaning/reading/example gathered so far, with Create/
+    Edit/Regenerate buttons — sent as text immediately, without waiting on
+    an image. The picture (if Gemini judges the meaning depictable at all)
+    is searched for in the background (see find_and_attach_proposal_image)
+    and, once found, edited into this same message — a Gemini call plus an
+    Openverse search is 2-5+ seconds the user doesn't need to wait through
+    just to see their translation and pick Create.
+
+    image_url is explicitly cleared here (not just left as whatever it was)
+    so that tapping Create before the background search finishes can never
+    attach a stale image left over from an earlier proposal/regenerate. A
+    full save (not update_fields) is deliberate — callers (_handle_reply,
+    the choose_reading/regenerate callbacks) set fields like `reading` or
+    `back` on this same in-memory instance without saving them first,
+    relying on this save to persist them too."""
+    pending.image_url = ""
     pending.awaiting_field = ""
     pending.save()
     caption = _proposal_caption(pending)
     keyboard = _proposal_keyboard(pending.id)
-    if pending.image_url:
-        _telegram_post(
-            api, "sendPhoto",
-            {"chat_id": chat_id, "photo": pending.image_url, "caption": caption, "reply_markup": keyboard},
+    message_id = _reply_and_get_message_id(api, chat_id, caption, reply_markup=keyboard)
+    if message_id:
+        from apps.notifications.tasks import find_and_attach_proposal_image
+
+        find_and_attach_proposal_image.delay(
+            pending.id, chat_id, message_id, pending.front, pending.back, pending.language, pending.card_type,
+            pending.reading, pending.example,
         )
-    else:
-        _reply(api, chat_id, caption, reply_markup=keyboard)
 
 
 def _finalize(api: str, chat_id, pending: PendingTelegramCard) -> None:
     """Actually create the card — triggered by the Create button, never
-    directly by the wizard (see _send_proposal)."""
+    directly by the wizard (see _send_proposal). If the background image
+    search (see find_and_attach_proposal_image) already found one by the
+    time Create is tapped, pending.image_url is set and gets attached here;
+    if not, the card is still created immediately without one — the image
+    was always best-effort and must never hold up Create."""
     create = create_sentence_card if pending.card_type == "sentence" else create_vocab_card
     card = create(
         pending.user, pending.front, pending.language,
@@ -243,15 +295,15 @@ def _finalize(api: str, chat_id, pending: PendingTelegramCard) -> None:
             "article": pending.article, "plural": pending.plural, "example": pending.example,
         },
     )
-    image = attach_thumbnail_from_url(card, pending.image_url) if pending.image_url else None
+    _, image_data = attach_thumbnail_from_url(card, pending.image_url) if pending.image_url else (None, None)
     pending.delete()
     caption = f"✅ Added to {card.deck.full_name}"
-    if image:
+    if image_data:
         # The card is already saved either way — if only the richer photo
         # message fails (bad/expired image URL, Telegram rejects the file),
         # still confirm via plain text rather than leaving the user with no
         # acknowledgement that Create actually worked.
-        if not _send_photo(api, chat_id, image.image, caption):
+        if not _send_photo(api, chat_id, image_data, caption):
             _reply(api, chat_id, caption)
     else:
         _reply(api, chat_id, caption)
@@ -272,6 +324,7 @@ def _regenerate(link: TelegramLink, api: str, chat_id, pending: PendingTelegramC
         "back": pending.back, "reading": pending.reading,
         "article": pending.article, "plural": pending.plural, "example": pending.example,
     }
+    _send_typing(api, chat_id)
     result = enrich_card(
         pending.front, pending.language, pending.card_type, link.default_back_language,
         previous_proposal=previous,
@@ -314,6 +367,7 @@ def _handle_word_lookup(link: TelegramLink, api: str, chat_id, text: str) -> Non
         _reply(api, chat_id, str(e.detail))
         return
 
+    _send_typing(api, chat_id)
     result = enrich_card_options(text, link.default_language, "vocab", link.default_back_language)
     pending, _ = PendingTelegramCard.objects.update_or_create(
         user=link.user,
@@ -350,6 +404,7 @@ def _handle_sentence_input(link: TelegramLink, api: str, chat_id, text: str) -> 
         _reply(api, chat_id, str(e.detail))
         return
 
+    _send_typing(api, chat_id)
     result = enrich_card(text, link.default_language, "sentence", link.default_back_language)
     pending, _ = PendingTelegramCard.objects.update_or_create(
         user=link.user,
