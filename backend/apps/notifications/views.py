@@ -66,3 +66,18 @@ class TelegramStatusView(APIView):
     def get(self, request):
         link = getattr(request.user, "telegram_link", None)
         return Response({"connected": bool(link and link.chat_id)})
+
+
+class TelegramDisconnectView(APIView):
+    """Unlinks the user's Telegram chat. Only clears chat_id — the
+    TelegramLink row (connect_token, default_language) is kept, so
+    reconnecting later doesn't lose the language preference set via /lang."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        link = getattr(request.user, "telegram_link", None)
+        if link and link.chat_id is not None:
+            link.chat_id = None
+            link.save(update_fields=["chat_id"])
+        return Response(status=status.HTTP_204_NO_CONTENT)

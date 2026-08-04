@@ -197,6 +197,41 @@ class TelegramStatusViewTests(APITestCase):
         self.assertEqual(res.data, {"connected": True})
 
 
+class TelegramDisconnectViewTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        self.client.force_authenticate(self.user)
+
+    def test_clears_chat_id_but_keeps_the_link_row(self):
+        link = TelegramLink.objects.create(user=self.user, chat_id=123, default_language="de")
+        res = self.client.post(reverse("telegram-disconnect"))
+        self.assertEqual(res.status_code, 204)
+        link.refresh_from_db()
+        self.assertIsNone(link.chat_id)
+        self.assertEqual(link.default_language, "de")
+
+    def test_status_reports_disconnected_afterwards(self):
+        TelegramLink.objects.create(user=self.user, chat_id=123)
+        self.client.post(reverse("telegram-disconnect"))
+        res = self.client.get(reverse("telegram-status"))
+        self.assertEqual(res.data, {"connected": False})
+
+    def test_noop_without_a_link(self):
+        res = self.client.post(reverse("telegram-disconnect"))
+        self.assertEqual(res.status_code, 204)
+        self.assertFalse(TelegramLink.objects.filter(user=self.user).exists())
+
+    def test_noop_when_already_disconnected(self):
+        TelegramLink.objects.create(user=self.user)
+        res = self.client.post(reverse("telegram-disconnect"))
+        self.assertEqual(res.status_code, 204)
+
+    def test_requires_authentication(self):
+        self.client.force_authenticate(None)
+        res = self.client.post(reverse("telegram-disconnect"))
+        self.assertEqual(res.status_code, 401)
+
+
 @override_settings(TELEGRAM_BOT_TOKEN="test-token")
 class SendReminderTelegramTests(APITestCase):
     def setUp(self):
@@ -353,6 +388,20 @@ class ProcessTelegramUpdateTests(APITestCase):
         process_telegram_update(update, "https://api.telegram.org/botX")
         mock_enrich.assert_not_called()
 
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_slashless_start_is_treated_as_the_start_command(self, mock_post, mock_enrich):
+        # Typing "start" (or "Start") without the leading slash — e.g. a typo
+        # or a client that dropped it — used to fall through to word lookup.
+        self.link.chat_id = 999
+        self.link.save(update_fields=["chat_id"])
+        update = {"update_id": 5, "message": {"text": "Start", "chat": {"id": 999}}}
+        process_telegram_update(update, "https://api.telegram.org/botX")
+        mock_enrich.assert_not_called()
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        self.assertIn("Welcome back", kwargs["json"]["text"])
+
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_help_returns_onboarding_text(self, mock_post):
         self.link.chat_id = 999
@@ -365,6 +414,19 @@ class ProcessTelegramUpdateTests(APITestCase):
         self.assertIn("/lang", kwargs["json"]["text"])
         self.assertIn("/sentence", kwargs["json"]["text"])
         self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_slashless_help_is_treated_as_the_help_command(self, mock_post, mock_enrich):
+        self.link.chat_id = 999
+        self.link.default_language = "de"
+        self.link.save(update_fields=["chat_id", "default_language"])
+        update = {"update_id": 6, "message": {"text": "HELP", "chat": {"id": 999}}}
+        process_telegram_update(update, "https://api.telegram.org/botX")
+        mock_enrich.assert_not_called()
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        self.assertIn("/lang", kwargs["json"]["text"])
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_menu_command_returns_main_menu_keyboard(self, mock_post):
@@ -384,6 +446,31 @@ class ProcessTelegramUpdateTests(APITestCase):
         self.assertIn("📝 Sentence", button_texts)
         self.assertIn("🌐 Language", button_texts)
         self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_slashless_menu_is_treated_as_the_menu_command(self, mock_post, mock_enrich):
+        self.link.chat_id = 999
+        self.link.save(update_fields=["chat_id"])
+        update = {"update_id": 7, "message": {"text": "Menu", "chat": {"id": 999}}}
+        process_telegram_update(update, "https://api.telegram.org/botX")
+        mock_enrich.assert_not_called()
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        self.assertIn("reply_markup", kwargs["json"])
+
+    def test_word_lookup_for_a_word_that_only_partially_matches_a_command(self):
+        # "started"/"helping"/"menus" must still go to word lookup — only an
+        # exact (case-insensitive) match is treated as the bare command.
+        self.link.chat_id = 999
+        self.link.default_language = "de"
+        self.link.save(update_fields=["chat_id", "default_language"])
+        with patch(
+            "apps.notifications.management.commands.poll_telegram_updates._handle_word_lookup"
+        ) as mock_lookup:
+            update = {"update_id": 8, "message": {"text": "started", "chat": {"id": 999}}}
+            process_telegram_update(update, "https://api.telegram.org/botX")
+        mock_lookup.assert_called_once()
 
 
 class TelegramLangCommandTests(APITestCase):

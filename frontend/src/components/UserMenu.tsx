@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "../auth/AuthContext";
-import { telegramConnect, telegramStatus, updateMe } from "../auth/api";
+import { telegramConnect, telegramDisconnect, telegramStatus, updateMe } from "../auth/api";
 import { applyLanguage } from "../i18n";
 import { subscribeToPush } from "../lib/pushNotifications";
 import { disableSupportPush, enableSupportPush, isSubscribedToPush, pushSupported } from "../push";
@@ -24,6 +24,7 @@ export default function UserMenu() {
   const [pushBusy, setPushBusy] = useState(false);
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [connectingTelegram, setConnectingTelegram] = useState(false);
+  const [disconnectingTelegram, setDisconnectingTelegram] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -159,6 +160,20 @@ export default function UserMenu() {
     }, TELEGRAM_POLL_INTERVAL_MS);
   }
 
+  async function handleTelegramDisconnect() {
+    if (!window.confirm(t("studyReminder.confirmDisconnectTelegram"))) return;
+    setReminderError(null);
+    setDisconnectingTelegram(true);
+    try {
+      await telegramDisconnect();
+      await refreshUser();
+    } catch {
+      setReminderError(t("studyReminder.saveFailed"));
+    } finally {
+      setDisconnectingTelegram(false);
+    }
+  }
+
   // Prefer the name they gave during onboarding; fall back to the email.
   const initial = (user?.display_name?.trim()?.[0] || user?.email?.[0] || "?").toUpperCase();
   const subTone = sub?.pending ? "pending" : sub?.state ?? "expired";
@@ -289,12 +304,24 @@ export default function UserMenu() {
                 />
               )}
 
-              <span className="usermenu__value">
-                {reminderError ??
-                  (user?.study_reminder_channel === "telegram" && user?.telegram_connected
-                    ? t("studyReminder.telegramConnected")
-                    : t("studyReminder.hint"))}
-              </span>
+              {user?.study_reminder_channel === "telegram" && user?.telegram_connected ? (
+                <span className="usermenu__value">
+                  {reminderError ?? t("studyReminder.telegramConnected")}
+                  {" · "}
+                  <button
+                    type="button"
+                    className="usermenu__linkbtn"
+                    onClick={handleTelegramDisconnect}
+                    disabled={disconnectingTelegram}
+                  >
+                    {disconnectingTelegram
+                      ? t("studyReminder.disconnectingTelegram")
+                      : t("studyReminder.disconnectTelegram")}
+                  </button>
+                </span>
+              ) : (
+                <span className="usermenu__value">{reminderError ?? t("studyReminder.hint")}</span>
+              )}
             </div>
 
             <button

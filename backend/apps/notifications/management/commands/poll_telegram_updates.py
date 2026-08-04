@@ -456,7 +456,10 @@ def process_telegram_update(update: dict, api: str) -> None:
     if not (text and chat_id):
         return
 
-    if text.lower().startswith("/start"):
+    # Bare "start"/"menu"/"help" (no leading slash) are treated the same as
+    # their slash commands — a common typo (or autocomplete dropping the
+    # slash) would otherwise silently fall through to word lookup instead.
+    if text.lower().startswith("/start") or text.lower() == "start":
         _handle_start(api, chat_id, text)
         return
 
@@ -474,11 +477,11 @@ def process_telegram_update(update: dict, api: str) -> None:
         _handle_lang(link, api, chat_id, text)
         return
 
-    if text.lower().startswith("/help"):
+    if text.lower().startswith("/help") or text.lower() == "help":
         _reply(api, chat_id, _ONBOARDING_EXAMPLE)
         return
 
-    if text.lower().startswith("/menu"):
+    if text.lower().startswith("/menu") or text.lower() == "menu":
         _reply(api, chat_id, "What would you like to do?", reply_markup=_main_menu_keyboard())
         return
 

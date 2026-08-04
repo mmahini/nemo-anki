@@ -1063,3 +1063,9 @@ export function telegramConnect(): Promise<{ deep_link: string }> {
 export function telegramStatus(): Promise<{ connected: boolean }> {
   return jsonRequest("/api/notifications/telegram/status", { method: "GET" });
 }
+
+/** Unlinks the connected Telegram chat (the link itself, and any language
+ * preference set via /lang, are kept — only chat_id is cleared). */
+export function telegramDisconnect(): Promise<void> {
+  return jsonRequest("/api/notifications/telegram/disconnect", { method: "POST" });
+}
