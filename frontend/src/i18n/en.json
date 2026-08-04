@@ -27,7 +27,6 @@
     "connectTelegram": "Connect Telegram",
     "waitingForTelegram": "Waiting for you to press Start in Telegram…",
     "telegramConnected": "Telegram connected",
-    "disconnectTelegram": "Disconnect",
     "disconnectingTelegram": "Disconnecting…",
     "confirmDisconnectTelegram": "Disconnect Telegram? You'll stop getting reminders there until you reconnect.",
     "telegramUnavailable": "Telegram reminders aren't set up yet."

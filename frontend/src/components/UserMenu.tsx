@@ -165,6 +165,9 @@ export default function UserMenu() {
     setReminderError(null);
     setDisconnectingTelegram(true);
     try {
+      // Only unlinks the chat — study_reminder_channel stays "telegram" on
+      // purpose, since the user picked that channel intentionally; the chip
+      // just goes back to prompting "Connect Telegram" until they reconnect.
       await telegramDisconnect();
       await refreshUser();
     } catch {
@@ -172,6 +175,17 @@ export default function UserMenu() {
     } finally {
       setDisconnectingTelegram(false);
     }
+  }
+
+  /** The Telegram chip does double duty: picking the channel starts the
+   * connect handshake, and clicking it again once connected disconnects
+   * (behind a confirm) — no separate disconnect control needed. */
+  function handleTelegramChipClick() {
+    if (user?.study_reminder_channel === "telegram" && user?.telegram_connected) {
+      handleTelegramDisconnect();
+      return;
+    }
+    handleReminderChannelChange("telegram");
   }
 
   // Prefer the name they gave during onboarding; fall back to the email.
@@ -280,7 +294,8 @@ export default function UserMenu() {
                   className={`usermenu__chip${
                     user?.study_reminder_channel === "telegram" ? " usermenu__chip--active" : ""
                   }`}
-                  onClick={() => handleReminderChannelChange("telegram")}
+                  onClick={handleTelegramChipClick}
+                  disabled={disconnectingTelegram}
                 >
                   {t("studyReminder.channelTelegram")}
                 </button>
@@ -304,24 +319,14 @@ export default function UserMenu() {
                 />
               )}
 
-              {user?.study_reminder_channel === "telegram" && user?.telegram_connected ? (
-                <span className="usermenu__value">
-                  {reminderError ?? t("studyReminder.telegramConnected")}
-                  {" · "}
-                  <button
-                    type="button"
-                    className="usermenu__linkbtn"
-                    onClick={handleTelegramDisconnect}
-                    disabled={disconnectingTelegram}
-                  >
-                    {disconnectingTelegram
-                      ? t("studyReminder.disconnectingTelegram")
-                      : t("studyReminder.disconnectTelegram")}
-                  </button>
-                </span>
-              ) : (
-                <span className="usermenu__value">{reminderError ?? t("studyReminder.hint")}</span>
-              )}
+              <span className="usermenu__value">
+                {reminderError ??
+                  (disconnectingTelegram
+                    ? t("studyReminder.disconnectingTelegram")
+                    : user?.study_reminder_channel === "telegram" && user?.telegram_connected
+                      ? t("studyReminder.telegramConnected")
+                      : t("studyReminder.hint"))}
+              </span>
             </div>
 
             <button

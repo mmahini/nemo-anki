@@ -27,7 +27,6 @@
     "connectTelegram": "اتصال به تلگرام",
     "waitingForTelegram": "منتظریم توی تلگرام دکمه‌ی Start رو بزنی…",
     "telegramConnected": "تلگرام وصل شد",
-    "disconnectTelegram": "قطع اتصال",
     "disconnectingTelegram": "در حال قطع اتصال…",
     "confirmDisconnectTelegram": "قطع اتصال تلگرام؟\n\nدریافت یادآوری‌ها از طریق تلگرام متوقف می‌شود. هر زمان بخواهید می‌توانید دوباره وصل کنید.",
     "telegramUnavailable": "یادآوری تلگرام هنوز راه‌اندازی نشده."
