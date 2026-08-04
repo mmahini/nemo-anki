@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime, time, timedelta, timezone as dt_timezone
 from unittest.mock import Mock, patch
 
@@ -1310,6 +1311,32 @@ class TelegramProposalImageTests(APITestCase):
         args, kwargs = mock_post.call_args
         self.assertIn("sendMessage", args[0])
         self.assertIn("Added to", kwargs["json"]["text"])
+        # The main menu comes back on the confirmation — without it,
+        # PendingTelegramCard is already gone and the user has no guided
+        # next step (see poll_telegram_updates._finalize).
+        buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
+        callback_data = [b["callback_data"] for row in buttons for b in row]
+        self.assertIn("menu:lookup", callback_data)
+        self.assertIn("menu:sentence", callback_data)
+        self.assertIn("menu:lang", callback_data)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.attach_thumbnail_from_url")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_create_with_photo_also_restores_the_main_menu(self, mock_post, mock_attach):
+        mock_attach.return_value = (Mock(), b"fake-jpeg-bytes")
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {}})
+        self.pending.image_url = "https://images.example/apple.jpg"
+        self.pending.awaiting_field = ""
+        self.pending.save(update_fields=["image_url", "awaiting_field"])
+
+        process_telegram_update(self._callback(f"create:{self.pending.id}"), "https://api.telegram.org/botX")
+
+        args, kwargs = mock_post.call_args
+        self.assertIn("sendPhoto", args[0])
+        # sendPhoto is multipart, so reply_markup travels as a JSON string.
+        buttons = json.loads(kwargs["data"]["reply_markup"])["inline_keyboard"]
+        callback_data = [b["callback_data"] for row in buttons for b in row]
+        self.assertIn("menu:lookup", callback_data)
 
 
 class TelegramSentenceInputTests(APITestCase):
