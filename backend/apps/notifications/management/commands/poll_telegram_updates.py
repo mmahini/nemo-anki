@@ -2,6 +2,7 @@ import logging
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 
 import requests
@@ -19,6 +20,11 @@ from apps.notifications.models import PendingTelegramCard, TelegramLink, Telegra
 from apps.subscriptions.quota import consume_ai_quota
 
 logger = logging.getLogger(__name__)
+
+# Bounds the "fire and forget" Telegram calls (typing indicator, callback-query
+# ack) that nothing downstream waits on — a small fixed pool instead of a raw
+# thread per call, so a burst of messages can't spawn unbounded threads.
+_FIRE_AND_FORGET = ThreadPoolExecutor(max_workers=4, thread_name_prefix="telegram-ack")
 
 SUPPORTED_LANGUAGES = {"de": "German", "en": "English"}
 
@@ -138,8 +144,9 @@ def _send_photo(api: str, chat_id, data: bytes, caption: str) -> bool:
 
 def _send_typing(api: str, chat_id) -> None:
     """Best-effort "bot is typing…" cue shown before a multi-second Gemini
-    call — purely cosmetic, so its outcome is never checked."""
-    _telegram_post(api, "sendChatAction", {"chat_id": chat_id, "action": "typing"})
+    call — purely cosmetic, so it's dispatched on the fire-and-forget pool
+    rather than blocking the Gemini call on Telegram's own ~2s round trip."""
+    _FIRE_AND_FORGET.submit(_telegram_post, api, "sendChatAction", {"chat_id": chat_id, "action": "typing"})
 
 
 def _handle_start(api: str, chat_id, text: str) -> None:
@@ -369,23 +376,36 @@ def _handle_word_lookup(link: TelegramLink, api: str, chat_id, text: str) -> Non
 
     _send_typing(api, chat_id)
     result = enrich_card_options(text, link.default_language, "vocab", link.default_back_language)
+    translations = result.get("translations", [])
+    pronunciations = result.get("pronunciations", [])
+    # enrich_card_options ranks its candidates "by likely correctness" — take
+    # its top pick and go straight to the full proposal instead of making the
+    # user confirm a translation and a pronunciation on two separate screens
+    # first. Edit (on the proposal) still lets them correct either one
+    # manually if the top pick is wrong, via the same _handle_reply /
+    # _prompt_pronunciation path this used to reach directly.
     pending, _ = PendingTelegramCard.objects.update_or_create(
         user=link.user,
         defaults={
             "card_type": "vocab",
             "language": link.default_language,
             "front": text,
-            "back": "",
-            "reading": "",
+            "back": translations[0] if translations else "",
+            "reading": pronunciations[0] if translations and pronunciations else "",
             "article": result.get("article", "none"),
             "plural": result.get("plural", ""),
             "example": result.get("example", ""),
-            "translation_options": result.get("translations", []),
-            "pronunciation_options": result.get("pronunciations", []),
-            "awaiting_field": "back",
+            "translation_options": translations,
+            "pronunciation_options": pronunciations,
+            "awaiting_field": "" if translations else "back",
         },
     )
-    _prompt_translation(api, chat_id, pending)
+    if translations:
+        _send_proposal(api, chat_id, pending)
+    else:
+        # Same fallback as always when Gemini didn't offer anything to
+        # auto-pick from — ask the user to type the translation manually.
+        _prompt_translation(api, chat_id, pending)
 
 
 def _handle_sentence_input(link: TelegramLink, api: str, chat_id, text: str) -> None:
@@ -442,7 +462,9 @@ def _handle_callback_query(update: dict, api: str) -> None:
     data = callback.get("data") or ""
     chat_id = (callback.get("message") or {}).get("chat", {}).get("id")
     callback_id = callback["id"]
-    _telegram_post(api, "answerCallbackQuery", {"callback_query_id": callback_id})
+    # Dismisses the tapped button's loading spinner — fire-and-forget since
+    # nothing below depends on Telegram's response to it.
+    _FIRE_AND_FORGET.submit(_telegram_post, api, "answerCallbackQuery", {"callback_query_id": callback_id})
     if not chat_id:
         return
     link = TelegramLink.objects.filter(chat_id=chat_id).select_related("user").first()

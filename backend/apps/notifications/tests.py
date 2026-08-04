@@ -761,9 +761,11 @@ class TelegramPendingLookupTests(APITestCase):
         mock_enrich.assert_not_called()
         self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
 
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_lang_automatically_resumes_a_fresh_vocab_stash(self, mock_post, mock_enrich):
+    def test_lang_automatically_resumes_a_fresh_vocab_stash(self, mock_post, mock_enrich, mock_delay):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
         mock_enrich.return_value = {
             "translations": ["house"], "pronunciations": [], "article": "das", "plural": "", "example": "",
         }
@@ -778,8 +780,15 @@ class TelegramPendingLookupTests(APITestCase):
         self.assertIsNone(self.link.pending_lookup_expires_at)
         pending = PendingTelegramCard.objects.get(user=self.user)
         self.assertEqual(pending.front, "Haus")
-        # "Got it" confirmation, a typing cue, then the resumed translation prompt.
-        self.assertEqual(mock_post.call_count, 3)
+        self.assertEqual(pending.back, "house")  # top translation auto-picked on resume too
+        self.assertEqual(pending.awaiting_field, "")  # straight to the full proposal, no picker
+        # "Got it" confirmation, then the resumed proposal — both real (synchronous)
+        # sendMessage calls. The typing cue is now backgrounded on a thread pool, so
+        # its timing isn't deterministic here and is deliberately not counted.
+        sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+        self.assertEqual(len(sendmessage_calls), 2)
+        self.assertIn("Got it", sendmessage_calls[0].kwargs["json"]["text"])
+        self.assertIn("Meaning: house", sendmessage_calls[1].kwargs["json"]["text"])
 
     @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
@@ -936,9 +945,11 @@ class TelegramWordLookupTests(APITestCase):
         _, kwargs = mock_post.call_args
         self.assertIn("/lang", kwargs["json"]["text"])
 
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_translation_options_shown_as_buttons(self, mock_post, mock_enrich):
+    def test_top_translation_and_pronunciation_are_auto_picked(self, mock_post, mock_enrich, mock_delay):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
         self.link.default_language = "de"
         self.link.save(update_fields=["default_language"])
         mock_enrich.return_value = {
@@ -948,16 +959,25 @@ class TelegramWordLookupTests(APITestCase):
         process_telegram_update(self._update("Haus"), "https://api.telegram.org/botX")
         pending = PendingTelegramCard.objects.get(user=self.user)
         self.assertEqual(pending.front, "Haus")
+        # enrich_card_options ranks its candidates by likely correctness — the
+        # top translation/pronunciation are taken directly, no picker screen.
+        self.assertEqual(pending.back, "house")
+        self.assertEqual(pending.reading, "howss")
         self.assertEqual(pending.translation_options, ["house", "home", "building"])
-        self.assertEqual(pending.awaiting_field, "back")
-        # A typing cue, then the translation-options message.
-        self.assertEqual(mock_post.call_count, 2)
-        _, kwargs = mock_post.call_args
-        rows = kwargs["json"]["reply_markup"]["inline_keyboard"]
-        self.assertEqual([r[0]["text"] for r in rows[:3]], ["house", "home", "building"])
-        self.assertEqual(rows[0][0]["callback_data"], f"choose_back:{pending.id}:0")
-        self.assertEqual(rows[-1][0]["callback_data"], f"pick_own_back:{pending.id}")
-        # No card written yet — only after both fields are resolved.
+        self.assertEqual(pending.pronunciation_options, ["howss"])
+        self.assertEqual(pending.awaiting_field, "")
+        # The message sent is the full proposal (Create/Edit/Regenerate), not a
+        # translation picker. The typing cue is backgrounded on a thread pool now,
+        # so it's deliberately excluded from this assertion (non-deterministic timing).
+        sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+        self.assertEqual(len(sendmessage_calls), 1)
+        kwargs = sendmessage_calls[0].kwargs
+        self.assertIn("Meaning: house", kwargs["json"]["text"])
+        self.assertIn("Reading: howss", kwargs["json"]["text"])
+        buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
+        self.assertEqual(buttons[0][0]["callback_data"], f"create:{pending.id}")
+        self.assertEqual(buttons[1][0]["callback_data"], f"edit:{pending.id}")
+        # No card written yet — only after Create is tapped.
         self.assertEqual(Card.objects.count(), 0)
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
