@@ -1,3 +1,5 @@
+import os
+import threading
 import time
 from datetime import timedelta
 
@@ -5,7 +7,9 @@ import requests
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
+from requests.adapters import HTTPAdapter
 from rest_framework.exceptions import Throttled
+from urllib3.util.retry import Retry
 
 from apps.cards.image_search import attach_thumbnail_from_url, find_thumbnail_url_for
 from apps.imports.gemini import enrich_card, enrich_card_options
@@ -489,6 +493,27 @@ def process_telegram_update(update: dict, api: str) -> None:
     _handle_word_lookup(link, api, chat_id, text)
 
 
+# Liveness/backoff tuning for the long-poll loop (see Command.handle) — kept
+# here as named constants rather than inline magic numbers.
+_LIVENESS_TIMEOUT = 90   # seconds — generous upper bound for one getUpdates cycle (25s long-poll + margin)
+_WATCHDOG_INTERVAL = 15  # seconds — how often the watchdog checks the heartbeat
+_CONFLICT_BACKOFF = 15   # seconds — Telegram 409 means another instance's connection hasn't expired yet
+
+
+def _build_session() -> requests.Session:
+    """One connection, retried at the transport level for transient 5xx/
+    connection errors, and never kept alive across requests (Connection:
+    close) — a pooled keep-alive socket is exactly what can go stale after a
+    host sleep/network change without ever raising an exception. Rebuilt
+    from scratch on every failure (see handle()) so a bad socket is never
+    reused for the next attempt either."""
+    session = requests.Session()
+    session.headers.update({"Connection": "close"})
+    retry = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+    session.mount("https://", HTTPAdapter(max_retries=retry, pool_connections=1, pool_maxsize=1))
+    return session
+
+
 class Command(BaseCommand):
     help = (
         "Long-polls the Telegram Bot API for messages: /start links a chat_id (or shows a "
@@ -506,14 +531,45 @@ class Command(BaseCommand):
 
         api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}"
         offset = 0
+        session = _build_session()
+        last_heartbeat = time.monotonic()
+
+        def _watchdog():
+            # Runs independently of the main loop. If the main thread is
+            # blocked on a socket read that never times out (the one failure
+            # mode a try/except can't catch — a connection wedged after a
+            # host suspend/network change), this notices and hard-kills the
+            # process; restart: unless-stopped brings it back with a clean
+            # network stack. os._exit, not sys.exit: this fires from a
+            # background thread and must kill the whole process even though
+            # the main thread is unresponsive, not just raise in this thread.
+            while True:
+                time.sleep(_WATCHDOG_INTERVAL)
+                if time.monotonic() - last_heartbeat > _LIVENESS_TIMEOUT:
+                    self.stderr.write("Poller heartbeat stale — forcing a restart.")
+                    self.stderr.flush()
+                    os._exit(1)
+
+        threading.Thread(target=_watchdog, daemon=True).start()
+
         self.stdout.write("Polling Telegram for messages...")
         while True:
+            last_heartbeat = time.monotonic()
             try:
-                resp = requests.get(f"{api}/getUpdates", params={"offset": offset, "timeout": 25}, timeout=30)
+                resp = session.get(
+                    f"{api}/getUpdates", params={"offset": offset, "timeout": 25}, timeout=(10, 35)
+                )
+                if resp.status_code == 409:
+                    self.stderr.write(
+                        "getUpdates 409 Conflict — waiting for the other instance's connection to expire."
+                    )
+                    time.sleep(_CONFLICT_BACKOFF)
+                    continue
                 resp.raise_for_status()
                 for update in resp.json().get("result", []):
                     offset = update["update_id"] + 1
                     process_telegram_update(update, api)
             except requests.RequestException as e:
                 self.stderr.write(f"getUpdates failed: {e}")
+                session = _build_session()
                 time.sleep(5)

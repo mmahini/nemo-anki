@@ -16,6 +16,19 @@
     "howItWorks": "How it works",
     "invite": "Invite friends"
   },
+  "studyReminder": {
+    "label": "Daily reminder",
+    "hint": "Get a notification at this time every day.",
+    "permissionDenied": "Notifications are blocked in your browser settings.",
+    "unsupported": "Push notifications aren't supported in this browser.",
+    "saveFailed": "Couldn't save your reminder — try again.",
+    "channelPush": "Push",
+    "channelTelegram": "Telegram",
+    "connectTelegram": "Connect Telegram",
+    "waitingForTelegram": "Waiting for you to press Start in Telegram…",
+    "telegramConnected": "Telegram connected",
+    "telegramUnavailable": "Telegram reminders aren't set up yet."
+  },
   "home": {
     "greeting": "Hi, {{name}} 👋",
     "greetingNoName": "Welcome back 👋",

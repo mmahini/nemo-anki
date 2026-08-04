@@ -19,6 +19,11 @@ export default defineConfig(({ mode }) => {
         // Android) are often left running for a long time, and a plain SW only
         // checks for updates on navigation.
         injectRegister: null,
+        // vite-plugin-pwa doesn't run the service worker under `vite dev` by
+        // default — without this, navigator.serviceWorker.ready (src/pwa.ts,
+        // src/push.ts, src/lib/pushNotifications.ts) never resolves, so any
+        // push opt-in hangs forever in local dev.
+        devOptions: { enabled: true, type: "module" },
         includeAssets: ["cards.svg", "favicon.ico", "apple-touch-icon-180x180.png"],
         manifest: {
           name: "Nemo Anki",
