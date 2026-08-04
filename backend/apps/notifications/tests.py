@@ -112,6 +112,25 @@ class CheckStudyRemindersTests(APITestCase):
         mock_delay.assert_not_called()
 
     @patch("apps.notifications.tasks.send_reminder_push.delay")
+    def test_catches_up_within_the_window(self, mock_delay):
+        # 09:40 Berlin — the instance slept through 09:00 (hourly keep-alive),
+        # so the first tick after waking must still deliver today's reminder.
+        check_study_reminders(now=datetime(2026, 8, 1, 7, 40, tzinfo=dt_timezone.utc))
+        mock_delay.assert_called_once_with(self.user.id, "2026-08-01")
+
+    @patch("apps.notifications.tasks.send_reminder_push.delay")
+    def test_skips_beyond_the_catchup_window(self, mock_delay):
+        # 10:30 Berlin — 90 minutes past a 09:00 reminder is stale, not late.
+        check_study_reminders(now=datetime(2026, 8, 1, 8, 30, tzinfo=dt_timezone.utc))
+        mock_delay.assert_not_called()
+
+    @patch("apps.notifications.tasks.send_reminder_push.delay")
+    def test_never_fires_before_the_reminder_time(self, mock_delay):
+        # 08:59 Berlin — the window opens at the reminder time, not before.
+        check_study_reminders(now=datetime(2026, 8, 1, 6, 59, tzinfo=dt_timezone.utc))
+        mock_delay.assert_not_called()
+
+    @patch("apps.notifications.tasks.send_reminder_push.delay")
     def test_skips_users_without_subscription(self, mock_delay):
         PushSubscription.objects.all().delete()
         check_study_reminders(now=self._at_berlin_9am())

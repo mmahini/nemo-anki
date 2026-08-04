@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
@@ -18,12 +19,21 @@ from apps.notifications.management.commands.poll_telegram_updates import (
 from apps.notifications.models import PendingTelegramCard
 
 
+# How far past the reminder time a send still goes out (late) instead of
+# being dropped. The free-tier instance can be asleep at the exact minute —
+# it's only guaranteed awake around the hourly keep-alive ping (plus GitHub
+# cron jitter) — so the tick that eventually runs catches the reminder up;
+# `study_reminder_last_sent` keeps it to one per day.
+REMINDER_CATCHUP = timedelta(minutes=75)
+
+
 @shared_task
 def check_study_reminders(now=None):
-    """Beat-scheduled every minute. Finds users whose local wall-clock time
-    matches their reminder time and haven't been sent one yet today (in their
-    own timezone), and dispatches one send task per matching user — to
-    whichever channel (push or telegram) they've picked.
+    """Scheduled every minute (celery-beat, or the in-process ticker in the
+    single-server deployment). Finds users whose local wall-clock time is at —
+    or within REMINDER_CATCHUP after — their reminder time and haven't been
+    sent one yet today (in their own timezone), and dispatches one send task
+    per matching user — to whichever channel (push or telegram) they've picked.
 
     `now` is an explicit, injectable parameter (defaulting to `timezone.now()`)
     so tests can call this directly with a fixed instant instead of mocking
@@ -36,10 +46,13 @@ def check_study_reminders(now=None):
             local_now = now.astimezone(ZoneInfo(user.study_reminder_timezone))
         except ZoneInfoNotFoundError:
             continue
-        if (local_now.hour, local_now.minute) != (
-            user.study_reminder_time.hour,
-            user.study_reminder_time.minute,
-        ):
+        target = local_now.replace(
+            hour=user.study_reminder_time.hour,
+            minute=user.study_reminder_time.minute,
+            second=0,
+            microsecond=0,
+        )
+        if not (target <= local_now < target + REMINDER_CATCHUP):
             continue
         if user.study_reminder_last_sent == local_now.date():
             continue

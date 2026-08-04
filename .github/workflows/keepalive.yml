@@ -1,14 +1,16 @@
-# Keeps the free-tier Render backend from idling to sleep, so the Telegram
-# webhook answers fast and the in-process study-reminder ticker
-# (backend/apps/notifications/ticker.py) is awake at reminder time. Render
-# free services spin down after ~15 idle minutes; GitHub cron isn't exact
-# (often a few minutes late) so every-10-minutes keeps the gaps comfortably
-# under the threshold most of the time.
+# Hourly wake-up for the free-tier Render backend. It does NOT keep the
+# instance awake continuously (it sleeps after ~15 idle minutes) — it
+# guarantees at least one awake window per hour, in which the in-process
+# study-reminder ticker (backend/apps/notifications/ticker.py) runs and
+# catches up any reminder from the past REMINDER_CATCHUP window (see
+# apps/notifications/tasks.py) — so reminders can arrive up to ~an hour
+# late on a quiet instance, but never silently drop. The Telegram webhook
+# doesn't need this at all: its own request wakes the instance.
 name: keep-backend-awake
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "0 * * * *"
   workflow_dispatch: {}
 
 jobs:
