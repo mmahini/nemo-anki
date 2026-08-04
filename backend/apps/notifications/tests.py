@@ -10,8 +10,8 @@ from rest_framework.test import APITestCase
 
 from apps.cards.models import Card
 
-from .management.commands.poll_telegram_updates import process_telegram_update
-from .models import PendingTelegramCard, PushSubscription, TelegramLink
+from .management.commands.poll_telegram_updates import _process_update_safely, process_telegram_update
+from .models import PendingTelegramCard, PushSubscription, TelegramLink, TelegramPollerState
 from .tasks import check_study_reminders, send_reminder_push, send_reminder_telegram
 
 User = get_user_model()
@@ -46,6 +46,26 @@ class PushSubscribeTests(APITestCase):
             {"endpoint": "https://push.example.com/abc", "p256dh": "key1", "auth": "auth1"},
         )
         self.assertEqual(res.status_code, 401)
+
+    def test_second_user_subscribing_same_endpoint_transfers_not_duplicates(self):
+        # A shared/reused browser can hand the same push endpoint to a
+        # different account. The old owner's row must be replaced outright
+        # — not left behind as an orphaned duplicate, and not silently kept
+        # readable/writable by the first user.
+        endpoint = "https://push.example.com/shared"
+        other_user = User.objects.create_user(email="other@example.com")
+        PushSubscription.objects.create(user=other_user, endpoint=endpoint, p256dh="old", auth="old")
+
+        res = self.client.post(
+            reverse("push-subscribe"), {"endpoint": endpoint, "p256dh": "new", "auth": "new"},
+        )
+
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(PushSubscription.objects.filter(endpoint=endpoint).count(), 1)
+        sub = PushSubscription.objects.get(endpoint=endpoint)
+        self.assertEqual(sub.user, self.user)
+        self.assertEqual(sub.p256dh, "new")
+        self.assertFalse(PushSubscription.objects.filter(user=other_user, endpoint=endpoint).exists())
 
     def test_unsubscribe_deletes_row(self):
         endpoint = "https://push.example.com/abc"
@@ -215,6 +235,17 @@ class TelegramDisconnectViewTests(APITestCase):
         self.client.post(reverse("telegram-disconnect"))
         res = self.client.get(reverse("telegram-status"))
         self.assertEqual(res.data, {"connected": False})
+
+    def test_study_reminder_channel_stays_telegram_after_disconnect(self):
+        # The user picked Telegram intentionally — disconnecting only drops
+        # the chat link, it must never fall back to "push" on its own.
+        self.user.study_reminder_channel = "telegram"
+        self.user.save(update_fields=["study_reminder_channel"])
+        TelegramLink.objects.create(user=self.user, chat_id=123)
+        res = self.client.post(reverse("telegram-disconnect"))
+        self.assertEqual(res.status_code, 204)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.study_reminder_channel, "telegram")
 
     def test_noop_without_a_link(self):
         res = self.client.post(reverse("telegram-disconnect"))
@@ -471,6 +502,126 @@ class ProcessTelegramUpdateTests(APITestCase):
             update = {"update_id": 8, "message": {"text": "started", "chat": {"id": 999}}}
             process_telegram_update(update, "https://api.telegram.org/botX")
         mock_lookup.assert_called_once()
+
+
+class ProcessUpdateSafelyTests(APITestCase):
+    """_process_update_safely wraps process_telegram_update for the poll
+    loop (see Command.handle) — a single bad update must never crash the
+    whole long-running poller process."""
+
+    def test_survives_and_swallows_an_unexpected_exception(self):
+        update = {"update_id": 42, "message": {"text": "hi", "chat": {"id": 1}}}
+        with patch(
+            "apps.notifications.management.commands.poll_telegram_updates.process_telegram_update",
+            side_effect=RuntimeError("boom"),
+        ):
+            _process_update_safely(update, "https://api.telegram.org/botX")  # must not raise
+
+    def test_still_processes_a_good_update_normally(self):
+        user = User.objects.create_user(email="learner@example.com")
+        TelegramLink.objects.create(user=user, chat_id=321)
+        with patch("apps.notifications.management.commands.poll_telegram_updates.requests.post") as mock_post:
+            update = {"update_id": 1, "message": {"text": "/menu", "chat": {"id": 321}}}
+            _process_update_safely(update, "https://api.telegram.org/botX")
+        mock_post.assert_called_once()
+
+    def test_does_not_leak_the_bot_token_when_logging_a_failure(self):
+        update = {"update_id": 7, "message": {"text": "hi", "chat": {"id": 1}}}
+        with override_settings(TELEGRAM_BOT_TOKEN="super-secret-token"):
+            with patch(
+                "apps.notifications.management.commands.poll_telegram_updates.process_telegram_update",
+                side_effect=RuntimeError("failed calling https://api.telegram.org/botsuper-secret-token/sendMessage"),
+            ):
+                with self.assertLogs(
+                    "apps.notifications.management.commands.poll_telegram_updates", level="WARNING"
+                ) as logs:
+                    _process_update_safely(update, "https://api.telegram.org/botsuper-secret-token")
+        self.assertNotIn("super-secret-token", "\n".join(logs.output))
+
+
+class TelegramPollerStateTests(APITestCase):
+    def test_load_creates_and_reuses_a_singleton_row(self):
+        state = TelegramPollerState.load()
+        self.assertEqual(state.offset, 0)
+        state.offset = 555
+        state.save(update_fields=["offset"])
+
+        reloaded = TelegramPollerState.load()
+        self.assertEqual(reloaded.offset, 555)
+        self.assertEqual(TelegramPollerState.objects.count(), 1)
+
+
+class TelegramApiFailureHandlingTests(APITestCase):
+    """Telegram returns HTTP 200 with {"ok": false} for plenty of
+    rejections (blocked bot, bad chat_id, message too long) — these must be
+    detected and handled, not treated as a silent success."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        self.link = TelegramLink.objects.create(user=self.user, chat_id=999, default_language="de")
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_reply_returns_false_when_telegram_rejects_the_call(self, mock_post):
+        mock_post.return_value = Mock(json=lambda: {"ok": False, "description": "Forbidden: bot was blocked"})
+        from apps.notifications.management.commands.poll_telegram_updates import _reply
+
+        result = _reply("https://api.telegram.org/botX", 999, "hello")
+        self.assertFalse(result)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_reply_returns_true_when_telegram_accepts_the_call(self, mock_post):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {}})
+        from apps.notifications.management.commands.poll_telegram_updates import _reply
+
+        result = _reply("https://api.telegram.org/botX", 999, "hello")
+        self.assertTrue(result)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_reply_returns_false_on_request_exception(self, mock_post):
+        import requests
+
+        mock_post.side_effect = requests.ConnectionError("network down")
+        from apps.notifications.management.commands.poll_telegram_updates import _reply
+
+        result = _reply("https://api.telegram.org/botX", 999, "hello")
+        self.assertFalse(result)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.find_thumbnail_url_for")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_finalize_falls_back_to_text_when_sendphoto_is_rejected(self, mock_post, mock_url):
+        mock_url.return_value = ""
+        pending = PendingTelegramCard.objects.create(
+            user=self.user, card_type="vocab", language="de", front="Haus",
+            back="house", awaiting_field="",
+        )
+        # First call is the auto-thumbnail attach path (none, since mock_url
+        # returns "" — no sendPhoto for the proposal). The Create tap below
+        # triggers _finalize; attach a fake image so _finalize's sendPhoto
+        # branch runs and rejects, forcing the plain-text fallback.
+        with patch(
+            "apps.notifications.management.commands.poll_telegram_updates.attach_thumbnail_from_url"
+        ) as mock_attach:
+            fake_image = Mock()
+            fake_image.image = Mock()
+            fake_image.image.open = Mock()
+            fake_image.image.read = Mock(return_value=b"fake-jpeg-bytes")
+            fake_image.image.close = Mock()
+            mock_attach.return_value = fake_image
+            pending.image_url = "https://example.com/house.jpg"
+            pending.save(update_fields=["image_url"])
+            mock_post.return_value = Mock(json=lambda: {"ok": False, "description": "PHOTO_INVALID_DIMENSIONS"})
+
+            update = {
+                "update_id": 1,
+                "callback_query": {
+                    "id": "cb1", "data": f"create:{pending.id}", "message": {"chat": {"id": 999}},
+                },
+            }
+            process_telegram_update(update, "https://api.telegram.org/botX")
+
+        methods_called = [call.args[0] for call in mock_post.call_args_list]
+        self.assertTrue(any(url.endswith("/sendPhoto") for url in methods_called))
+        self.assertTrue(any(url.endswith("/sendMessage") for url in methods_called))
 
 
 class TelegramLangCommandTests(APITestCase):

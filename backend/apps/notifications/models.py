@@ -98,3 +98,22 @@ class PushSubscription(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user.email} ({self.endpoint[:40]}...)"
+
+
+class TelegramPollerState(models.Model):
+    """Singleton row persisting getUpdates' `offset` across restarts. Without
+    this, `offset` lives only in the management command's local variable —
+    every restart (a deploy, a crash, the watchdog's own self-restart in
+    poll_telegram_updates) would reset it to 0, and Telegram would redeliver
+    its entire backlog of not-yet-acknowledged updates. A single DB row
+    (there's only ever one poller process running, enforced by Telegram's own
+    409 Conflict on a second getUpdates connection) keeps this simple —
+    no Redis/file dependency needed for a value this small and infrequently
+    written."""
+
+    offset = models.BigIntegerField(default=0)
+
+    @classmethod
+    def load(cls) -> "TelegramPollerState":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

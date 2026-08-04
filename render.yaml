@@ -79,9 +79,15 @@ services:
         sync: false
       - key: VAPID_SUBJECT_EMAIL
         value: admin@nemoapps.xyz
-      # Telegram — posts events (new support messages, new signups, ...)
-      # into the team's group. Unset here → skipped, not an error.
+      # Telegram — one shared bot handles both one-way staff/group alerts
+      # (new support messages, new signups) from this service, and the
+      # interactive per-user bot (TelegramConnectView) which additionally
+      # needs the bot's @username to build the t.me deep link. Both unset →
+      # skipped/503, not an error. See the telegram-poller service below for
+      # the actual message-processing side of the interactive bot.
       - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
         sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
@@ -123,3 +129,130 @@ services:
       # sync (must be the exact same keypair on both services).
       - key: VITE_VAPID_PUBLIC_KEY
         sync: false
+
+  # Celery's broker/result backend. Internal-only (ipAllowList empty — no
+  # public endpoint needed, just the private connection string below shared
+  # with celery-worker/celery-beat in the same Render project/region).
+  - type: redis
+    name: nemo-anki-redis
+    plan: free
+    ipAllowList: []
+
+  # Runs the study-reminder send tasks (apps.notifications.tasks) dispatched
+  # by celery-beat below. Needs DB access (same shared Postgres as the web
+  # service) plus whatever each task itself talks to: VAPID for push,
+  # TELEGRAM_BOT_TOKEN for the Telegram channel.
+  - type: worker
+    name: nemo-anki-celery-worker
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A core worker -l info
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.3"
+      - key: DJANGO_SETTINGS_MODULE
+        value: core.settings
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SCHEMA
+        value: nemo_anki
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: nemo-anki-redis
+          property: connectionString
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_SUBJECT_EMAIL
+        value: admin@nemoapps.xyz
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+
+  # Schedules apps.notifications.tasks.check_study_reminders every minute
+  # (see CELERY_BEAT_SCHEDULE in settings.py) — the actual send work runs on
+  # celery-worker above, this process only ticks the clock.
+  - type: worker
+    name: nemo-anki-celery-beat
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A core beat -l info
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.3"
+      - key: DJANGO_SETTINGS_MODULE
+        value: core.settings
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SCHEMA
+        value: nemo_anki
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: nemo-anki-redis
+          property: connectionString
+
+  # Long-polls Telegram for the interactive per-user bot (/lang, /sentence,
+  # word lookups — see apps.notifications.management.commands
+  # .poll_telegram_updates). Only one instance may run at a time (Telegram
+  # itself enforces this via 409 Conflict on a second getUpdates connection),
+  # so this must stay a single-instance worker, never autoscaled. Needs R2
+  # credentials too: cards created through the bot get an auto-attached
+  # thumbnail, and this service's own filesystem is ephemeral in production
+  # just like the web service's.
+  - type: worker
+    name: nemo-anki-telegram-poller
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py poll_telegram_updates
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.3"
+      - key: DJANGO_SETTINGS_MODULE
+        value: core.settings
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SCHEMA
+        value: nemo_anki
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY
+        sync: false
+      - key: R2_SECRET_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_PUBLIC_DOMAIN
+        sync: false
+      - key: R2_LOCATION_PREFIX
+        value: ""

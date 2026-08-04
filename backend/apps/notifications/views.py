@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.db import transaction
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -17,10 +18,23 @@ class PushSubscribeView(APIView):
     def post(self, request):
         serializer = PushSubscriptionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        PushSubscription.objects.update_or_create(
-            endpoint=serializer.validated_data["endpoint"],
-            defaults={"user": request.user, **serializer.validated_data},
-        )
+        endpoint = serializer.validated_data["endpoint"]
+        with transaction.atomic():
+            # `endpoint` is unique per browser subscription, so it can only
+            # ever belong to one user at a time. update_or_create(endpoint=…)
+            # used to key on endpoint alone, so a second account subscribing
+            # from the same browser (a shared/reused device) would silently
+            # steal the row via its `defaults={"user": request.user, ...}` —
+            # the original owner's reminders would just stop, with nothing
+            # in the API response or logs to explain why. Doing the handoff
+            # explicitly — drop any other owner's row first — keeps the same
+            # real-world behavior (one browser subscription, one current
+            # owner) but makes the transfer an intentional, visible step
+            # instead of an accidental side effect of a loose lookup key.
+            PushSubscription.objects.filter(endpoint=endpoint).exclude(user=request.user).delete()
+            PushSubscription.objects.update_or_create(
+                user=request.user, endpoint=endpoint, defaults=serializer.validated_data,
+            )
         return Response(status=status.HTTP_201_CREATED)
 
 

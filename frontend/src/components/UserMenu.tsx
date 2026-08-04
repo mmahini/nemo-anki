@@ -179,8 +179,14 @@ export default function UserMenu() {
 
   /** The Telegram chip does double duty: picking the channel starts the
    * connect handshake, and clicking it again once connected disconnects
-   * (behind a confirm) — no separate disconnect control needed. */
+   * (behind a confirm) — no separate disconnect control needed. Guarded
+   * against re-entry: each connect attempt rotates the backend's connect
+   * token, so a second click while one is already in flight would open a
+   * second t.me tab and silently invalidate the first — see the `disabled`
+   * prop below for the actual click-blocking, this is a second layer in
+   * case the click still lands (e.g. before React re-renders). */
   function handleTelegramChipClick() {
+    if (connectingTelegram || disconnectingTelegram) return;
     if (user?.study_reminder_channel === "telegram" && user?.telegram_connected) {
       handleTelegramDisconnect();
       return;
@@ -295,7 +301,7 @@ export default function UserMenu() {
                     user?.study_reminder_channel === "telegram" ? " usermenu__chip--active" : ""
                   }`}
                   onClick={handleTelegramChipClick}
-                  disabled={disconnectingTelegram}
+                  disabled={disconnectingTelegram || connectingTelegram}
                 >
                   {t("studyReminder.channelTelegram")}
                 </button>

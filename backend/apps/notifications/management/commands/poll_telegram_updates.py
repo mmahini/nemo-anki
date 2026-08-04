@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 import time
@@ -14,8 +15,10 @@ from urllib3.util.retry import Retry
 from apps.cards.image_search import attach_thumbnail_from_url, find_thumbnail_url_for
 from apps.imports.gemini import enrich_card, enrich_card_options
 from apps.imports.services import create_sentence_card, create_vocab_card
-from apps.notifications.models import PendingTelegramCard, TelegramLink
+from apps.notifications.models import PendingTelegramCard, TelegramLink, TelegramPollerState
 from apps.subscriptions.quota import consume_ai_quota
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_LANGUAGES = {"de": "German", "en": "English"}
 
@@ -40,29 +43,65 @@ _ONBOARDING_EXAMPLE = (
 )
 
 
-def _telegram_post(api: str, method: str, payload: dict) -> None:
-    requests.post(f"{api}/{method}", json=payload, timeout=10)
+def _redact_token(text: str) -> str:
+    """Strips the bot token out of a string before it's logged. Connection
+    errors from requests/urllib3 embed the full request URL — including
+    `/bot<TOKEN>/...` — in their message, so logging an exception's str()
+    as-is would leak the token into stdout/log storage."""
+    token = settings.TELEGRAM_BOT_TOKEN
+    return text.replace(token, "<redacted>") if token else text
 
 
-def _reply(api: str, chat_id, text: str, reply_markup: dict | None = None) -> None:
+def _telegram_post(api: str, method: str, payload: dict) -> bool:
+    """POSTs to the Telegram Bot API and reports whether Telegram actually
+    accepted the call. A 200 response doesn't mean success — Telegram
+    returns HTTP 200 with {"ok": false} for plenty of rejections (bot
+    blocked by the user, bad chat_id, message too long, etc.), so callers
+    that only checked "didn't raise" were treating those as silent
+    successes."""
+    try:
+        resp = requests.post(f"{api}/{method}", json=payload, timeout=10)
+        data = resp.json()
+    except requests.RequestException as e:
+        logger.warning("Telegram %s request failed: %s", method, _redact_token(str(e)))
+        return False
+    except ValueError:
+        logger.warning("Telegram %s returned a non-JSON response (status %s)", method, resp.status_code)
+        return False
+    if not data.get("ok"):
+        logger.warning("Telegram %s rejected: %s", method, data.get("description"))
+        return False
+    return True
+
+
+def _reply(api: str, chat_id, text: str, reply_markup: dict | None = None) -> bool:
     payload = {"chat_id": chat_id, "text": text}
     if reply_markup:
         payload["reply_markup"] = reply_markup
-    _telegram_post(api, "sendMessage", payload)
+    return _telegram_post(api, "sendMessage", payload)
 
 
-def _send_photo(api: str, chat_id, image_field, caption: str) -> None:
+def _send_photo(api: str, chat_id, image_field, caption: str) -> bool:
     image_field.open("rb")
     try:
         data = image_field.read()
     finally:
         image_field.close()
-    requests.post(
-        f"{api}/sendPhoto",
-        data={"chat_id": chat_id, "caption": caption},
-        files={"photo": ("card.jpg", data, "image/jpeg")},
-        timeout=15,
-    )
+    try:
+        resp = requests.post(
+            f"{api}/sendPhoto",
+            data={"chat_id": chat_id, "caption": caption},
+            files={"photo": ("card.jpg", data, "image/jpeg")},
+            timeout=15,
+        )
+        result = resp.json()
+    except (requests.RequestException, ValueError) as e:
+        logger.warning("Telegram sendPhoto failed: %s", _redact_token(str(e)))
+        return False
+    if not result.get("ok"):
+        logger.warning("Telegram sendPhoto rejected: %s", result.get("description"))
+        return False
+    return True
 
 
 def _handle_start(api: str, chat_id, text: str) -> None:
@@ -208,7 +247,12 @@ def _finalize(api: str, chat_id, pending: PendingTelegramCard) -> None:
     pending.delete()
     caption = f"✅ Added to {card.deck.full_name}"
     if image:
-        _send_photo(api, chat_id, image.image, caption)
+        # The card is already saved either way — if only the richer photo
+        # message fails (bad/expired image URL, Telegram rejects the file),
+        # still confirm via plain text rather than leaving the user with no
+        # acknowledgement that Create actually worked.
+        if not _send_photo(api, chat_id, image.image, caption):
+            _reply(api, chat_id, caption)
     else:
         _reply(api, chat_id, caption)
 
@@ -496,6 +540,18 @@ def process_telegram_update(update: dict, api: str) -> None:
     _handle_word_lookup(link, api, chat_id, text)
 
 
+def _process_update_safely(update: dict, api: str) -> None:
+    """Runs one update through process_telegram_update, catching and logging
+    any failure so a single bad update (an unexpected payload shape, a DB
+    hiccup, a bug in a handler) can't crash the whole long-running poller —
+    only that one update is dropped and the rest of the batch keeps going.
+    Split out from the poll loop so it's independently unit-testable."""
+    try:
+        process_telegram_update(update, api)
+    except Exception as e:  # noqa: BLE001 — see docstring
+        logger.warning("update %s failed: %s", update.get("update_id"), _redact_token(str(e)))
+
+
 # Liveness/backoff tuning for the long-poll loop (see Command.handle) — kept
 # here as named constants rather than inline magic numbers.
 _LIVENESS_TIMEOUT = 90   # seconds — generous upper bound for one getUpdates cycle (25s long-poll + margin)
@@ -533,7 +589,8 @@ class Command(BaseCommand):
                 time.sleep(3600)
 
         api = f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}"
-        offset = 0
+        state = TelegramPollerState.load()
+        offset = state.offset
         session = _build_session()
         last_heartbeat = time.monotonic()
 
@@ -571,8 +628,14 @@ class Command(BaseCommand):
                 resp.raise_for_status()
                 for update in resp.json().get("result", []):
                     offset = update["update_id"] + 1
-                    process_telegram_update(update, api)
+                    _process_update_safely(update, api)
+                    # Persisted per-update (not once per batch) so a bad
+                    # update is never retried after a restart — it's been
+                    # logged and dropped already, and re-delivering it would
+                    # just crash-loop the exact same failure forever.
+                    state.offset = offset
+                    state.save(update_fields=["offset"])
             except requests.RequestException as e:
-                self.stderr.write(f"getUpdates failed: {e}")
+                self.stderr.write(f"getUpdates failed: {_redact_token(str(e))}")
                 session = _build_session()
                 time.sleep(5)
