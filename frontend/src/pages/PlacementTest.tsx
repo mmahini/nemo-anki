@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { seedStarterDecks } from "../auth/api";
+
 /** Quiz setup — a top-level page inside the shell, so the mobile tab bar
  * stays visible. Picking language + length here; the test itself runs
  * full-screen (no chrome) at /app/placement-test/run. */
@@ -10,6 +12,21 @@ export default function PlacementTest() {
   const { t } = useTranslation();
   const [language, setLanguage] = useState<"de" | "en">("de");
   const [length, setLength] = useState<"quick" | "full">("quick");
+  const [skipping, setSkipping] = useState(false);
+
+  // Skipping the quiz still needs to leave the account with something to
+  // study — seed the starter decks here since submitting a test is no
+  // longer the only path into the deck list.
+  async function skip() {
+    setSkipping(true);
+    try {
+      await seedStarterDecks();
+    } catch {
+      // Not fatal — the deck list will just be empty until they retry.
+    } finally {
+      navigate("/app");
+    }
+  }
 
   return (
     <div className="ptsetup">
@@ -62,6 +79,15 @@ export default function PlacementTest() {
           onClick={() => navigate("/app/placement-test/run", { state: { language, length } })}
         >
           {t("placementTest.startBtn")}
+        </button>
+
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm pt-intro__skip"
+          disabled={skipping}
+          onClick={skip}
+        >
+          {t("placementTest.skipBtn")}
         </button>
       </div>
     </div>

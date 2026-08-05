@@ -187,8 +187,15 @@ export default function PlacementTestRun() {
                 </div>
               ))}
           </div>
-          <button className="btn btn--primary" onClick={() => navigate("/app")}>
-            {t("placementTest.backHome")}
+          <button
+            className="btn btn--primary"
+            onClick={() =>
+              navigate(result.deck_id ? `/app/decks/${result.deck_id}` : "/app")
+            }
+          >
+            {result.deck_id
+              ? t("placementTest.goToDeckBtn", { level: result.estimated_level })
+              : t("placementTest.backHome")}
           </button>
         </div>
       )}

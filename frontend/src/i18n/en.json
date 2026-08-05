@@ -296,7 +296,9 @@
     "finishBtn": "Finish test",
     "resultTitle": "Your estimated level",
     "resultScore": "{{correct}} of {{total}} correct",
-    "backHome": "Back to Home"
+    "backHome": "Back to Home",
+    "goToDeckBtn": "Go to my {{level}} deck →",
+    "skipBtn": "Skip — go straight to my decks"
   },
   "bookPage": {
     "backBtn": "← Books",

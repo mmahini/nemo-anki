@@ -96,6 +96,26 @@ def _add_samples(deck, samples):
         Card.objects.create(deck=deck, language=deck.language, position=i, **s)
 
 
+# Placement test gives a CEFR level (A1..C1); map it onto the sub-level (or
+# tier, for English) actually seeded above. Menschen tops out at B1, so B2/C1
+# German learners land on the most advanced material we have rather than
+# nothing.
+GERMAN_LEVEL_MAP = {"A1": "A1.1", "A2": "A2.1", "B1": "B1.1", "B2": "B1.1", "C1": "B1.1"}
+ENGLISH_LEVEL_MAP = {"A1": "Basic", "A2": "Basic", "B1": "Intermediate", "B2": "Intermediate", "C1": "Advanced"}
+
+
+def find_level_deck(user, language: str, cefr_level: str):
+    """The seeded deck matching a placement-test result, e.g. (de, "A2") ->
+    the "German :: Menschen :: A2.1" deck. None if seeding hasn't run yet."""
+    level_map = GERMAN_LEVEL_MAP if language == "de" else ENGLISH_LEVEL_MAP
+    level_name = level_map.get(cefr_level)
+    if not level_name:
+        return None
+    # `name` + `language` is unique per user here: the level-deck names in
+    # each map only ever appear under that language's own book tree.
+    return Deck.objects.filter(user=user, name=level_name, language=language).first()
+
+
 def seed_for_user(user) -> dict:
     cfg = _config_for(user)
 
