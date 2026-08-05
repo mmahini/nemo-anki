@@ -94,6 +94,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     # Local (not UTC) date the last reminder push was sent, so the beat task
     # doesn't re-send within the same day.
     study_reminder_last_sent = models.DateField(null=True, blank=True)
+    # Local date the last weekly progress digest was sent (same channel as
+    # the reminder above), so the tick doesn't re-send within the same week.
+    study_digest_last_sent = models.DateField(null=True, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS: list[str] = []

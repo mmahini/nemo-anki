@@ -3,8 +3,9 @@ celery-beat.
 
 The production deployment runs everything on one Render web service (no
 Redis, no celery worker/beat). This module gives that deployment its
-every-minute check_study_reminders tick: a daemon thread started from
-NotificationsConfig.ready() when STUDY_REMINDER_TICKER=1, with
+every-minute tick — check_study_reminders (daily "time to study") and
+check_weekly_digests (weekly progress summary): a daemon thread started
+from NotificationsConfig.ready() when STUDY_REMINDER_TICKER=1, with
 CELERY_TASK_ALWAYS_EAGER making the dispatched send tasks run inline.
 
 Gunicorn runs several workers and each one starts this thread, so the tick
@@ -43,7 +44,7 @@ def _try_acquire_lock() -> bool:
 
 
 def _run() -> None:
-    from .tasks import check_study_reminders
+    from .tasks import check_study_reminders, check_weekly_digests
 
     holder = False
     while True:
@@ -57,10 +58,17 @@ def _run() -> None:
                 continue
             logger.info("reminder ticker: this process holds the tick lock")
 
+        # Each check gets its own try/except so one failing (e.g. the digest's
+        # extra ReviewLog/Card queries hitting a transient DB error) can't
+        # also skip the other for this tick.
         try:
             check_study_reminders()
         except Exception as e:  # noqa: BLE001 — one bad tick must not kill the loop
             logger.warning("reminder ticker: tick failed: %s", e)
+        try:
+            check_weekly_digests()
+        except Exception as e:  # noqa: BLE001 — one bad tick must not kill the loop
+            logger.warning("digest ticker: tick failed: %s", e)
 
         # Sleep to just past the next minute boundary so each wall-clock
         # minute gets exactly one scan (the task matches HH:MM equality).

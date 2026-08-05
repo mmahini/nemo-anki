@@ -1,5 +1,5 @@
 import json
-from datetime import timedelta
+from datetime import date, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
@@ -64,6 +64,70 @@ def check_study_reminders(now=None):
             if not user.push_subscriptions.exists():
                 continue
             send_reminder_push.delay(user.id, local_now.date().isoformat())
+
+
+# Monday. Fixed, not user-configurable — this is a passive weekly summary,
+# not a feature with its own settings UI.
+DIGEST_WEEKDAY = 0
+
+
+@shared_task
+def check_weekly_digests(now=None):
+    """Same shape as check_study_reminders (same tick, same candidates, same
+    per-user timezone + catch-up window against study_reminder_time/channel)
+    but gated to once a week on DIGEST_WEEKDAY, via study_digest_last_sent."""
+    now = now or timezone.now()
+    candidates = User.objects.filter(study_reminder_time__isnull=False).select_related("telegram_link")
+    for user in candidates.iterator():
+        try:
+            local_now = now.astimezone(ZoneInfo(user.study_reminder_timezone))
+        except ZoneInfoNotFoundError:
+            continue
+        if local_now.weekday() != DIGEST_WEEKDAY:
+            continue
+        target = local_now.replace(
+            hour=user.study_reminder_time.hour,
+            minute=user.study_reminder_time.minute,
+            second=0,
+            microsecond=0,
+        )
+        if not (target <= local_now < target + REMINDER_CATCHUP):
+            continue
+        if user.study_digest_last_sent and (local_now.date() - user.study_digest_last_sent).days < 7:
+            continue
+        if user.study_reminder_channel == "telegram":
+            if not (hasattr(user, "telegram_link") and user.telegram_link.chat_id):
+                continue
+            send_digest_telegram.delay(user.id, local_now.date().isoformat())
+        else:
+            if not user.push_subscriptions.exists():
+                continue
+            send_digest_push.delay(user.id, local_now.date().isoformat())
+
+
+def _weekly_stats(user, since) -> dict:
+    """reviews/retention/leeches for the digest message. `retention` mirrors
+    apps.cards.views.StatsOverviewView._range_totals: of the answers on
+    cards that were already in the `review` state, the share not rated
+    Again (Hard counts as a pass) — None if there were no such answers."""
+    from apps.cards.models import Card, CardState, ReviewLog
+
+    logs = ReviewLog.objects.filter(user=user, reviewed_at__date__gte=since)
+    mature = logs.filter(state_before=CardState.REVIEW).count()
+    mature_pass = logs.filter(state_before=CardState.REVIEW, rating__gt=1).count()
+    return {
+        "reviews": logs.count(),
+        "retention": round(mature_pass / mature, 4) if mature else None,
+        "leeches": Card.objects.filter(deck__user=user, is_leech=True, reverse_of__isnull=True).count(),
+    }
+
+
+def _digest_text(stats: dict) -> str:
+    if not stats["reviews"]:
+        return "📊 No reviews this week — your decks are waiting whenever you're ready."
+    retention = f"{round(stats['retention'] * 100)}% retention" if stats["retention"] is not None else "no retention data yet"
+    leech_part = f", {stats['leeches']} card(s) stuck (leeches)" if stats["leeches"] else ""
+    return f"📊 This week: {stats['reviews']} reviews, {retention}{leech_part}."
 
 
 @shared_task
@@ -156,3 +220,47 @@ def send_reminder_telegram(user_id, local_date_iso):
         timeout=10,
     )
     User.objects.filter(id=user_id).update(study_reminder_last_sent=local_date_iso)
+
+
+@shared_task
+def send_digest_push(user_id, local_date_iso):
+    user = User.objects.filter(id=user_id).first()
+    if not user:
+        return
+    since = date.fromisoformat(local_date_iso) - timedelta(days=7)
+    text = _digest_text(_weekly_stats(user, since))
+    payload = json.dumps({"title": "Your week in review", "body": text})
+    for sub in user.push_subscriptions.all():
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub.endpoint,
+                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                },
+                data=payload,
+                vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": f"mailto:{settings.VAPID_SUBJECT_EMAIL}"},
+            )
+        except WebPushException as e:
+            if e.response is not None and e.response.status_code in (404, 410):
+                sub.delete()
+    User.objects.filter(id=user_id).update(study_digest_last_sent=local_date_iso)
+
+
+@shared_task
+def send_digest_telegram(user_id, local_date_iso):
+    user = User.objects.filter(id=user_id).select_related("telegram_link").first()
+    if not user or not (hasattr(user, "telegram_link") and user.telegram_link.chat_id):
+        return
+    since = date.fromisoformat(local_date_iso) - timedelta(days=7)
+    text = _digest_text(_weekly_stats(user, since))
+    requests.post(
+        f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
+        json={
+            "chat_id": user.telegram_link.chat_id,
+            "text": text,
+            "reply_markup": _main_menu_keyboard(),
+        },
+        timeout=10,
+    )
+    User.objects.filter(id=user_id).update(study_digest_last_sent=local_date_iso)
