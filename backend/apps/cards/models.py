@@ -41,6 +41,7 @@ class CardDirection(models.TextChoices):
 CONTENT_FIELDS = [
     "card_type", "language", "front", "back", "reading", "article",
     "plural", "example", "notes", "table", "genders", "conjugations", "tags",
+    "mnemonic",
 ]
 
 
@@ -68,6 +69,9 @@ class Card(models.Model):
     # "he has made"}]. Filled in the editor (manually or via the AI button).
     conjugations = models.JSONField(default=list, blank=True)
     tags = models.JSONField(default=list, blank=True)
+    # AI-generated memory aid ("🧠" button) — generated once via Gemini and
+    # cached here so repeat clicks never re-ask (see CardMnemonicView).
+    mnemonic = models.TextField(blank=True, default="")
 
     # ---- Direction (two-sided review) ----
     # A vocab note is two rows: a forward card and a reverse card. The reverse

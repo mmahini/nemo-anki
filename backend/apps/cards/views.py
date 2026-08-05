@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.decks.models import Deck
-from apps.subscriptions.quota import AiQuotaMixin
+from apps.subscriptions.quota import AiQuotaMixin, consume_ai_quota
 
 from . import scheduler
 from .models import (
@@ -267,6 +267,39 @@ class CardColourizeView(AiQuotaMixin, APIView):
                 fields.append("language")
             primary.save(update_fields=fields)
             sync_card_group(primary)
+
+        card.refresh_from_db()
+        return Response(CardSerializer(card).data)
+
+
+class CardMnemonicView(APIView):
+    """Generate (once) and cache an AI memory aid for a card, stored on the
+    note's primary card so both directions share it. Deliberately does NOT
+    mix in AiQuotaMixin (which would meter every request in `initial()`,
+    before we know whether this is a cache hit) — quota is only consumed in
+    the branch that actually calls Gemini, so repeat clicks on an
+    already-generated card are free."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from apps.imports.gemini import mnemonic_for
+
+        card = (
+            Card.objects.filter(id=pk, deck__user=request.user)
+            .select_related("reverse_of")
+            .first()
+        )
+        if not card:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        primary = card.reverse_of or card
+        if not primary.mnemonic:
+            consume_ai_quota(request.user)
+            text = mnemonic_for(primary.front, primary.back, primary.language, primary.card_type)
+            if text:
+                primary.mnemonic = text
+                primary.save(update_fields=["mnemonic"])
+                sync_card_group(primary)
 
         card.refresh_from_db()
         return Response(CardSerializer(card).data)

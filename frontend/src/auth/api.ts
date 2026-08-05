@@ -311,6 +311,8 @@ export type Card = {
   plural: string;
   example: string;
   notes: string;
+  /** AI-generated memory aid ("🧠" button) — cached, "" until generated. */
+  mnemonic: string;
   table: GrammarTable | null;
   genders: NounGender[];
   conjugations: Conjugation[];
@@ -540,6 +542,12 @@ export function deleteCard(id: number): Promise<void> {
 /** Colour a single card (article for vocab, noun genders for sentence/grammar). */
 export function colourizeCard(id: number): Promise<Card> {
   return jsonRequest<Card>(`/api/cards/${id}/colourize/`, { method: "POST" });
+}
+
+/** Generate (or, if already cached, just re-fetch) an AI memory aid for a
+ * card — free on repeat calls once generated, since the backend caches it. */
+export function generateMnemonic(id: number): Promise<Card> {
+  return jsonRequest<Card>(`/api/cards/${id}/mnemonic/`, { method: "POST" });
 }
 
 /** Fetch one card (with grade-interval previews) to study it on its own. */

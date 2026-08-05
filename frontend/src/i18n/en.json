@@ -270,6 +270,8 @@
     "bothWaysTitle": "Reviewed both ways (term ⇄ meaning), tracked separately",
     "colouriseCardTitle": "Colourise this card (German article / noun genders)",
     "nothingToColour": "Nothing to colour — the cards are already coloured, or no German nouns were found.",
+    "mnemonicCardTitle": "Generate an AI memory aid for this card",
+    "mnemonicShowTitle": "Show the memory aid",
     "autotypeTitle": "Check every card and set its type automatically from its content"
   },
   "activity": {

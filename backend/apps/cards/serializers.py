@@ -32,6 +32,7 @@ class CardSerializer(serializers.ModelSerializer):
             "plural",
             "example",
             "notes",
+            "mnemonic",
             "table",
             "genders",
             "conjugations",
