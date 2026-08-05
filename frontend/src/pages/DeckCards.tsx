@@ -10,6 +10,7 @@ import {
   findCardImage,
   fetchCards,
   fetchDecks,
+  generateMnemonic,
   updateCard,
   type Card,
   type CardType,
@@ -75,6 +76,7 @@ export default function DeckCards() {
   const [autoBusy, setAutoBusy] = useState(false);
   const [colourCard, setColourCard] = useState<number | null>(null);
   const [findCard, setFindCard] = useState<number | null>(null);
+  const [mnemonicCard, setMnemonicCard] = useState<number | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -148,6 +150,23 @@ export default function DeckCards() {
       window.alert(t("common.error"));
     } finally {
       setFindCard(null);
+    }
+  }
+
+  async function mnemonicOne(card: Card) {
+    if (card.mnemonic) {
+      window.alert(card.mnemonic);
+      return;
+    }
+    setMnemonicCard(card.id);
+    try {
+      const updated = await generateMnemonic(card.id);
+      setCards((cs) => cs.map((c) => (c.id === card.id ? updated : c)));
+      window.alert(updated.mnemonic || t("common.error"));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : t("common.error"));
+    } finally {
+      setMnemonicCard(null);
     }
   }
 
@@ -348,6 +367,17 @@ export default function DeckCards() {
                     }}
                   >
                     {colourCard === c.id ? "…" : "🎨"}
+                  </button>
+                  <button
+                    className="cardrow__colour"
+                    title={c.mnemonic ? t("deckCards.mnemonicShowTitle") : t("deckCards.mnemonicCardTitle")}
+                    disabled={mnemonicCard === c.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      mnemonicOne(c);
+                    }}
+                  >
+                    {mnemonicCard === c.id ? "…" : "🧠"}
                   </button>
                   <button
                     className="cardrow__del"

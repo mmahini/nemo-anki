@@ -288,6 +288,40 @@ def image_search_query(front: str, back: str, language: str = "", card_type: str
         return ""
 
 
+_MNEMONIC_PROMPT = """A language learner is stuck on this {language_name} {card_type} \
+card and wants a memory aid to make it stick.
+Front: "{front}"
+Meaning: "{back}"
+
+Give ONE short, vivid memory trick — a mnemonic association, a sound-alike, a \
+vivid mini-scene, or a clever way to link the form to the meaning. Write it in \
+English, 1-2 sentences, no preamble like "Here's a mnemonic:".
+
+Return ONLY JSON (no markdown, no commentary): {{"mnemonic": "<the memory aid>"}}
+"""
+
+
+def mnemonic_for(front: str, back: str, language: str = "", card_type: str = "vocab") -> str:
+    """Ask Gemini for a short memory aid specific to this card. Returns "" when
+    no GEMINI_API_KEY is configured or the call fails — best-effort, callers
+    cache a non-empty result and never re-ask for the same card (see
+    apps.cards.views.CardMnemonicView)."""
+    front = (front or "").strip()
+    if not front or not settings.GEMINI_API_KEY:
+        return ""
+    try:
+        prompt = _MNEMONIC_PROMPT.format(
+            language_name=_LANG_NAMES.get(language, "the target language"),
+            card_type=card_type if card_type in ALLOWED_TYPES else "vocab",
+            front=front[:200],
+            back=(back or "")[:200],
+        )
+        obj = _extract_json_object(_gemini_text(prompt, timeout=20, temperature=0.7))
+        return str(obj.get("mnemonic", "")).strip()
+    except Exception:  # noqa: BLE001 — best-effort, never block the request
+        return ""
+
+
 _CONJUGATE_PROMPT = """You are a language teacher. Conjugate the {language_name} \
 verb below across the situations/tenses a learner needs. Return ONLY a JSON \
 object (no markdown, no commentary):

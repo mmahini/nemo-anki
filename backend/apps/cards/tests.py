@@ -1,5 +1,6 @@
 from datetime import timedelta
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -8,6 +9,8 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.decks.models import Deck, DeckConfig
+from apps.subscriptions.models import AiUsage
+from apps.subscriptions.plans import TRIAL_DAILY_AI_LIMIT
 
 from . import scheduler
 from .models import Card, ReviewLog
@@ -293,3 +296,75 @@ class FindLevelDeckTests(TestCase):
 
         other = get_user_model().objects.create_user(email="nodecks@example.com")
         self.assertIsNone(find_level_deck(other, "de", "A1"))
+
+
+class CardMnemonicViewTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        self.client.force_authenticate(self.user)
+        self.config = DeckConfig.objects.create(user=self.user)
+        self.deck = Deck.objects.create(user=self.user, name="German", config=self.config)
+        self.card = Card.objects.create(deck=self.deck, front="Tisch", back="table", language="de")
+        self.url = reverse("card-mnemonic", args=[self.card.id])
+
+    @patch("apps.imports.gemini.mnemonic_for")
+    def test_generates_and_caches_on_first_call(self, mock_mnemonic):
+        mock_mnemonic.return_value = "Think of a 'desk' — TISCH sounds like 'desk' backwards-ish."
+        res = self.client.post(self.url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["mnemonic"], mock_mnemonic.return_value)
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.mnemonic, mock_mnemonic.return_value)
+        mock_mnemonic.assert_called_once_with("Tisch", "table", "de", "vocab")
+
+    @patch("apps.imports.gemini.mnemonic_for")
+    def test_second_call_returns_cached_value_without_calling_gemini_again(self, mock_mnemonic):
+        self.card.mnemonic = "Already have one."
+        self.card.save(update_fields=["mnemonic"])
+        res = self.client.post(self.url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["mnemonic"], "Already have one.")
+        mock_mnemonic.assert_not_called()
+
+    @patch("apps.imports.gemini.mnemonic_for")
+    def test_cache_hit_does_not_consume_quota(self, mock_mnemonic):
+        self.card.mnemonic = "Already have one."
+        self.card.save(update_fields=["mnemonic"])
+        AiUsage.objects.create(user=self.user, day=timezone.now().date(), count=TRIAL_DAILY_AI_LIMIT)
+        res = self.client.post(self.url)
+        self.assertEqual(res.status_code, 200)
+
+    @patch("apps.imports.gemini.mnemonic_for")
+    def test_returns_429_once_quota_exhausted(self, mock_mnemonic):
+        AiUsage.objects.create(user=self.user, day=timezone.now().date(), count=TRIAL_DAILY_AI_LIMIT)
+        res = self.client.post(self.url)
+        self.assertEqual(res.status_code, 429)
+        mock_mnemonic.assert_not_called()
+        self.card.refresh_from_db()
+        self.assertEqual(self.card.mnemonic, "")
+
+    @patch("apps.imports.gemini.mnemonic_for")
+    def test_writes_land_on_primary_when_called_via_reverse_card(self, mock_mnemonic):
+        mock_mnemonic.return_value = "A memory trick."
+        reverse_card = Card.objects.create(
+            deck=self.deck, front="table", back="Tisch", language="de",
+            direction="reverse", reverse_of=self.card,
+        )
+        url = reverse("card-mnemonic", args=[reverse_card.id])
+        res = self.client.post(url)
+        self.assertEqual(res.status_code, 200)
+        self.card.refresh_from_db()
+        reverse_card.refresh_from_db()
+        self.assertEqual(self.card.mnemonic, "A memory trick.")
+        self.assertEqual(reverse_card.mnemonic, "A memory trick.")
+
+    def test_404_for_another_users_card(self):
+        other = User.objects.create_user(email="other@example.com")
+        self.client.force_authenticate(other)
+        res = self.client.post(self.url)
+        self.assertEqual(res.status_code, 404)
+
+    def test_requires_authentication(self):
+        self.client.force_authenticate(None)
+        res = self.client.post(self.url)
+        self.assertEqual(res.status_code, 401)
