@@ -300,7 +300,19 @@ def _finalize(api: str, chat_id, pending: PendingTelegramCard) -> None:
     search (see find_and_attach_proposal_image) already found one by the
     time Create is tapped, pending.image_url is set and gets attached here;
     if not, the card is still created immediately without one — the image
-    was always best-effort and must never hold up Create."""
+    was always best-effort and must never hold up Create.
+
+    The row is claimed (deleted) *before* creating the card, not after: a
+    second Create tap for the same row — a genuine double-tap, or a retry
+    after the user saw no confirmation because something below raised —
+    must always find nothing left to claim and no-op, rather than create a
+    second card. Deleting last would leave a window where the card already
+    exists but the row is still claimable, so a retry duplicates it. Scoped
+    by user as well as id — same ownership check _pending() already applies
+    before handing this a row — so the claim itself never trusts the
+    caller alone to have enforced it."""
+    if not PendingTelegramCard.objects.filter(id=pending.id, user=pending.user).delete()[0]:
+        return
     create = create_sentence_card if pending.card_type == "sentence" else create_vocab_card
     card = create(
         pending.user, pending.front, pending.language,
@@ -310,7 +322,6 @@ def _finalize(api: str, chat_id, pending: PendingTelegramCard) -> None:
         },
     )
     _, image_data = attach_thumbnail_from_url(card, pending.image_url) if pending.image_url else (None, None)
-    pending.delete()
     caption = f"✅ Added to {card.deck.full_name}"
     # The confirmation is also the user's only cue for what to do next —
     # without the menu attached here, PendingTelegramCard is already gone,

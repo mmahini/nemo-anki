@@ -1307,6 +1307,40 @@ class TelegramWizardFlowTests(APITestCase):
         self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
         self.assertEqual(Card.objects.count(), 1)
 
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_double_tapping_create_only_saves_one_card(self, mock_post):
+        # Two Create taps on the same proposal — Telegram delivers each as
+        # its own callback_query update, so this is two separate calls to
+        # process_telegram_update for the same pending id, exactly as a
+        # real double-tap (or a retry after a dropped confirmation) would
+        # produce. _finalize claims (deletes) the row before creating the
+        # card specifically so the second call has nothing left to act on.
+        self.pending.back = "house"
+        self.pending.reading = "howss"
+        self.pending.awaiting_field = ""
+        self.pending.save(update_fields=["back", "reading", "awaiting_field"])
+
+        process_telegram_update(self._callback(f"create:{self.pending.id}"), "https://api.telegram.org/botX")
+        process_telegram_update(self._callback(f"create:{self.pending.id}"), "https://api.telegram.org/botX")
+
+        self.assertEqual(Card.objects.count(), 1)
+        self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_finalize_noops_if_the_row_was_already_claimed(self, mock_post):
+        # Direct unit-level check of the claim-then-create ordering itself,
+        # independent of the callback-routing path exercised above.
+        from apps.notifications.management.commands.poll_telegram_updates import _finalize
+
+        self.pending.back = "house"
+        self.pending.awaiting_field = ""
+        self.pending.save(update_fields=["back", "awaiting_field"])
+
+        _finalize("https://api.telegram.org/botX", 777, self.pending)
+        _finalize("https://api.telegram.org/botX", 777, self.pending)
+
+        self.assertEqual(Card.objects.count(), 1)
+
     @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_typed_pronunciation_shows_proposal_without_creating_a_card(self, mock_post, mock_delay):
