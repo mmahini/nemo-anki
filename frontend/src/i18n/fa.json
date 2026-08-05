@@ -308,7 +308,9 @@
     "finishBtn": "پایان آزمون",
     "resultTitle": "سطح تخمینی‌ات",
     "resultScore": "{{correct}} از {{total}} سؤال درست",
-    "backHome": "بازگشت به خانه"
+    "backHome": "بازگشت به خانه",
+    "goToDeckBtn": "برو به دسته‌ی {{level}} من ←",
+    "skipBtn": "رد کردن — مستقیم برو به دسته‌هام"
   },
   "bookPage": {
     "backBtn": "→ کتاب‌ها",

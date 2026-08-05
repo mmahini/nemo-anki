@@ -554,6 +554,7 @@ kbd {
 .pt-intro__desc { color: var(--ink-soft); margin: 0; }
 .pt-intro .field { align-items: center; }
 .pt-intro__start { align-self: center; margin-top: 6px; }
+.pt-intro__skip { align-self: center; margin-top: -8px; }
 .pt-question { display: flex; flex-direction: column; gap: 14px; text-align: start; }
 .pt-question__level { font-size: 0.76rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
 .pt-question__passage { font-size: 1.05rem; line-height: 1.6; white-space: pre-wrap; }

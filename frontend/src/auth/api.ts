@@ -450,6 +450,14 @@ export function autotypeDeck(
   return jsonRequest(`/api/decks/${id}/autotype/`, { method: "POST" });
 }
 
+/** Provision the Menschen + Oxford starter deck trees for the current user.
+ * Idempotent — safe to call whether or not they already exist. Triggered by
+ * finishing (or skipping) the placement test rather than at signup, so a
+ * brand-new account stays empty until the user actually engages with it. */
+export function seedStarterDecks(): Promise<{ decks: number }> {
+  return jsonRequest("/api/decks/seed/", { method: "POST" });
+}
+
 // ====== Cards ======
 
 export type Paginated<T> = {
@@ -1024,6 +1032,10 @@ export type PlacementResult = {
   correct_count: number;
   total_count: number;
   by_level: Record<PlacementLevel, { correct: number; total: number }>;
+  /** The deck matching this result — submitting seeds the starter decks if
+   * the account doesn't have them yet, so this is only null if the CEFR
+   * level can't be mapped at all. */
+  deck_id: number | null;
 };
 
 export function submitPlacementTest(

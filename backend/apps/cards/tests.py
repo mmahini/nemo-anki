@@ -261,3 +261,35 @@ class StatsOverviewTests(APITestCase):
     def test_unauthenticated_request_is_rejected(self):
         self.client.force_authenticate(None)
         self.assertEqual(self.client.get(self.url).status_code, 401)
+
+
+class FindLevelDeckTests(TestCase):
+    def setUp(self):
+        from .seeding import seed_for_user
+
+        self.user = get_user_model().objects.create_user(email="leveltest@example.com")
+        seed_for_user(self.user)
+
+    def test_maps_german_cefr_level_to_sub_level_deck(self):
+        from .seeding import find_level_deck
+
+        deck = find_level_deck(self.user, "de", "A2")
+        self.assertEqual(deck.name, "A2.1")
+
+    def test_german_above_b1_falls_back_to_highest_available(self):
+        from .seeding import find_level_deck
+
+        deck = find_level_deck(self.user, "de", "C1")
+        self.assertEqual(deck.name, "B1.1")
+
+    def test_maps_english_cefr_level_to_tier_deck(self):
+        from .seeding import find_level_deck
+
+        self.assertEqual(find_level_deck(self.user, "en", "A1").name, "Basic")
+        self.assertEqual(find_level_deck(self.user, "en", "C1").name, "Advanced")
+
+    def test_returns_none_when_user_has_no_decks(self):
+        from .seeding import find_level_deck
+
+        other = get_user_model().objects.create_user(email="nodecks@example.com")
+        self.assertIsNone(find_level_deck(other, "de", "A1"))

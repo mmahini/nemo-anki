@@ -28,8 +28,9 @@ class DeckListView(APIView):
     def get(self, request):
         now = timezone.now()
         decks = list(Deck.objects.filter(user=request.user).select_related("parent", "config"))
-        # New accounts start empty — users build their own decks. The Menschen
-        # + Oxford trees remain available on demand via `manage.py seed_decks`.
+        # New accounts start empty — the Menschen + Oxford starter trees are
+        # seeded once the user finishes (or skips) the placement test, via
+        # DeckSeedView below, rather than at signup.
         for d in decks:
             _with_counts(d, now)
         data = DeckSerializer(decks, many=True).data
@@ -47,6 +48,21 @@ class DeckListView(APIView):
         deck = serializer.save(user=request.user, config=config)
         _with_counts(deck, timezone.now())
         return Response(DeckSerializer(deck).data, status=status.HTTP_201_CREATED)
+
+
+class DeckSeedView(APIView):
+    """Provision the Menschen + Oxford starter deck trees for the requesting
+    user. Idempotent (get_or_create under the hood), so it's safe to call
+    both when a placement test is submitted and when it's skipped."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Imported lazily to keep decks decoupled from the cards app.
+        from apps.cards.seeding import seed_for_user
+
+        result = seed_for_user(request.user)
+        return Response(result)
 
 
 class DeckDetailView(APIView):

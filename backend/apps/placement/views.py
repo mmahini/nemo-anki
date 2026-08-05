@@ -96,11 +96,21 @@ class SubmitPlacementView(APIView):
             update_fields=["correct_count", "total_count", "estimated_level", "status", "completed_at"]
         )
 
+        # Provision the starter decks now (idempotent — a no-op if the user
+        # already has them) and point the result at the one matching this
+        # result, so "back to my decks" lands the learner on material at
+        # their level instead of an empty deck list.
+        from apps.cards.seeding import find_level_deck, seed_for_user
+
+        seed_for_user(request.user)
+        deck = find_level_deck(request.user, attempt.language, attempt.estimated_level)
+
         return Response(
             {
                 "estimated_level": attempt.estimated_level,
                 "correct_count": correct_count,
                 "total_count": len(questions),
                 "by_level": by_level,
+                "deck_id": deck.id if deck else None,
             }
         )
