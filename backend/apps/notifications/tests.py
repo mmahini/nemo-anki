@@ -9,13 +9,19 @@ from django.utils import timezone
 from pywebpush import WebPushException
 from rest_framework.test import APITestCase
 
-from apps.cards.models import Card
+from apps.cards.models import Card, CardState, ReviewLog
+from apps.decks.models import Deck, DeckConfig
 
 from .management.commands.poll_telegram_updates import _process_update_safely, process_telegram_update
 from .models import PendingTelegramCard, PushSubscription, TelegramLink, TelegramPollerState
 from .tasks import (
+    _digest_text,
+    _weekly_stats,
     check_study_reminders,
+    check_weekly_digests,
     find_and_attach_proposal_image,
+    send_digest_push,
+    send_digest_telegram,
     send_reminder_push,
     send_reminder_telegram,
 )
@@ -161,6 +167,127 @@ class CheckStudyRemindersTests(APITestCase):
         mock_delay.assert_not_called()
 
 
+class CheckWeeklyDigestsTests(APITestCase):
+    """Same tick, same candidates as CheckStudyRemindersTests — gated to
+    Monday + once every >=7 days via study_digest_last_sent."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="learner@example.com",
+            study_reminder_time=time(9, 0),
+            study_reminder_timezone="Europe/Berlin",
+        )
+        PushSubscription.objects.create(user=self.user, endpoint="https://push.example.com/1", p256dh="k", auth="a")
+
+    def _at_berlin_9am_on(self, year, month, day):
+        # 09:00 Europe/Berlin (CEST, UTC+2) on the given date.
+        return datetime(year, month, day, 7, 0, tzinfo=dt_timezone.utc)
+
+    def _monday_9am(self):
+        # 2026-08-03 is a Monday.
+        return self._at_berlin_9am_on(2026, 8, 3)
+
+    @patch("apps.notifications.tasks.send_digest_push.delay")
+    def test_dispatches_on_monday_at_reminder_time(self, mock_delay):
+        check_weekly_digests(now=self._monday_9am())
+        mock_delay.assert_called_once_with(self.user.id, "2026-08-03")
+
+    @patch("apps.notifications.tasks.send_digest_push.delay")
+    def test_skips_on_other_weekdays(self, mock_delay):
+        # 2026-08-04 is a Tuesday.
+        check_weekly_digests(now=self._at_berlin_9am_on(2026, 8, 4))
+        mock_delay.assert_not_called()
+
+    @patch("apps.notifications.tasks.send_digest_push.delay")
+    def test_skips_when_sent_within_the_last_week(self, mock_delay):
+        self.user.study_digest_last_sent = date(2026, 7, 30)  # 4 days before
+        self.user.save(update_fields=["study_digest_last_sent"])
+        check_weekly_digests(now=self._monday_9am())
+        mock_delay.assert_not_called()
+
+    @patch("apps.notifications.tasks.send_digest_push.delay")
+    def test_fires_again_after_a_full_week(self, mock_delay):
+        self.user.study_digest_last_sent = date(2026, 7, 27)  # 7 days before
+        self.user.save(update_fields=["study_digest_last_sent"])
+        check_weekly_digests(now=self._monday_9am())
+        mock_delay.assert_called_once_with(self.user.id, "2026-08-03")
+
+    @patch("apps.notifications.tasks.send_digest_push.delay")
+    def test_catches_up_within_the_window(self, mock_delay):
+        check_weekly_digests(now=self._monday_9am() + timedelta(minutes=40))
+        mock_delay.assert_called_once_with(self.user.id, "2026-08-03")
+
+    @patch("apps.notifications.tasks.send_digest_push.delay")
+    def test_skips_users_without_subscription(self, mock_delay):
+        PushSubscription.objects.all().delete()
+        check_weekly_digests(now=self._monday_9am())
+        mock_delay.assert_not_called()
+
+    @patch("apps.notifications.tasks.send_digest_telegram.delay")
+    @patch("apps.notifications.tasks.send_digest_push.delay")
+    def test_dispatches_telegram_instead_of_push_for_telegram_channel(self, mock_push_delay, mock_telegram_delay):
+        self.user.study_reminder_channel = "telegram"
+        self.user.save(update_fields=["study_reminder_channel"])
+        TelegramLink.objects.create(user=self.user, chat_id=555)
+        check_weekly_digests(now=self._monday_9am())
+        mock_telegram_delay.assert_called_once_with(self.user.id, "2026-08-03")
+        mock_push_delay.assert_not_called()
+
+
+class WeeklyStatsTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        self.config = DeckConfig.objects.create(user=self.user)
+        self.deck = Deck.objects.create(user=self.user, name="German", config=self.config)
+        self.card = Card.objects.create(deck=self.deck, front="Tisch")
+        self.since = date(2026, 8, 1)
+
+    def _log(self, rating, state_before="review"):
+        log = ReviewLog.objects.create(
+            card=self.card, user=self.user, rating=rating,
+            state_before=state_before, state_after="review", prev_snapshot={},
+        )
+        # Land it inside the [since, since+7) window regardless of when the
+        # test actually runs.
+        ReviewLog.objects.filter(pk=log.pk).update(
+            reviewed_at=datetime(2026, 8, 2, 12, 0, tzinfo=dt_timezone.utc)
+        )
+        return log
+
+    def test_no_reviews_returns_none_retention(self):
+        stats = _weekly_stats(self.user, self.since)
+        self.assertEqual(stats, {"reviews": 0, "retention": None, "leeches": 0})
+        self.assertIn("No reviews", _digest_text(stats))
+
+    def test_counts_reviews_and_computes_retention(self):
+        self._log(rating=3, state_before=CardState.REVIEW)  # pass
+        self._log(rating=1, state_before=CardState.REVIEW)  # again — not a pass
+        self._log(rating=4, state_before=CardState.NEW)      # new-card answer, excluded from retention
+        stats = _weekly_stats(self.user, self.since)
+        self.assertEqual(stats["reviews"], 3)
+        self.assertEqual(stats["retention"], 0.5)
+        text = _digest_text(stats)
+        self.assertIn("3 reviews", text)
+        self.assertIn("50%", text)
+
+    def test_counts_leeches(self):
+        self.card.is_leech = True
+        self.card.save(update_fields=["is_leech"])
+        self._log(rating=3, state_before=CardState.REVIEW)
+        stats = _weekly_stats(self.user, self.since)
+        self.assertEqual(stats["leeches"], 1)
+        self.assertIn("stuck", _digest_text(stats))
+
+    def test_no_reviews_omits_leech_mention(self):
+        # A quiet week — even with a leech sitting around, lead with "come
+        # back", not a stat about a card the user hasn't touched.
+        self.card.is_leech = True
+        self.card.save(update_fields=["is_leech"])
+        stats = _weekly_stats(self.user, self.since)
+        self.assertEqual(stats["reviews"], 0)
+        self.assertNotIn("stuck", _digest_text(stats))
+
+
 class SendReminderPushTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="learner@example.com")
@@ -183,6 +310,34 @@ class SendReminderPushTests(APITestCase):
         exc.response = Mock(status_code=410)
         mock_webpush.side_effect = exc
         send_reminder_push(self.user.id, "2026-08-01")
+        self.assertFalse(PushSubscription.objects.filter(id=self.sub.id).exists())
+
+
+class SendDigestPushTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        self.sub = PushSubscription.objects.create(
+            user=self.user, endpoint="https://push.example.com/1", p256dh="k", auth="a"
+        )
+
+    @patch("apps.notifications.tasks.webpush")
+    def test_sends_to_each_subscription_and_stamps_last_sent(self, mock_webpush):
+        send_digest_push(self.user.id, "2026-08-03")
+        mock_webpush.assert_called_once()
+        _, kwargs = mock_webpush.call_args
+        self.assertEqual(kwargs["subscription_info"]["endpoint"], self.sub.endpoint)
+        self.assertIn("Your week in review", json.loads(kwargs["data"])["title"])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.study_digest_last_sent, date(2026, 8, 3))
+        # The daily-reminder stamp is untouched — these are independent.
+        self.assertIsNone(self.user.study_reminder_last_sent)
+
+    @patch("apps.notifications.tasks.webpush")
+    def test_deletes_subscription_on_expired_response(self, mock_webpush):
+        exc = WebPushException("gone")
+        exc.response = Mock(status_code=410)
+        mock_webpush.side_effect = exc
+        send_digest_push(self.user.id, "2026-08-03")
         self.assertFalse(PushSubscription.objects.filter(id=self.sub.id).exists())
 
 
@@ -338,6 +493,39 @@ class SendReminderTelegramTests(APITestCase):
         send_reminder_telegram(self.user.id, "2026-08-01")
         _, kwargs = mock_post.call_args
         self.assertIn("/lang", kwargs["json"]["text"])
+
+
+@override_settings(TELEGRAM_BOT_TOKEN="test-token")
+class SendDigestTelegramTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        TelegramLink.objects.create(user=self.user, chat_id=999)
+        config = DeckConfig.objects.create(user=self.user)
+        deck = Deck.objects.create(user=self.user, name="German", config=config)
+        card = Card.objects.create(deck=deck, front="Tisch")
+        log = ReviewLog.objects.create(
+            card=card, user=self.user, rating=3,
+            state_before=CardState.REVIEW, state_after=CardState.REVIEW, prev_snapshot={},
+        )
+        ReviewLog.objects.filter(pk=log.pk).update(reviewed_at=datetime(2026, 8, 2, 12, 0, tzinfo=dt_timezone.utc))
+
+    @patch("apps.notifications.tasks.requests.post")
+    def test_sends_message_and_stamps_last_sent(self, mock_post):
+        send_digest_telegram(self.user.id, "2026-08-03")
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertIn("test-token", args[0])
+        self.assertEqual(kwargs["json"]["chat_id"], 999)
+        self.assertIn("This week: 1 reviews, 100% retention", kwargs["json"]["text"])
+        self.assertIn("reply_markup", kwargs["json"])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.study_digest_last_sent, date(2026, 8, 3))
+
+    @patch("apps.notifications.tasks.requests.post")
+    def test_noop_without_linked_chat_id(self, mock_post):
+        self.user.telegram_link.delete()
+        send_digest_telegram(self.user.id, "2026-08-03")
+        mock_post.assert_not_called()
 
 
 class ProcessTelegramUpdateTests(APITestCase):
