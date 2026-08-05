@@ -2,7 +2,17 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { createDeck, deleteDeck, fetchDecks, updateDeck, type Deck } from "../auth/api";
+import {
+  createDeck,
+  deleteDeck,
+  fetchDecks,
+  fetchSharedDecks,
+  importDeck,
+  shareDeck,
+  unshareDeck,
+  updateDeck,
+  type Deck,
+} from "../auth/api";
 import Modal from "../components/Modal";
 
 /** Indentation depth from the `::` chain in full_name. */
@@ -29,11 +39,19 @@ export default function Decks() {
   const [renameVal, setRenameVal] = useState("");
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const [sharedDecks, setSharedDecks] = useState<Deck[]>([]);
+  const [importingId, setImportingId] = useState<number | null>(null);
+  const [sharingDeck, setSharingDeck] = useState<number | null>(null);
+  const [shareEmail, setShareEmail] = useState("");
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      setDecks(await fetchDecks());
+      const [mine, shared] = await Promise.all([fetchDecks(), fetchSharedDecks()]);
+      setDecks(mine);
+      setSharedDecks(shared);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
@@ -123,6 +141,45 @@ export default function Decks() {
     load();
   }
 
+  function openShare(id: number) {
+    setShareEmail("");
+    setShareError(null);
+    setSharingDeck(id);
+  }
+
+  async function onShare() {
+    if (sharingDeck == null || !shareEmail.trim() || sharing) return;
+    setSharing(true);
+    setShareError(null);
+    try {
+      const updated = await shareDeck(sharingDeck, shareEmail.trim());
+      setDecks((ds) => ds.map((d) => (d.id === updated.id ? updated : d)));
+      setShareEmail("");
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : t("common.error"));
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function onUnshare(email: string) {
+    if (sharingDeck == null) return;
+    const updated = await unshareDeck(sharingDeck, email);
+    setDecks((ds) => ds.map((d) => (d.id === updated.id ? updated : d)));
+  }
+
+  async function onImport(d: Deck) {
+    setImportingId(d.id);
+    try {
+      const res = await importDeck(d.id);
+      navigate(`/app/decks/${res.deck}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("common.error"));
+    } finally {
+      setImportingId(null);
+    }
+  }
+
   function toggle(id: number) {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -161,6 +218,36 @@ export default function Decks() {
           </div>
         </div>
       </div>
+
+      {sharedDecks.length > 0 && (
+        <div className="panel decks__shared">
+          <h2>{t("decks.sharedWithMe", { count: sharedDecks.length })}</h2>
+          <ul className="decklist">
+            {sharedDecks.map((d) => (
+              <li key={d.id} className="decklist__row">
+                <div className="decklist__name">
+                  <span className="twisty twisty--leaf" />
+                  {d.language && <span className={`flag flag--${d.language}`}>{d.language}</span>}
+                  <span>
+                    {d.name}
+                    <span className="decklist__sharedby"> {t("decks.sharedBy", { email: d.owner_email })}</span>
+                  </span>
+                </div>
+                <div className="decklist__actions">
+                  <span className="decklist__cardcount">{t("decks.cardCount", { count: d.card_count })}</span>
+                  <button
+                    className="btn btn--primary btn--sm"
+                    disabled={importingId === d.id}
+                    onClick={() => onImport(d)}
+                  >
+                    {importingId === d.id ? t("decks.importing") : t("decks.importBtn")}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <ul className="decklist">
         {decks.filter((d) => !hidden(d)).map((d) => {
@@ -262,6 +349,7 @@ export default function Decks() {
                             <button onClick={() => { setOpenMenu(null); setMovingDeck(d.id); }}>{t("decks.move")}</button>
                             <button onClick={() => { setOpenMenu(null); openAdd(d.id); }}>{t("decks.addSubdeck")}</button>
                             {isLeaf && <button onClick={() => { setOpenMenu(null); navigate(`/app/decks/${d.id}/add`); }}>{t("decks.addCard")}</button>}
+                            <button onClick={() => { setOpenMenu(null); openShare(d.id); }}>{t("decks.shareBtn")}</button>
                             <button className="deckmenu__danger" onClick={() => { setOpenMenu(null); onDelete(d); }}>{t("decks.delete")}</button>
                           </div>
                         </>
@@ -342,6 +430,48 @@ export default function Decks() {
           {createError && <p className="auth__error">{createError}</p>}
         </Modal>
       )}
+
+      {sharingDeck != null && (() => {
+        const d = decks.find((x) => x.id === sharingDeck);
+        if (!d) return null;
+        return (
+          <Modal title={t("decks.shareTitle", { name: d.full_name })} onClose={() => setSharingDeck(null)}>
+            <div className="sharepanel">
+              <p className="field__hint">{t("decks.shareHint")}</p>
+              <div className="sharepanel__add">
+                <input
+                  className="input"
+                  type="email"
+                  autoFocus
+                  placeholder={t("decks.shareEmailPlaceholder")}
+                  value={shareEmail}
+                  onChange={(e) => setShareEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && onShare()}
+                />
+                <button className="btn btn--primary" disabled={!shareEmail.trim() || sharing} onClick={onShare}>
+                  {sharing ? t("decks.sharing") : t("decks.shareBtn")}
+                </button>
+              </div>
+              {shareError && <p className="auth__error">{shareError}</p>}
+
+              {d.shared_with.length === 0 ? (
+                <p className="field__hint">{t("decks.notShared")}</p>
+              ) : (
+                <ul className="sharepanel__list">
+                  {d.shared_with.map((email) => (
+                    <li key={email}>
+                      <span>{email}</span>
+                      <button className="btn btn--ghost btn--sm" onClick={() => onUnshare(email)}>
+                        {t("decks.removeBtn")}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }

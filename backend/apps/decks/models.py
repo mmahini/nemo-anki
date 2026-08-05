@@ -94,3 +94,17 @@ class Deck(models.Model):
 
     def __str__(self) -> str:
         return self.full_name
+
+
+class DeckShare(models.Model):
+    """A deck the owner has shared with another user — grants that user the
+    ability to Import a copy (see apps.decks.sharing), not live access."""
+
+    deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name="shares")
+    user = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="shared_decks")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["deck", "user"], name="unique_deck_share"),
+        ]

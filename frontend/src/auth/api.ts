@@ -281,6 +281,14 @@ export type Deck = {
   color: string;
   config: number;
   counts: DeckCounts;
+  /** True when the current user owns this deck (always true outside the
+   * "shared with me" list). */
+  is_owner: boolean;
+  owner_email: string;
+  /** Emails this deck has been shared with — only populated for the owner. */
+  shared_with: string[];
+  /** Total (forward) cards in this deck + its subtree. */
+  card_count: number;
   created_at: string;
 };
 
@@ -456,6 +464,33 @@ export function autotypeDeck(
  * brand-new account stays empty until the user actually engages with it. */
 export function seedStarterDecks(): Promise<{ decks: number }> {
   return jsonRequest("/api/decks/seed/", { method: "POST" });
+}
+
+/** Decks another user has shared with me — see shareDeck/importDeck. */
+export function fetchSharedDecks(): Promise<Deck[]> {
+  return jsonRequest<Deck[]>("/api/decks/shared/", { method: "GET" });
+}
+
+/** Share a deck (owner only) with another registered user by email. Grants
+ * them an Import button, not live access — see importDeck. */
+export function shareDeck(id: number, email: string): Promise<Deck> {
+  return jsonRequest<Deck>(`/api/decks/${id}/shares/`, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function unshareDeck(id: number, email: string): Promise<Deck> {
+  return jsonRequest<Deck>(`/api/decks/${id}/shares/`, {
+    method: "DELETE",
+    body: JSON.stringify({ email }),
+  });
+}
+
+/** Copy a shared deck's whole subtree (decks + cards + images) into my own
+ * account, nested under a "Shared by {owner}" deck, with fresh SRS state. */
+export function importDeck(id: number): Promise<{ deck: number }> {
+  return jsonRequest(`/api/decks/${id}/import/`, { method: "POST" });
 }
 
 // ====== Cards ======

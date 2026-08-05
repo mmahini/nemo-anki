@@ -114,8 +114,19 @@
     "creating": "Creating…",
     "addSubdeck": "＋ Add sub-deck",
     "importBtn": "↓ Import",
+    "importing": "Importing…",
     "placementTestBtn": "🎓 Quiz",
-    "moreActions": "More actions"
+    "moreActions": "More actions",
+    "shareBtn": "Share",
+    "sharing": "Sharing…",
+    "shareTitle": "Share \"{{name}}\"",
+    "shareHint": "Anyone you share with gets a one-click Import — a copy of this deck and its cards, independent from yours.",
+    "shareEmailPlaceholder": "person@example.com",
+    "notShared": "Not shared with anyone yet.",
+    "removeBtn": "Remove",
+    "sharedWithMe": "Shared with me ({{count}})",
+    "sharedBy": "· shared by {{email}}",
+    "cardCount": "{{count}} cards"
   },
   "import": {
     "title": "Import",
