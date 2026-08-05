@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -6,7 +7,7 @@ from rest_framework.views import APIView
 
 from apps.subscriptions.quota import AiQuotaMixin
 
-from .models import Deck, DeckConfig
+from .models import Deck, DeckConfig, DeckShare
 from .serializers import DeckConfigSerializer, DeckSerializer
 
 
@@ -22,6 +23,16 @@ def _with_counts(deck, now):
     return deck
 
 
+def _deck_for(request, pk, owner_only=False):
+    """Fetch a deck the user may access. owner_only=True restricts to the
+    owner; otherwise the owner OR anyone it's shared with (see DeckShare) —
+    mirrors apps.books.views._book_for."""
+    qs = Deck.objects.filter(id=pk)
+    if owner_only:
+        return qs.filter(user=request.user).first()
+    return qs.filter(Q(user=request.user) | Q(shares__user=request.user)).distinct().first()
+
+
 class DeckListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -33,7 +44,7 @@ class DeckListView(APIView):
         # DeckSeedView below, rather than at signup.
         for d in decks:
             _with_counts(d, now)
-        data = DeckSerializer(decks, many=True).data
+        data = DeckSerializer(decks, many=True, context={"request": request}).data
         # Sort by full_name so the tree reads top-down.
         data.sort(key=lambda d: d["full_name"].lower())
         return Response(data)
@@ -47,7 +58,7 @@ class DeckListView(APIView):
         config = serializer.validated_data.get("config") or _default_config(request.user)
         deck = serializer.save(user=request.user, config=config)
         _with_counts(deck, timezone.now())
-        return Response(DeckSerializer(deck).data, status=status.HTTP_201_CREATED)
+        return Response(DeckSerializer(deck, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 class DeckSeedView(APIView):
@@ -65,6 +76,65 @@ class DeckSeedView(APIView):
         return Response(result)
 
 
+class DecksSharedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        decks = Deck.objects.filter(shares__user=request.user).distinct()
+        return Response(DeckSerializer(decks, many=True, context={"request": request}).data)
+
+
+class DeckSharesView(APIView):
+    """Share/unshare a deck by email. Sharing only grants the recipient a
+    one-click Import (DeckImportView) — never live access to this deck; see
+    apps.decks.sharing for why."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from django.contrib.auth import get_user_model
+
+        deck = _deck_for(request, pk, owner_only=True)
+        if not deck:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        email = (request.data.get("email") or "").strip().lower()
+        if not email:
+            return Response({"detail": "Email is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if email == request.user.email.lower():
+            return Response({"detail": "That's you."}, status=status.HTTP_400_BAD_REQUEST)
+        target = get_user_model().objects.filter(email=email).first()
+        if not target:
+            return Response({"detail": "No user with that email yet."}, status=status.HTTP_404_NOT_FOUND)
+        DeckShare.objects.get_or_create(deck=deck, user=target)
+        return Response(
+            DeckSerializer(deck, context={"request": request}).data, status=status.HTTP_201_CREATED
+        )
+
+    def delete(self, request, pk):
+        deck = _deck_for(request, pk, owner_only=True)
+        if not deck:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        email = (request.data.get("email") or "").strip().lower()
+        DeckShare.objects.filter(deck=deck, user__email=email).delete()
+        return Response(DeckSerializer(deck, context={"request": request}).data)
+
+
+class DeckImportView(APIView):
+    """Copy a shared deck's whole subtree into the requesting user's own
+    account (see apps.decks.sharing.copy_deck_tree)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from .sharing import copy_deck_tree
+
+        deck = _deck_for(request, pk)
+        if not deck:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        imported = copy_deck_tree(deck, request.user, wrapper_name=f"Shared by {deck.user.email}")
+        return Response({"deck": imported.id}, status=status.HTTP_201_CREATED)
+
+
 class DeckDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -76,7 +146,7 @@ class DeckDetailView(APIView):
         if not deck:
             return Response(status=status.HTTP_404_NOT_FOUND)
         _with_counts(deck, timezone.now())
-        return Response(DeckSerializer(deck).data)
+        return Response(DeckSerializer(deck, context={"request": request}).data)
 
     def patch(self, request, pk):
         deck = self._get(request, pk)
@@ -98,7 +168,7 @@ class DeckDetailView(APIView):
                     )
         serializer.save()
         _with_counts(deck, timezone.now())
-        return Response(DeckSerializer(deck).data)
+        return Response(DeckSerializer(deck, context={"request": request}).data)
 
     def delete(self, request, pk):
         deck = self._get(request, pk)

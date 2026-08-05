@@ -467,6 +467,9 @@ kbd {
 .decks__empty { text-align: center; }
 .decks__empty code { font-family: var(--mono); background: var(--line-soft); padding: 1px 6px; border-radius: 5px; }
 .decks__headtools { display: flex; align-items: center; gap: 16px; }
+.decks__shared { margin-bottom: 18px; }
+.decks__shared h2 { margin: 0 0 4px; font-size: 0.95rem; }
+.decklist__sharedby, .decklist__cardcount { color: var(--ink-faint); font-size: 0.82rem; font-weight: 500; }
 
 /* ============================================================
    Activity strip (deck list) + heatmap (performance page)

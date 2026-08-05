@@ -114,8 +114,19 @@
     "creating": "در حال ساختن…",
     "addSubdeck": "＋ افزودن زیردسته",
     "importBtn": "↓ وارد کردن",
+    "importing": "در حال وارد کردن…",
     "placementTestBtn": "🎓 کوییز",
-    "moreActions": "کارهای بیشتر"
+    "moreActions": "کارهای بیشتر",
+    "shareBtn": "اشتراک‌گذاری",
+    "sharing": "در حال اشتراک‌گذاری…",
+    "shareTitle": "اشتراک‌گذاری «{{name}}»",
+    "shareHint": "هر کسی که با او به اشتراک بگذاری، یک دکمه‌ی «وارد کردن» می‌گیرد — یک کپی از این دسته و کارت‌هایش، مستقل از دسته‌ی تو.",
+    "shareEmailPlaceholder": "person@example.com",
+    "notShared": "هنوز با کسی به اشتراک گذاشته نشده.",
+    "removeBtn": "حذف",
+    "sharedWithMe": "به اشتراک گذاشته‌شده با من ({{count}})",
+    "sharedBy": "· به اشتراک گذاشته‌شده توسط {{email}}",
+    "cardCount": "{{count}} کارت"
   },
   "import": {
     "title": "وارد کردن",
