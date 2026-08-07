@@ -7,12 +7,16 @@ reviews/edits them on the Import page and then commits via /api/cards/bulk/.
 """
 from __future__ import annotations
 
+import base64
 import json
+import logging
 import random
 import re
 
 import requests
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_TYPES = {"vocab", "sentence", "grammar", "verb"}
 ALLOWED_ARTICLES = {"none", "der", "die", "das", "plural"}
@@ -474,6 +478,63 @@ def _gemini_text(prompt: str, timeout: int = 30, temperature: float = 0.4) -> st
     res = requests.post(url, json=payload, timeout=timeout, verify=verify)
     res.raise_for_status()
     return res.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+
+_AUDIO_TRANSCRIBE_PROMPT = """Transcribe the {language_name} speech in this audio \
+clip — it is a single word, phrase, or short sentence that a language learner \
+said for a flashcard. Return ONLY JSON (no markdown, no commentary):
+{{"text": "<the exact spoken word/phrase/sentence>", "kind": "word" or "sentence"}}
+"kind" is "word" for a single word or short phrase, "sentence" for a full sentence.
+"""
+
+
+def transcribe_audio(audio_bytes: bytes, mime_type: str = "audio/ogg", language: str = "") -> dict:
+    """Transcribe an audio clip (e.g. a Telegram voice message, OGG/Opus) into
+    what was said, ready to drive the word/sentence card lookup. Returns
+    {"text": str, "kind": "word"|"sentence"}; on failure (no API key, no audio,
+    network/parse error) it degrades to {"text": "", "kind": "word"} so the
+    caller can fall back to the typed-text path.
+
+    The bytes are sent to Gemini directly via inline_data — the model ingests
+    the audio natively, so there's no ffmpeg transcoding to install or run.
+    mime_type must match the source container (audio/ogg for Telegram voices)."""
+    if not audio_bytes or not settings.GEMINI_API_KEY:
+        return {"text": "", "kind": "word"}
+    prompt = _AUDIO_TRANSCRIBE_PROMPT.format(
+        language_name=_LANG_NAMES.get(language, "the target language")
+    )
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+    )
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": mime_type or "audio/ogg",
+                            "data": base64.b64encode(audio_bytes).decode("ascii"),
+                        }
+                    },
+                ]
+            }
+        ],
+        "generationConfig": {"temperature": 0.0, "responseMimeType": "application/json"},
+    }
+    verify = getattr(settings, "GEMINI_VERIFY_SSL", True)
+    try:
+        res = requests.post(url, json=payload, timeout=60, verify=verify)
+        res.raise_for_status()
+        raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+        obj = _extract_json_object(raw)
+        text = str(obj.get("text", "")).strip()
+        kind = "sentence" if obj.get("kind") == "sentence" else "word"
+        return {"text": text, "kind": kind}
+    except Exception:  # noqa: BLE001 — a Gemini hiccup degrades to the typed path
+        logger.exception("Gemini audio transcription failed")
+        return {"text": "", "kind": "word"}
 
 
 def writing_topic(language: str) -> dict:
