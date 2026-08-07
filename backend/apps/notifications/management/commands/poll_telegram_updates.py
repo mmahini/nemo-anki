@@ -165,6 +165,20 @@ def _send_typing(api: str, chat_id) -> None:
     _FIRE_AND_FORGET.submit(_telegram_post, api, "sendChatAction", {"chat_id": chat_id, "action": "typing"})
 
 
+def _answer_callback(api: str, callback_id: str, text: str = "", show_alert: bool = False) -> None:
+    """Best-effort reply to a callback_query tap. The bare textless call
+    dismisses the tapped button's loading spinner; callers that need the
+    user to know a tap was stale (see _pending in _handle_callback_query)
+    pass text + show_alert so a brief alert explains the no-op instead of
+    leaving the user to wonder why nothing happened."""
+    payload = {"callback_query_id": callback_id}
+    if text:
+        payload["text"] = text
+    if show_alert:
+        payload["show_alert"] = True
+    _FIRE_AND_FORGET.submit(_telegram_post, api, "answerCallbackQuery", payload)
+
+
 def _handle_start(api: str, chat_id, text: str) -> None:
     """/start — either completes the connect handshake (a token following
     the command) or is a bare /start with nothing to link (a fresh open of
@@ -187,14 +201,27 @@ def _handle_start(api: str, chat_id, text: str) -> None:
         _reply(api, chat_id, _CONNECT_FIRST_TEXT)
 
 
+def _lang_usage_reply(link: TelegramLink) -> str:
+    """The /lang usage hint, plus the current language when one is set —
+    shared by the text command and the menu:lang button so both give the
+    same hint instead of a bare command reference."""
+    current = SUPPORTED_LANGUAGES.get(link.default_language)
+    current_part = f" Currently set to {current}." if current else ""
+    return f"Usage: /lang de or /lang en.{current_part}"
+
+
 def _handle_lang(link: TelegramLink, api: str, chat_id, text: str) -> None:
     code = text.lower().removeprefix("/lang").strip()
     if code not in SUPPORTED_LANGUAGES:
-        _reply(api, chat_id, "Usage: /lang de or /lang en")
+        _reply(api, chat_id, _lang_usage_reply(link))
         return
     link.default_language = code
     link.save(update_fields=["default_language"])
-    _reply(api, chat_id, f"Got it — I'll look up words in {SUPPORTED_LANGUAGES[code]} from now on.")
+    _reply(
+        api, chat_id,
+        f"Got it — I'll look up words in {SUPPORTED_LANGUAGES[code]} from now on.",
+        reply_markup=_main_menu_keyboard(),
+    )
 
     resume_text, resume_type = link.pending_lookup_text, link.pending_lookup_card_type
     resume_valid = bool(resume_text) and link.pending_lookup_expires_at and timezone.now() < link.pending_lookup_expires_at
@@ -224,10 +251,45 @@ def _main_menu_keyboard() -> dict:
     }
 
 
+def _cancel_active_work(link: TelegramLink) -> None:
+    """Discard everything the user is mid-way through — an in-progress card
+    (PendingTelegramCard) and any word/sentence stashed while waiting for
+    /lang — so /cancel and the Cancel buttons are a clean global escape
+    rather than a dead end that forces finishing a card you don't want."""
+    PendingTelegramCard.objects.filter(user=link.user).delete()
+    if link.pending_lookup_text:
+        link.pending_lookup_text = ""
+        link.pending_lookup_card_type = ""
+        link.pending_lookup_expires_at = None
+        link.save(update_fields=["pending_lookup_text", "pending_lookup_card_type", "pending_lookup_expires_at"])
+
+
+def _cancel_and_show_menu(api: str, chat_id) -> None:
+    """The shared reply after a cancel: confirm it worked and hand the user
+    the main menu, so the next thing they do is a deliberate choice instead
+    of an accidental word lookup."""
+    _reply(api, chat_id, "OK, cancelled. What would you like to do?", reply_markup=_main_menu_keyboard())
+
+
+def _wizard_in_progress(link: TelegramLink) -> bool:
+    """True when the user is mid-wizard (awaiting a translation or a
+    pronunciation). Menu prompts check this so "Send me a word" can't turn
+    the user's next message into a wizard answer by accident."""
+    return PendingTelegramCard.objects.filter(user=link.user).exclude(awaiting_field="").exists()
+
+
 def _options_keyboard(pending_id: int, options: list[str], choose_prefix: str, own_prefix: str) -> dict:
     rows = [[{"text": opt, "callback_data": f"{choose_prefix}:{pending_id}:{i}"}] for i, opt in enumerate(options)]
     rows.append([{"text": "✏️ Type my own", "callback_data": f"{own_prefix}:{pending_id}"}])
+    rows.append([{"text": "❌ Cancel", "callback_data": f"cancel:{pending_id}"}])
     return {"inline_keyboard": rows}
+
+
+def _cancel_keyboard(pending_id: int) -> dict:
+    """A lone Cancel button for the type-it-yourself prompts — the same
+    escape the options pickers get via _options_keyboard, so a user who'd
+    rather abandon the card can tap instead of typing /cancel."""
+    return {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": f"cancel:{pending_id}"}]]}
 
 
 def _prompt_translation(api: str, chat_id, pending: PendingTelegramCard) -> None:
@@ -237,7 +299,10 @@ def _prompt_translation(api: str, chat_id, pending: PendingTelegramCard) -> None
             reply_markup=_options_keyboard(pending.id, pending.translation_options, "choose_back", "pick_own_back"),
         )
     else:
-        _reply(api, chat_id, f'Send the translation for "{pending.front}":')
+        _reply(
+            api, chat_id, f'Send the translation for "{pending.front}":',
+            reply_markup=_cancel_keyboard(pending.id),
+        )
 
 
 def _prompt_pronunciation(api: str, chat_id, pending: PendingTelegramCard) -> None:
@@ -249,7 +314,10 @@ def _prompt_pronunciation(api: str, chat_id, pending: PendingTelegramCard) -> No
             ),
         )
     else:
-        _reply(api, chat_id, "Send the pronunciation (or /skip to leave it blank):")
+        _reply(
+            api, chat_id, "Send the pronunciation (or /skip to leave it blank):",
+            reply_markup=_cancel_keyboard(pending.id),
+        )
 
 
 def _proposal_caption(pending: PendingTelegramCard) -> str:
@@ -319,24 +387,34 @@ def _finalize(api: str, chat_id, pending: PendingTelegramCard) -> None:
     exists but the row is still claimable, so a retry duplicates it. Scoped
     by user as well as id — same ownership check _pending() already applies
     before handing this a row — so the claim itself never trusts the
-    caller alone to have enforced it."""
+    caller alone to have enforced it.
+
+    Because the row is claimed *before* creation, a failure mid-create can't
+    be retried by re-tapping — the create is wrapped so the user gets a
+    clear "send it again" reply (and the menu) instead of a silent no-op,
+    and the failure is logged with the exception for debugging."""
     if not PendingTelegramCard.objects.filter(id=pending.id, user=pending.user).delete()[0]:
         return
-    create = create_sentence_card if pending.card_type == "sentence" else create_vocab_card
-    card = create(
-        pending.user, pending.front, pending.language,
-        {
-            "back": pending.back, "reading": pending.reading,
-            "article": pending.article, "plural": pending.plural, "example": pending.example,
-        },
-    )
-    _, image_data = attach_thumbnail_from_url(card, pending.image_url) if pending.image_url else (None, None)
-    caption = f"✅ Added to {card.deck.full_name}"
-    # The confirmation is also the user's only cue for what to do next —
-    # without the menu attached here, PendingTelegramCard is already gone,
-    # so their next plain message falls straight into a fresh word lookup
-    # with no guidance, which reads as the bot losing its place.
     menu = _main_menu_keyboard()
+    create = create_sentence_card if pending.card_type == "sentence" else create_vocab_card
+    try:
+        card = create(
+            pending.user, pending.front, pending.language,
+            {
+                "back": pending.back, "reading": pending.reading,
+                "article": pending.article, "plural": pending.plural, "example": pending.example,
+            },
+        )
+    except Exception:  # noqa: BLE001 — see docstring
+        # The row was already claimed above — that ordering is what makes a
+        # double-tap safe — so a failure here can't silently retry the same
+        # word. The user still needs to know it failed and what to do next,
+        # otherwise they stare at a tap that did nothing.
+        logger.exception("Telegram card creation failed for user %s", pending.user_id)
+        _reply(api, chat_id, "⚠️ Something went wrong saving your card — please send it again.", reply_markup=menu)
+        return
+    _, image_data = attach_thumbnail_from_url(card, pending.image_url) if pending.image_url else (None, None)
+    caption = f'✅ Added "{pending.front}" — {pending.back or card.back}\n\nTo: {card.deck.full_name}'
     if image_data:
         # The card is already saved either way — if only the richer photo
         # message fails (bad/expired image URL, Telegram rejects the file),
@@ -505,11 +583,11 @@ def _handle_voice_message(link: TelegramLink, api: str, chat_id, voice: dict) ->
     if duration > _VOICE_MAX_DURATION_SECONDS:
         _reply(
             api, chat_id,
-            f"Voice messages must be under {_VOICE_MAX_DURATION_SECONDS}s — send the word as text instead.",
+            f"🎤 Voice messages must be under {_VOICE_MAX_DURATION_SECONDS}s — send the word as text instead.",
         )
         return
     if (voice.get("file_size") or 0) > _VOICE_MAX_BYTES:
-        _reply(api, chat_id, "That voice message is too large — send the word as text instead.")
+        _reply(api, chat_id, "🎤 That voice message is too large — send the word as text instead.")
         return
     if not link.default_language:
         _reply(api, chat_id, "Tell me your language first — send /lang de or /lang en.")
@@ -524,15 +602,21 @@ def _handle_voice_message(link: TelegramLink, api: str, chat_id, voice: dict) ->
     file_id = voice.get("file_id")
     data = download_telegram_file(api, file_id, max_bytes=_VOICE_MAX_BYTES)
     if not data:
-        _reply(api, chat_id, "I couldn't download that voice message — send the word as text instead.")
+        _reply(api, chat_id, "🎤 I couldn't download that voice message — send the word as text instead.")
         return
     result = transcribe_audio(
         data, mime_type=voice.get("mime_type") or "audio/ogg", language=link.default_language
     )
     text = result.get("text", "")
     if not text:
-        _reply(api, chat_id, "I couldn't make out what you said — send the word as text instead.")
+        _reply(api, chat_id, "🎤 I couldn't make out what you said — send the word as text instead.")
         return
+    text = text[:MAX_LOOKUP_TEXT_LENGTH]
+    # Echo what was heard before the (multi-second) Gemini enrichment runs —
+    # a misheard word should be obvious to the user *before* they read a
+    # full proposal built around it, so they can /cancel instead of being
+    # presented with a card for the wrong word.
+    _reply(api, chat_id, f'🎤 I heard: "{text}" — one moment…')
     if result.get("kind") == "sentence":
         _propose_sentence(link, api, chat_id, text)
     else:
@@ -556,32 +640,64 @@ def _handle_callback_query(update: dict, api: str) -> None:
     data = callback.get("data") or ""
     chat_id = (callback.get("message") or {}).get("chat", {}).get("id")
     callback_id = callback["id"]
-    # Dismisses the tapped button's loading spinner — fire-and-forget since
-    # nothing below depends on Telegram's response to it.
-    _FIRE_AND_FORGET.submit(_telegram_post, api, "answerCallbackQuery", {"callback_query_id": callback_id})
+
+    # Each callback query is answered exactly once. Telegram only reliably
+    # shows the first answer and rejects a second answerCallbackQuery for
+    # the same query, so a stale button's alert (see _pending) must replace
+    # — not follow — the plain spinner dismiss. The guarded helper means
+    # whichever path fires first wins and the rest no-op.
+    answered = False
+
+    def _answer_once(text: str = "", show_alert: bool = False) -> None:
+        nonlocal answered
+        if answered:
+            return
+        answered = True
+        _answer_callback(api, callback_id, text, show_alert)
+
     if not chat_id:
+        _answer_once()
         return
     link = TelegramLink.objects.filter(chat_id=chat_id).select_related("user").first()
     if not link:
+        _answer_once()
         return
 
-    def _pending(prefix: str):
+    def _pending(prefix: str, stale_text: str = "This action is no longer available."):
         try:
             pending_id = int(data.removeprefix(prefix).split(":")[0])
         except ValueError:
+            _answer_once(stale_text, show_alert=True)
             return None
-        return PendingTelegramCard.objects.filter(id=pending_id, user=link.user).first()
+        pending = PendingTelegramCard.objects.filter(id=pending_id, user=link.user).first()
+        if pending is None:
+            # A stale button (the row was already created, or replaced by a
+            # newer lookup) must not feel like a dead tap — tell the user why
+            # nothing happened instead of leaving a silent no-op.
+            _answer_once(stale_text, show_alert=True)
+            return None
+        _answer_once()
+        return pending
 
     if data == "menu:lookup":
+        _answer_once()
+        if _wizard_in_progress(link):
+            _reply(api, chat_id, "You're in the middle of a card — finish it or send /cancel first.")
+            return
         _reply(api, chat_id, "Send me a word to look up.")
         return
 
     if data == "menu:sentence":
+        _answer_once()
+        if _wizard_in_progress(link):
+            _reply(api, chat_id, "You're in the middle of a card — finish it or send /cancel first.")
+            return
         _reply(api, chat_id, "Send me a sentence.")
         return
 
     if data == "menu:lang":
-        _reply(api, chat_id, "Usage: /lang de or /lang en")
+        _answer_once()
+        _reply(api, chat_id, _lang_usage_reply(link))
         return
 
     if data.startswith("choose_back:"):
@@ -627,7 +743,7 @@ def _handle_callback_query(update: dict, api: str) -> None:
         return
 
     if data.startswith("create:"):
-        pending = _pending("create:")
+        pending = _pending("create:", stale_text="This card was already added.")
         if not pending:
             return
         _finalize(api, chat_id, pending)
@@ -649,6 +765,11 @@ def _handle_callback_query(update: dict, api: str) -> None:
         if not pending or pending.awaiting_field:
             return
         _regenerate(link, api, chat_id, pending)
+        return
+
+    if data.startswith("cancel:"):
+        _cancel_active_work(link)
+        _cancel_and_show_menu(api, chat_id)
         return
 
 
@@ -684,6 +805,14 @@ def process_telegram_update(update: dict, api: str) -> None:
     link = TelegramLink.objects.filter(chat_id=chat_id).select_related("user").first()
     if not link:
         _reply(api, chat_id, _CONNECT_FIRST_TEXT)
+        return
+
+    # Global escape — checked before the mid-wizard gate so a user who wants
+    # out is never forced to finish a card they don't want, and a stray word
+    # can't accidentally become a wizard answer.
+    if text.lower() in ("/cancel", "cancel"):
+        _cancel_active_work(link)
+        _cancel_and_show_menu(api, chat_id)
         return
 
     pending = PendingTelegramCard.objects.filter(user=link.user).first()
