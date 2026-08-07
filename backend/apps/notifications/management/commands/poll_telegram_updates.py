@@ -15,10 +15,11 @@ from rest_framework.exceptions import Throttled
 from urllib3.util.retry import Retry
 
 from apps.cards.image_search import attach_thumbnail_from_url
-from apps.imports.gemini import enrich_card, enrich_card_options
+from apps.imports.gemini import enrich_card, enrich_card_options, transcribe_audio
 from apps.imports.services import create_sentence_card, create_vocab_card
 from apps.notifications.models import PendingTelegramCard, TelegramLink, TelegramPollerState
 from apps.subscriptions.quota import consume_ai_quota
+from core.telegram import download_telegram_file
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,13 @@ PENDING_LOOKUP_TTL = timedelta(hours=24)
 # sentence can never raise a DataError and crash the poller (see PR#9).
 MAX_LOOKUP_TEXT_LENGTH = 200
 
+# Telegram voice messages (message.voice) are OGG/Opus, a few seconds long.
+# Cap both duration and size so a huge/looping clip can't stall the poller or
+# run up Gemini cost — enforced here (not inside transcribe_audio) so the cap
+# and its user-facing replies live with the flow that uses them.
+_VOICE_MAX_DURATION_SECONDS = 30
+_VOICE_MAX_BYTES = 10 * 1024 * 1024
+
 _CONNECT_FIRST_TEXT = 'Connect your account first — open Nemo Anki and tap "Connect Telegram".'
 
 _ONBOARDING_EXAMPLE = (
@@ -46,7 +54,8 @@ _ONBOARDING_EXAMPLE = (
     "a card, or /sentence <text> for a full sentence. For example:\n\n"
     "/lang de\n"
     "Haus\n"
-    "/sentence Ich gehe heute ins Kino."
+    "/sentence Ich gehe heute ins Kino.\n\n"
+    "You can also send a voice message to look up the word or sentence you say."
 )
 
 
@@ -300,7 +309,19 @@ def _finalize(api: str, chat_id, pending: PendingTelegramCard) -> None:
     search (see find_and_attach_proposal_image) already found one by the
     time Create is tapped, pending.image_url is set and gets attached here;
     if not, the card is still created immediately without one — the image
-    was always best-effort and must never hold up Create."""
+    was always best-effort and must never hold up Create.
+
+    The row is claimed (deleted) *before* creating the card, not after: a
+    second Create tap for the same row — a genuine double-tap, or a retry
+    after the user saw no confirmation because something below raised —
+    must always find nothing left to claim and no-op, rather than create a
+    second card. Deleting last would leave a window where the card already
+    exists but the row is still claimable, so a retry duplicates it. Scoped
+    by user as well as id — same ownership check _pending() already applies
+    before handing this a row — so the claim itself never trusts the
+    caller alone to have enforced it."""
+    if not PendingTelegramCard.objects.filter(id=pending.id, user=pending.user).delete()[0]:
+        return
     create = create_sentence_card if pending.card_type == "sentence" else create_vocab_card
     card = create(
         pending.user, pending.front, pending.language,
@@ -310,7 +331,6 @@ def _finalize(api: str, chat_id, pending: PendingTelegramCard) -> None:
         },
     )
     _, image_data = attach_thumbnail_from_url(card, pending.image_url) if pending.image_url else (None, None)
-    pending.delete()
     caption = f"✅ Added to {card.deck.full_name}"
     # The confirmation is also the user's only cue for what to do next —
     # without the menu attached here, PendingTelegramCard is already gone,
@@ -385,7 +405,16 @@ def _handle_word_lookup(link: TelegramLink, api: str, chat_id, text: str) -> Non
     except Throttled as e:
         _reply(api, chat_id, str(e.detail))
         return
+    _propose_word(link, api, chat_id, text)
 
+
+def _propose_word(link: TelegramLink, api: str, chat_id, text: str) -> None:
+    """The post-quota body of a word lookup: run enrich_card_options, pick its
+    top translation/pronunciation, and show the Create/Edit proposal. Split out
+    of _handle_word_lookup so the voice path (which has already consumed its
+    quota on transcription — one logical lookup per request) can drive the exact
+    same card pipeline without double-charging."""
+    text = text[:MAX_LOOKUP_TEXT_LENGTH]
     _send_typing(api, chat_id)
     result = enrich_card_options(text, link.default_language, "vocab", link.default_back_language)
     translations = result.get("translations", [])
@@ -435,7 +464,14 @@ def _handle_sentence_input(link: TelegramLink, api: str, chat_id, text: str) -> 
     except Throttled as e:
         _reply(api, chat_id, str(e.detail))
         return
+    _propose_sentence(link, api, chat_id, text)
 
+
+def _propose_sentence(link: TelegramLink, api: str, chat_id, text: str) -> None:
+    """The post-quota body of the /sentence flow (see _handle_sentence_input);
+    split out so the voice path can reuse it with its transcription instead of
+    a typed sentence."""
+    text = text[:MAX_LOOKUP_TEXT_LENGTH]
     _send_typing(api, chat_id)
     result = enrich_card(text, link.default_language, "sentence", link.default_back_language)
     pending, _ = PendingTelegramCard.objects.update_or_create(
@@ -455,6 +491,52 @@ def _handle_sentence_input(link: TelegramLink, api: str, chat_id, text: str) -> 
         },
     )
     _send_proposal(api, chat_id, pending)
+
+
+def _handle_voice_message(link: TelegramLink, api: str, chat_id, voice: dict) -> None:
+    """A Telegram voice message is an *input method*, not a separate premium
+    AI feature: the audio is transcribed with Gemini (one AI call, one quota
+    unit — the same logical lookup a typed word costs) and the result is fed
+    into the exact same word/sentence card pipeline as typed text, via
+    _propose_word/_propose_sentence (so they share the quota semantics and the
+    proposal UI). The OGG/Opus bytes go straight to Gemini via inline_data —
+    no ffmpeg transcoding step."""
+    duration = voice.get("duration") or 0
+    if duration > _VOICE_MAX_DURATION_SECONDS:
+        _reply(
+            api, chat_id,
+            f"Voice messages must be under {_VOICE_MAX_DURATION_SECONDS}s — send the word as text instead.",
+        )
+        return
+    if (voice.get("file_size") or 0) > _VOICE_MAX_BYTES:
+        _reply(api, chat_id, "That voice message is too large — send the word as text instead.")
+        return
+    if not link.default_language:
+        _reply(api, chat_id, "Tell me your language first — send /lang de or /lang en.")
+        return
+    try:
+        consume_ai_quota(link.user)
+    except Throttled as e:
+        _reply(api, chat_id, str(e.detail))
+        return
+
+    _send_typing(api, chat_id)
+    file_id = voice.get("file_id")
+    data = download_telegram_file(api, file_id, max_bytes=_VOICE_MAX_BYTES)
+    if not data:
+        _reply(api, chat_id, "I couldn't download that voice message — send the word as text instead.")
+        return
+    result = transcribe_audio(
+        data, mime_type=voice.get("mime_type") or "audio/ogg", language=link.default_language
+    )
+    text = result.get("text", "")
+    if not text:
+        _reply(api, chat_id, "I couldn't make out what you said — send the word as text instead.")
+        return
+    if result.get("kind") == "sentence":
+        _propose_sentence(link, api, chat_id, text)
+    else:
+        _propose_word(link, api, chat_id, text)
 
 
 def _handle_reply(pending: PendingTelegramCard, api: str, chat_id, text: str) -> None:
@@ -576,8 +658,10 @@ def process_telegram_update(update: dict, api: str) -> None:
     (the same main-menu keyboard shown after connecting), /sentence
     (straight to a proposal, no picker), a word-lookup wizard (translation
     options, then pronunciation options, then a Create/Edit proposal
-    screen), or a wizard button tap. Split out from the poll loop so it's
-    unit-testable without an infinite loop or a live getUpdates call.
+    screen), a voice message (transcribed, then routed into the same word/
+    sentence pipeline — it's an input method, never a wizard answer), or a
+    wizard button tap. Split out from the poll loop so it's unit-testable
+    without an infinite loop or a live getUpdates call.
     """
     if "callback_query" in update:
         _handle_callback_query(update, api)
@@ -585,14 +669,15 @@ def process_telegram_update(update: dict, api: str) -> None:
 
     message = update.get("message") or {}
     text = (message.get("text") or "").strip()
+    voice = message.get("voice") or {}
     chat_id = (message.get("chat") or {}).get("id")
-    if not (text and chat_id):
+    if not (text or voice.get("file_id")) or not chat_id:
         return
 
     # Bare "start"/"menu"/"help" (no leading slash) are treated the same as
     # their slash commands — a common typo (or autocomplete dropping the
     # slash) would otherwise silently fall through to word lookup instead.
-    if text.lower().startswith("/start") or text.lower() == "start":
+    if text and (text.lower().startswith("/start") or text.lower() == "start"):
         _handle_start(api, chat_id, text)
         return
 
@@ -602,6 +687,16 @@ def process_telegram_update(update: dict, api: str) -> None:
         return
 
     pending = PendingTelegramCard.objects.filter(user=link.user).first()
+    if voice.get("file_id"):
+        # Voice is an input method, but never a mid-wizard answer — a spoken
+        # translation/pronunciation can't be parsed, so reject it rather than
+        # letting it fall through _handle_reply as empty text.
+        if pending and pending.awaiting_field:
+            _reply(api, chat_id, "Please send that as text while we finish your card.")
+            return
+        _handle_voice_message(link, api, chat_id, voice)
+        return
+
     if pending and pending.awaiting_field:
         _handle_reply(pending, api, chat_id, text)
         return
@@ -667,8 +762,10 @@ class Command(BaseCommand):
         "Long-polls the Telegram Bot API for messages: /start links a chat_id (or shows a "
         "welcome/help reply if there's no token to link), /lang sets a study language, /help "
         "repeats onboarding instructions, /menu shows the main menu keyboard, /sentence <text> "
-        "proposes a sentence card directly, and any other text starts a translation/pronunciation "
-        "wizard ending in a Create/Edit proposal screen (no public webhook needed)."
+        "proposes a sentence card directly, voice messages are transcribed (Gemini) and routed "
+        "into the same word/sentence proposal pipeline, and any other text starts a "
+        "translation/pronunciation wizard ending in a Create/Edit proposal screen (no public "
+        "webhook needed)."
     )
 
     def handle(self, *args, **options):

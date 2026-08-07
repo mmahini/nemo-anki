@@ -1307,6 +1307,40 @@ class TelegramWizardFlowTests(APITestCase):
         self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
         self.assertEqual(Card.objects.count(), 1)
 
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_double_tapping_create_only_saves_one_card(self, mock_post):
+        # Two Create taps on the same proposal — Telegram delivers each as
+        # its own callback_query update, so this is two separate calls to
+        # process_telegram_update for the same pending id, exactly as a
+        # real double-tap (or a retry after a dropped confirmation) would
+        # produce. _finalize claims (deletes) the row before creating the
+        # card specifically so the second call has nothing left to act on.
+        self.pending.back = "house"
+        self.pending.reading = "howss"
+        self.pending.awaiting_field = ""
+        self.pending.save(update_fields=["back", "reading", "awaiting_field"])
+
+        process_telegram_update(self._callback(f"create:{self.pending.id}"), "https://api.telegram.org/botX")
+        process_telegram_update(self._callback(f"create:{self.pending.id}"), "https://api.telegram.org/botX")
+
+        self.assertEqual(Card.objects.count(), 1)
+        self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_finalize_noops_if_the_row_was_already_claimed(self, mock_post):
+        # Direct unit-level check of the claim-then-create ordering itself,
+        # independent of the callback-routing path exercised above.
+        from apps.notifications.management.commands.poll_telegram_updates import _finalize
+
+        self.pending.back = "house"
+        self.pending.awaiting_field = ""
+        self.pending.save(update_fields=["back", "awaiting_field"])
+
+        _finalize("https://api.telegram.org/botX", 777, self.pending)
+        _finalize("https://api.telegram.org/botX", 777, self.pending)
+
+        self.assertEqual(Card.objects.count(), 1)
+
     @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_typed_pronunciation_shows_proposal_without_creating_a_card(self, mock_post, mock_delay):
@@ -1939,3 +1973,239 @@ class TelegramWebhookTests(APITestCase):
             self.assertEqual(self._post("").status_code, 403)
             self.assertEqual(self._post("hook-secret").status_code, 403)
         mock_process.assert_not_called()
+
+
+class TelegramVoiceMessageTests(APITestCase):
+    """Voice messages are an *input method*, not a separate premium AI
+    feature: the audio is transcribed (Gemini — one quota unit, the same
+    logical lookup a typed word costs) and the result is routed through the
+    exact same word/sentence card pipeline as typed text, via
+    _propose_word/_propose_sentence."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="voice@example.com")
+        self.link = TelegramLink.objects.create(
+            user=self.user, chat_id=777, default_language="de", default_back_language="English",
+        )
+
+    def _voice(self, file_id="voice1", duration=3, file_size=5000, mime="audio/ogg"):
+        return {
+            "update_id": 1,
+            "message": {
+                "voice": {
+                    "file_id": file_id, "duration": duration, "file_size": file_size, "mime_type": mime,
+                },
+                "chat": {"id": 777},
+            },
+        }
+
+    def _sendmessage_calls(self, mock_post):
+        return [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.transcribe_audio")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_voice_word_flows_into_the_existing_word_pipeline(
+        self, mock_post, mock_download, mock_transcribe, mock_enrich, mock_delay
+    ):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        mock_download.return_value = b"oggdata"
+        mock_transcribe.return_value = {"text": "Haus", "kind": "word"}
+        mock_enrich.return_value = {
+            "translations": ["house", "home"], "pronunciations": ["howss"],
+            "article": "das", "plural": "Häuser", "example": "Das ist mein Haus.",
+        }
+
+        process_telegram_update(self._voice(), "https://api.telegram.org/botX")
+
+        # The audio is downloaded from Telegram's file host, transcribed once,
+        # then fed through the exact same _propose_word pipeline as typed text.
+        mock_download.assert_called_once_with(
+            "https://api.telegram.org/botX", "voice1", max_bytes=10 * 1024 * 1024
+        )
+        mock_transcribe.assert_called_once_with(b"oggdata", mime_type="audio/ogg", language="de")
+        mock_enrich.assert_called_once_with("Haus", "de", "vocab", "English")
+        pending = PendingTelegramCard.objects.get(user=self.user)
+        self.assertEqual(pending.card_type, "vocab")
+        self.assertEqual(pending.front, "Haus")
+        self.assertEqual(pending.back, "house")
+        self.assertEqual(pending.reading, "howss")
+        self.assertEqual(pending.awaiting_field, "")
+        sendmessage_calls = self._sendmessage_calls(mock_post)
+        self.assertEqual(len(sendmessage_calls), 1)
+        self.assertIn("Meaning: house", sendmessage_calls[0].kwargs["json"]["text"])
+
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.transcribe_audio")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_voice_sentence_flows_into_the_existing_sentence_pipeline(
+        self, mock_post, mock_download, mock_transcribe, mock_enrich, mock_delay
+    ):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        mock_download.return_value = b"oggdata"
+        mock_transcribe.return_value = {"text": "Ich gehe ins Kino.", "kind": "sentence"}
+        mock_enrich.return_value = {
+            "back": "I am going to the cinema.", "reading": "", "article": "none",
+            "plural": "", "example": "",
+        }
+
+        process_telegram_update(self._voice(), "https://api.telegram.org/botX")
+
+        mock_enrich.assert_called_once_with("Ich gehe ins Kino.", "de", "sentence", "English")
+        pending = PendingTelegramCard.objects.get(user=self.user)
+        self.assertEqual(pending.card_type, "sentence")
+        self.assertEqual(pending.front, "Ich gehe ins Kino.")
+        self.assertEqual(pending.back, "I am going to the cinema.")
+        self.assertEqual(pending.awaiting_field, "")
+        sendmessage_calls = self._sendmessage_calls(mock_post)
+        self.assertIn("Sentence: Ich gehe ins Kino.", sendmessage_calls[0].kwargs["json"]["text"])
+
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.transcribe_audio")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_voice_consumes_quota_exactly_once(
+        self, mock_post, mock_quota, mock_download, mock_transcribe, mock_enrich, mock_delay
+    ):
+        # Transcription + enrichment are two Gemini calls, but they are one
+        # logical lookup — quota must be charged exactly once, up front.
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        mock_download.return_value = b"oggdata"
+        mock_transcribe.return_value = {"text": "Haus", "kind": "word"}
+        mock_enrich.return_value = {
+            "translations": ["house"], "pronunciations": [], "article": "das", "plural": "", "example": "",
+        }
+
+        process_telegram_update(self._voice(), "https://api.telegram.org/botX")
+
+        mock_quota.assert_called_once_with(self.user)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.transcribe_audio")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_voice_without_language_prompts_lang(self, mock_post, mock_quota, mock_download, mock_transcribe):
+        self.link.default_language = ""
+        self.link.save(update_fields=["default_language"])
+
+        process_telegram_update(self._voice(), "https://api.telegram.org/botX")
+
+        mock_quota.assert_not_called()
+        mock_download.assert_not_called()
+        mock_transcribe.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("/lang", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_voice_too_long_is_rejected(self, mock_post, mock_quota, mock_download):
+        process_telegram_update(self._voice(duration=60), "https://api.telegram.org/botX")
+
+        mock_quota.assert_not_called()
+        mock_download.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("under 30s", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_voice_too_large_is_rejected(self, mock_post, mock_quota, mock_download):
+        process_telegram_update(
+            self._voice(file_size=10 * 1024 * 1024 + 1), "https://api.telegram.org/botX"
+        )
+
+        mock_quota.assert_not_called()
+        mock_download.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("too large", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.transcribe_audio")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_download_failure_degrades_to_text_prompt(self, mock_post, mock_download, mock_transcribe):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        mock_download.return_value = None
+
+        process_telegram_update(self._voice(), "https://api.telegram.org/botX")
+
+        mock_transcribe.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        sendmessage_calls = self._sendmessage_calls(mock_post)
+        self.assertEqual(len(sendmessage_calls), 1)
+        self.assertIn("couldn't download", sendmessage_calls[0].kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.transcribe_audio")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_transcription_failure_degrades_to_text_prompt(
+        self, mock_post, mock_download, mock_transcribe, mock_enrich
+    ):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        mock_download.return_value = b"oggdata"
+        mock_transcribe.return_value = {"text": "", "kind": "word"}
+
+        process_telegram_update(self._voice(), "https://api.telegram.org/botX")
+
+        mock_enrich.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        sendmessage_calls = self._sendmessage_calls(mock_post)
+        self.assertEqual(len(sendmessage_calls), 1)
+        self.assertIn("couldn't make out", sendmessage_calls[0].kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_voice_mid_wizard_is_rejected_not_parsed(self, mock_post, mock_download):
+        pending = PendingTelegramCard.objects.create(
+            user=self.user, language="de", front="Haus", back="", awaiting_field="back",
+        )
+
+        process_telegram_update(self._voice(), "https://api.telegram.org/botX")
+
+        mock_download.assert_not_called()
+        pending.refresh_from_db()
+        self.assertEqual(pending.awaiting_field, "back")
+        _, kwargs = mock_post.call_args
+        self.assertIn("as text", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_voice_requires_connected_account(self, mock_post, mock_download):
+        update = {
+            "update_id": 1,
+            "message": {
+                "voice": {"file_id": "v1", "duration": 2, "file_size": 1000},
+                "chat": {"id": 999},
+            },
+        }
+
+        process_telegram_update(update, "https://api.telegram.org/botX")
+
+        mock_download.assert_not_called()
+        _, kwargs = mock_post.call_args
+        self.assertIn("Connect your account", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_voice_quota_exceeded_replies_with_message(self, mock_post, mock_quota, mock_download):
+        from rest_framework.exceptions import Throttled
+
+        mock_quota.side_effect = Throttled(detail="You've reached today's AI limit (40).")
+
+        process_telegram_update(self._voice(), "https://api.telegram.org/botX")
+
+        mock_download.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("AI limit", kwargs["json"]["text"])
