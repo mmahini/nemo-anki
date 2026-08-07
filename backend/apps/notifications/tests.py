@@ -29,6 +29,14 @@ from .tasks import (
 User = get_user_model()
 
 
+class _SyncExecutor:
+    """Runs the poller's fire-and-forget Telegram calls inline, so tests
+    observe them deterministically instead of racing the worker threads."""
+
+    def submit(self, fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+
 class PushSubscribeTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="learner@example.com")
@@ -913,6 +921,31 @@ class TelegramLangCommandTests(APITestCase):
         _, kwargs = mock_post.call_args
         self.assertIn("Usage", kwargs["json"]["text"])
 
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_invalid_lang_code_shows_the_current_language(self, mock_post):
+        self.link.default_language = "de"
+        self.link.save(update_fields=["default_language"])
+
+        process_telegram_update(self._update("/lang fr"), "https://api.telegram.org/botX")
+
+        self.link.refresh_from_db()
+        self.assertEqual(self.link.default_language, "de")
+        _, kwargs = mock_post.call_args
+        self.assertIn("Currently set to German", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_valid_lang_reply_restores_the_main_menu(self, mock_post):
+        process_telegram_update(self._update("/lang de"), "https://api.telegram.org/botX")
+
+        self.link.refresh_from_db()
+        self.assertEqual(self.link.default_language, "de")
+        _, kwargs = mock_post.call_args
+        self.assertIn("Got it", kwargs["json"]["text"])
+        buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
+        callback_data = [b["callback_data"] for row in buttons for b in row]
+        self.assertIn("menu:lookup", callback_data)
+        self.assertIn("menu:lang", callback_data)
+
 
 class TelegramPendingLookupTests(APITestCase):
     """A word/sentence sent before /lang is set is remembered on
@@ -1196,8 +1229,12 @@ class TelegramWordLookupTests(APITestCase):
         mock_enrich.return_value = {"translations": [], "pronunciations": [], "article": "none", "plural": "", "example": ""}
         process_telegram_update(self._update("Haus"), "https://api.telegram.org/botX")
         _, kwargs = mock_post.call_args
-        self.assertNotIn("reply_markup", kwargs["json"])
         self.assertIn("translation", kwargs["json"]["text"])
+        # The type-it-yourself prompt still offers the Cancel escape — the
+        # same one the options pickers get, so an abandoned card isn't a
+        # dead end.
+        buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
+        self.assertEqual(buttons[0][0]["callback_data"], f"cancel:{PendingTelegramCard.objects.get(user=self.user).id}")
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
@@ -1404,11 +1441,118 @@ class TelegramWizardFlowTests(APITestCase):
         self.assertFalse(Card.objects.exists())
         self.assertTrue(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
 
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_unknown_create_id_is_noop(self, mock_post):
         process_telegram_update(self._callback("create:999999"), "https://api.telegram.org/botX")
         self.assertFalse(Card.objects.exists())
-        mock_post.assert_called_once()  # only answerCallbackQuery
+        # A stale tap gets exactly one answerCallbackQuery — the alert
+        # explaining the dead button, not a spinner dismiss plus an alert.
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs["json"]["text"], "This card was already added.")
+        self.assertTrue(kwargs["json"]["show_alert"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_stale_choose_back_shows_an_alert(self, mock_post):
+        # The button belongs to a row that's gone (created or replaced by a
+        # newer lookup) — the tap must explain itself instead of going quiet.
+        pending_id = self.pending.id
+        self.pending.delete()
+
+        process_telegram_update(self._callback(f"choose_back:{pending_id}:1"), "https://api.telegram.org/botX")
+
+        self.assertFalse(Card.objects.exists())
+        # One answerCallbackQuery — the alert replaces the spinner dismiss.
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs["json"]["text"], "This action is no longer available.")
+        self.assertTrue(kwargs["json"]["show_alert"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_cancel_text_aborts_the_wizard_and_shows_menu(self, mock_post):
+        # /cancel is the global escape: it works *mid-wizard*, where every
+        # other command/text would be swallowed as a wizard answer.
+        process_telegram_update(self._update("/cancel"), "https://api.telegram.org/botX")
+
+        self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
+        self.assertFalse(Card.objects.exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("OK, cancelled", kwargs["json"]["text"])
+        callback_data = [
+            b["callback_data"] for row in kwargs["json"]["reply_markup"]["inline_keyboard"] for b in row
+        ]
+        self.assertIn("menu:lookup", callback_data)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_cancel_button_aborts_the_wizard_and_shows_menu(self, mock_post):
+        process_telegram_update(self._callback(f"cancel:{self.pending.id}"), "https://api.telegram.org/botX")
+
+        self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
+        self.assertFalse(Card.objects.exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("OK, cancelled", kwargs["json"]["text"])
+        self.assertIn("reply_markup", kwargs["json"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_cancel_works_from_a_finished_proposal(self, mock_post):
+        # awaiting_field is "" once the proposal is on screen — the pending
+        # row still exists, and /cancel should still discard it rather than
+        # leave a stray Create button waiting.
+        self.pending.back = "house"
+        self.pending.awaiting_field = ""
+        self.pending.save(update_fields=["back", "awaiting_field"])
+
+        process_telegram_update(self._update("cancel"), "https://api.telegram.org/botX")
+
+        self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("OK, cancelled", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_cancel_clears_the_stashed_pre_lang_lookup(self, mock_post):
+        # The word/sentence stashed while waiting for /lang is part of the
+        # in-progress state — the global escape clears it too.
+        self.link.pending_lookup_text = "Haus"
+        self.link.pending_lookup_card_type = "vocab"
+        self.link.pending_lookup_expires_at = timezone.now() + timedelta(hours=1)
+        self.link.save(
+            update_fields=["pending_lookup_text", "pending_lookup_card_type", "pending_lookup_expires_at"]
+        )
+
+        process_telegram_update(self._update("/cancel"), "https://api.telegram.org/botX")
+
+        self.link.refresh_from_db()
+        self.assertEqual(self.link.pending_lookup_text, "")
+        self.assertIsNone(self.link.pending_lookup_expires_at)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.attach_thumbnail_from_url")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.create_vocab_card")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_finalize_creation_failure_replies_with_error_and_menu(self, mock_post, mock_create, mock_attach):
+        # The row is claimed before creation, so a failure can't be retried
+        # by re-tapping — the user must be told plainly that it failed and
+        # shown the menu (see poll_telegram_updates._finalize).
+        self.pending.back = "house"
+        self.pending.awaiting_field = ""
+        self.pending.save(update_fields=["back", "awaiting_field"])
+        mock_create.side_effect = RuntimeError("db hiccup")
+
+        process_telegram_update(self._callback(f"create:{self.pending.id}"), "https://api.telegram.org/botX")
+
+        self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
+        self.assertEqual(Card.objects.count(), 0)
+        mock_attach.assert_not_called()
+        sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+        self.assertEqual(len(sendmessage_calls), 1)
+        self.assertIn("Something went wrong", sendmessage_calls[0].kwargs["json"]["text"])
+        callback_data = [
+            b["callback_data"]
+            for row in sendmessage_calls[0].kwargs["json"]["reply_markup"]["inline_keyboard"]
+            for b in row
+        ]
+        self.assertIn("menu:lookup", callback_data)
 
 
 class TelegramProposalImageTests(APITestCase):
@@ -1551,7 +1695,9 @@ class TelegramProposalImageTests(APITestCase):
         self.assertEqual(mock_post.call_count, 2)  # answerCallbackQuery + sendMessage
         args, kwargs = mock_post.call_args
         self.assertIn("sendMessage", args[0])
-        self.assertIn("Added to", kwargs["json"]["text"])
+        self.assertIn('Added "Haus"', kwargs["json"]["text"])
+        self.assertIn("house", kwargs["json"]["text"])
+        self.assertIn("To:", kwargs["json"]["text"])
         # The main menu comes back on the confirmation — without it,
         # PendingTelegramCard is already gone and the user has no guided
         # next step (see poll_telegram_updates._finalize).
@@ -1807,10 +1953,16 @@ class TelegramRegenerateTests(APITestCase):
         self.assertEqual(self.pending.back, "house")  # unchanged — never blanked on a weak AI response
         self.assertEqual(self.pending.reading, "")     # other fields still take the fresh (blank) value
 
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_unknown_pending_id_is_noop(self, mock_post):
         process_telegram_update(self._callback("regenerate:999999"), "https://api.telegram.org/botX")
-        mock_post.assert_called_once()  # only answerCallbackQuery
+        # A stale regenerate tap gets exactly one answerCallbackQuery — the
+        # alert explaining the dead button, replacing the plain dismiss.
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs["json"]["text"], "This action is no longer available.")
+        self.assertTrue(kwargs["json"]["show_alert"])
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
@@ -1822,6 +1974,7 @@ class TelegramRegenerateTests(APITestCase):
         self.pending.refresh_from_db()
         self.assertEqual(self.pending.awaiting_field, "reading")
 
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
     @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_quota_exceeded_leaves_the_existing_proposal_untouched(self, mock_post, mock_quota):
@@ -1832,8 +1985,11 @@ class TelegramRegenerateTests(APITestCase):
 
         self.pending.refresh_from_db()
         self.assertEqual(self.pending.back, "house")
-        _, kwargs = mock_post.call_args
-        self.assertIn("AI limit", kwargs["json"]["text"])
+        # The AI-limit warning is a sendMessage; the tap's answer is a
+        # separate answerCallbackQuery with its own payload shape.
+        sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+        self.assertEqual(len(sendmessage_calls), 1)
+        self.assertIn("AI limit", sendmessage_calls[0].kwargs["json"]["text"])
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
@@ -1878,13 +2034,18 @@ class TelegramMainMenuCallbackTests(APITestCase):
         self.assertEqual(kwargs["json"]["text"], "Send me a sentence.")
         self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
 
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_menu_lang_shows_usage(self, mock_post):
         process_telegram_update(self._callback("menu:lang"), "https://api.telegram.org/botX")
 
-        self.assertEqual(mock_post.call_count, 2)
-        _, kwargs = mock_post.call_args
-        self.assertEqual(kwargs["json"]["text"], "Usage: /lang de or /lang en")
+        # The tap is answered exactly once, and the usage hint is a single
+        # reply — the menu is not a separate second sendMessage.
+        answer_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/answerCallbackQuery")]
+        self.assertEqual(len(answer_calls), 1)
+        sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+        self.assertEqual(len(sendmessage_calls), 1)
+        self.assertEqual(sendmessage_calls[0].kwargs["json"]["text"], "Usage: /lang de or /lang en.")
         self.link.refresh_from_db()
         self.assertEqual(self.link.default_language, "")
 
@@ -1905,6 +2066,35 @@ class TelegramMainMenuCallbackTests(APITestCase):
 
         mock_enrich.assert_called_once_with("Haus", "de", "vocab", "English")
         self.assertTrue(PendingTelegramCard.objects.filter(user=self.user, front="Haus").exists())
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_menu_lookup_during_wizard_guides_instead_of_swallowing(self, mock_post):
+        # A menu prompt mid-wizard must not send the user's next message
+        # into the wizard as a translation — point them at the escape instead
+        # and leave the in-progress card intact.
+        pending = PendingTelegramCard.objects.create(
+            user=self.user, language="de", front="Haus", awaiting_field="back",
+        )
+
+        process_telegram_update(self._callback("menu:lookup"), "https://api.telegram.org/botX")
+
+        self.assertTrue(PendingTelegramCard.objects.filter(id=pending.id).exists())
+        self.assertFalse(Card.objects.exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("middle of a card", kwargs["json"]["text"])
+        self.assertIn("/cancel", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_menu_sentence_during_wizard_guides_instead_of_swallowing(self, mock_post):
+        pending = PendingTelegramCard.objects.create(
+            user=self.user, language="de", front="Haus", awaiting_field="reading",
+        )
+
+        process_telegram_update(self._callback("menu:sentence"), "https://api.telegram.org/botX")
+
+        self.assertTrue(PendingTelegramCard.objects.filter(id=pending.id).exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("middle of a card", kwargs["json"]["text"])
 
 
 class TelegramCallbackQueryEdgeCaseTests(APITestCase):
@@ -2034,8 +2224,11 @@ class TelegramVoiceMessageTests(APITestCase):
         self.assertEqual(pending.reading, "howss")
         self.assertEqual(pending.awaiting_field, "")
         sendmessage_calls = self._sendmessage_calls(mock_post)
-        self.assertEqual(len(sendmessage_calls), 1)
-        self.assertIn("Meaning: house", sendmessage_calls[0].kwargs["json"]["text"])
+        # The transcription echo comes first, then the proposal built on it —
+        # a misheard word is visible before a full proposal is read.
+        self.assertEqual(len(sendmessage_calls), 2)
+        self.assertIn('I heard: "Haus"', sendmessage_calls[0].kwargs["json"]["text"])
+        self.assertIn("Meaning: house", sendmessage_calls[1].kwargs["json"]["text"])
 
     @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
@@ -2062,7 +2255,8 @@ class TelegramVoiceMessageTests(APITestCase):
         self.assertEqual(pending.back, "I am going to the cinema.")
         self.assertEqual(pending.awaiting_field, "")
         sendmessage_calls = self._sendmessage_calls(mock_post)
-        self.assertIn("Sentence: Ich gehe ins Kino.", sendmessage_calls[0].kwargs["json"]["text"])
+        self.assertIn('I heard: "Ich gehe ins Kino."', sendmessage_calls[0].kwargs["json"]["text"])
+        self.assertIn("Sentence: Ich gehe ins Kino.", sendmessage_calls[1].kwargs["json"]["text"])
 
     @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
