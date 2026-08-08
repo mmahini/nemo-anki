@@ -1842,6 +1842,22 @@ kbd {
 .homecard__title { display: block; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
 .homecard__body { display: block; font-size: 0.85rem; color: var(--ink-soft); line-height: 1.55; }
 
+/* Study Buddy — pairing card on Home (invite / pending / paired stats). */
+.buddycard {
+  display: grid; gap: 12px; padding: 18px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm);
+}
+.buddycard__title { margin: 0; font-size: 1rem; }
+.buddycard__hint { margin: 0; font-size: 0.85rem; color: var(--ink-soft); flex: 1; }
+.buddycard__row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.buddycard__row .input { flex: 1; min-width: 180px; }
+.buddycard__stats { display: flex; gap: 18px; flex-wrap: wrap; }
+.buddycard__stat { display: grid; gap: 2px; }
+.buddycard__statlabel { font-size: 0.76rem; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+.buddycard__statvalue { font-size: 1.05rem; font-weight: 700; }
+.buddycard__streak { font-size: 0.82rem; color: var(--ink-soft); }
+
 /* "New version ready" toast — floats bottom-centre; the button activates the
    waiting service worker and reloads. */
 .updatetoast {

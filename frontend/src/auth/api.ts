@@ -1124,3 +1124,46 @@ export function telegramStatus(): Promise<{ connected: boolean }> {
 export function telegramDisconnect(): Promise<void> {
   return jsonRequest("/api/notifications/telegram/disconnect", { method: "POST" });
 }
+
+// ====== Study Buddy ======
+
+export type StreakSummary = { today: number; streak: number };
+
+/** A study buddy is one mutual pairing at a time — invite by email, the
+ * other person accepts, then both see each other's today/streak numbers. */
+export type BuddyState =
+  | { status: "none" }
+  | { status: "pending_sent"; email: string }
+  | { status: "pending_received"; email: string }
+  | {
+      status: "accepted";
+      buddy_email: string;
+      me: StreakSummary;
+      buddy: StreakSummary;
+      nudged_today: boolean;
+    };
+
+export function fetchBuddy(): Promise<BuddyState> {
+  return jsonRequest<BuddyState>("/api/buddy/", { method: "GET" });
+}
+
+export function inviteBuddy(email: string): Promise<BuddyState> {
+  return jsonRequest<BuddyState>("/api/buddy/invite/", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function acceptBuddy(): Promise<BuddyState> {
+  return jsonRequest<BuddyState>("/api/buddy/accept/", { method: "POST" });
+}
+
+/** Cancels a sent invite, declines a received one, or unpairs — same call
+ * for all three, since the backend already knows which one applies. */
+export function removeBuddy(): Promise<void> {
+  return jsonRequest<void>("/api/buddy/", { method: "DELETE" });
+}
+
+export function nudgeBuddy(): Promise<{ nudged_today: boolean }> {
+  return jsonRequest("/api/buddy/nudge/", { method: "POST" });
+}

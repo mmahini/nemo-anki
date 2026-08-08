@@ -264,3 +264,41 @@ def send_digest_telegram(user_id, local_date_iso):
         timeout=10,
     )
     User.objects.filter(id=user_id).update(study_digest_last_sent=local_date_iso)
+
+
+@shared_task
+def send_buddy_nudge_push(user_id, message):
+    """A one-off nudge from a study buddy (apps.buddy.views.BuddyNudgeView) —
+    unlike the reminder/digest sends, there's no *_last_sent field to stamp
+    here: BuddyLink.last_nudge_at already does the once-a-day dedup, set by
+    the view before this task even runs."""
+    user = User.objects.filter(id=user_id).first()
+    if not user:
+        return
+    payload = json.dumps({"title": "Your study buddy says hi", "body": message})
+    for sub in user.push_subscriptions.all():
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": sub.endpoint,
+                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                },
+                data=payload,
+                vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": f"mailto:{settings.VAPID_SUBJECT_EMAIL}"},
+            )
+        except WebPushException as e:
+            if e.response is not None and e.response.status_code in (404, 410):
+                sub.delete()
+
+
+@shared_task
+def send_buddy_nudge_telegram(user_id, message):
+    user = User.objects.filter(id=user_id).select_related("telegram_link").first()
+    if not user or not (hasattr(user, "telegram_link") and user.telegram_link.chat_id):
+        return
+    requests.post(
+        f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
+        json={"chat_id": user.telegram_link.chat_id, "text": message, "reply_markup": _main_menu_keyboard()},
+        timeout=10,
+    )

@@ -15,6 +15,7 @@ from apps.decks.models import Deck
 from apps.subscriptions.quota import AiQuotaMixin, consume_ai_quota
 
 from . import scheduler
+from .activity import current_streak
 from .models import (
     Card,
     CardImage,
@@ -470,16 +471,7 @@ class ReviewActivityView(APIView):
             days.append({"date": day.isoformat(), "count": c, "seconds": round(ms / 1000)})
 
         active = {d for d, (c, _) in by_date.items() if c > 0}
-
-        def run_back(anchor):
-            s, cur = 0, anchor
-            while cur in active:
-                s += 1
-                cur -= datetime.timedelta(days=1)
-            return s
-
-        # Today counts toward the streak once done; before that, yesterday's run still stands.
-        streak = run_back(today) if today in active else run_back(today - datetime.timedelta(days=1))
+        streak = current_streak(active, today)
 
         longest = 0
         if active:
