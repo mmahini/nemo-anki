@@ -1167,3 +1167,42 @@ export function removeBuddy(): Promise<void> {
 export function nudgeBuddy(): Promise<{ nudged_today: boolean }> {
   return jsonRequest("/api/buddy/nudge/", { method: "POST" });
 }
+
+// ====== Classroom ======
+
+/** One-to-many, asymmetric — unlike Study Buddy, a teacher can watch many
+ * students and a student can have several teachers. */
+export type ClassroomStudent = {
+  id: number;
+  student_email: string;
+  status: "pending" | "accepted";
+  student: StreakSummary | null;
+};
+export type ClassroomTeacher = { id: number; teacher_email: string };
+export type ClassroomInvite = { id: number; teacher_email: string };
+
+export function fetchMyStudents(): Promise<ClassroomStudent[]> {
+  return jsonRequest("/api/classroom/students/", { method: "GET" });
+}
+
+export function fetchMyTeachers(): Promise<ClassroomTeacher[]> {
+  return jsonRequest("/api/classroom/teachers/", { method: "GET" });
+}
+
+export function fetchClassroomInvites(): Promise<ClassroomInvite[]> {
+  return jsonRequest("/api/classroom/invites/", { method: "GET" });
+}
+
+export function inviteStudent(email: string): Promise<ClassroomStudent> {
+  return jsonRequest("/api/classroom/invite/", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function acceptClassroomInvite(id: number): Promise<ClassroomTeacher> {
+  return jsonRequest(`/api/classroom/${id}/accept/`, { method: "POST" });
+}
+
+/** Removes a link regardless of side — a teacher dropping a student, or a
+ * student declining an invite / leaving an accepted classroom. */
+export function removeClassroomLink(id: number): Promise<void> {
+  return jsonRequest<void>(`/api/classroom/${id}/`, { method: "DELETE" });
+}

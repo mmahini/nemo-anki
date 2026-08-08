@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "apps.placement",
     "apps.notifications",
     "apps.buddy",
+    "apps.classroom",
 ]
 
 AUTH_USER_MODEL = "accounts.User"

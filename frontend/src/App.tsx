@@ -25,6 +25,7 @@ import PlacementTestRun from "./pages/PlacementTestRun";
 import Practice from "./pages/Practice";
 import Support from "./pages/Support";
 import Subscribe from "./pages/Subscribe";
+import Classroom from "./pages/Classroom";
 import BackendStatus from "./components/BackendStatus";
 import UpdateToast from "./components/UpdateToast";
 
@@ -90,6 +91,7 @@ export default function App() {
               />
               <Route path="/app/support" element={<Support />} />
               <Route path="/app/subscribe" element={<Subscribe />} />
+              <Route path="/app/classroom" element={<Classroom />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

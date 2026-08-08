@@ -14,7 +14,8 @@
     "practice": "Practice",
     "quiz": "Quiz",
     "howItWorks": "How it works",
-    "invite": "Invite friends"
+    "invite": "Invite friends",
+    "classroom": "Classroom"
   },
   "studyReminder": {
     "label": "Daily reminder",
@@ -58,6 +59,20 @@
     "nudgeBtn": "👋 Nudge",
     "nudgedBtn": "Nudged today ✓",
     "unpairBtn": "Unpair"
+  },
+  "classroom": {
+    "title": "Classroom",
+    "myStudents": "My students ({{count}})",
+    "myTeachers": "My teachers ({{count}})",
+    "studentsHint": "Invite a student by email to watch their progress once they accept.",
+    "inviteBtn": "Invite",
+    "inviting": "Inviting…",
+    "noStudents": "No students yet — invite one above.",
+    "noTeachers": "No one's watching your progress.",
+    "pending": "Pending",
+    "invitedYou": "{{email}} invited you to their classroom",
+    "removeBtn": "Remove",
+    "revokeBtn": "Revoke"
   },
   "pwa": {
     "updateReady": "A new version is ready",

@@ -1858,6 +1858,22 @@ kbd {
 .buddycard__statvalue { font-size: 1.05rem; font-weight: 700; }
 .buddycard__streak { font-size: 0.82rem; color: var(--ink-soft); }
 
+/* Classroom — teacher/student roster page (asymmetric counterpart to the
+   Study Buddy card): a segmented tab switch over two lists. */
+.classroom { display: grid; gap: 16px; }
+.classroom__tabs { margin: 0; }
+.classroom__panel { display: grid; gap: 14px; }
+.classroom__list {
+  list-style: none; margin: 0; padding: 0;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); overflow: hidden;
+}
+.classroom__row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--line-soft); }
+.classroom__row:last-child { border-bottom: none; }
+.classroom__email { flex: 1; min-width: 0; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.classroom__status { font-size: 0.8rem; color: var(--ink-faint); }
+.classroom__stats { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+
 /* "New version ready" toast — floats bottom-centre; the button activates the
    waiting service worker and reloads. */
 .updatetoast {
