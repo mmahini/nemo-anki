@@ -14,7 +14,8 @@
     "practice": "تمرین",
     "quiz": "کوییز",
     "howItWorks": "راهنمای شروع",
-    "invite": "دعوت از دوستان"
+    "invite": "دعوت از دوستان",
+    "classroom": "کلاس"
   },
   "studyReminder": {
     "label": "یادآوری روزانه",
@@ -58,6 +59,20 @@
     "nudgeBtn": "👋 یادآوری بفرست",
     "nudgedBtn": "امروز فرستادی ✓",
     "unpairBtn": "جدا شدن"
+  },
+  "classroom": {
+    "title": "کلاس",
+    "myStudents": "دانش‌آموزهای من ({{count}})",
+    "myTeachers": "معلم‌های من ({{count}})",
+    "studentsHint": "با ایمیل یک دانش‌آموز را دعوت کن تا بعد از پذیرفتن، پیشرفتش را ببینی.",
+    "inviteBtn": "دعوت",
+    "inviting": "در حال دعوت…",
+    "noStudents": "هنوز دانش‌آموزی نداری — از بالا دعوت کن.",
+    "noTeachers": "کسی پیشرفت تو را نمی‌بیند.",
+    "pending": "در انتظار",
+    "invitedYou": "{{email}} تو را به کلاسش دعوت کرد",
+    "removeBtn": "حذف",
+    "revokeBtn": "لغو دسترسی"
   },
   "pwa": {
     "updateReady": "نسخهٔ جدید آماده است",
