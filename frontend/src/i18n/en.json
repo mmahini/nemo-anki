@@ -42,6 +42,23 @@
     "importTitle": "Import",
     "importBody": "Paste a word list or bring an Anki deck — the cards get built for you."
   },
+  "studyBuddy": {
+    "title": "Study Buddy",
+    "hint": "Pair up with a friend to see each other's progress.",
+    "emailPlaceholder": "friend@example.com",
+    "inviteBtn": "Invite",
+    "inviting": "Inviting…",
+    "waitingFor": "Waiting for {{email}} to accept…",
+    "cancelBtn": "Cancel",
+    "invitedYou": "{{email}} wants to be your study buddy",
+    "acceptBtn": "Accept",
+    "declineBtn": "Decline",
+    "you": "You",
+    "todayCount": "{{count}} today",
+    "nudgeBtn": "👋 Nudge",
+    "nudgedBtn": "Nudged today ✓",
+    "unpairBtn": "Unpair"
+  },
   "pwa": {
     "updateReady": "A new version is ready",
     "updateBtn": "Update",

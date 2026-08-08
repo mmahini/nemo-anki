@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -13,6 +13,7 @@ from apps.subscriptions.models import AiUsage
 from apps.subscriptions.plans import TRIAL_DAILY_AI_LIMIT
 
 from . import scheduler
+from .activity import streak_summary
 from .models import Card, ReviewLog
 
 User = get_user_model()
@@ -368,3 +369,48 @@ class CardMnemonicViewTests(APITestCase):
         self.client.force_authenticate(None)
         res = self.client.post(self.url)
         self.assertEqual(res.status_code, 401)
+
+
+class StreakSummaryTests(TestCase):
+    """apps.cards.activity.streak_summary — shared by ReviewActivityView (the
+    Stats page) and apps.buddy's progress comparison."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        self.config = DeckConfig.objects.create(user=self.user)
+        self.deck = Deck.objects.create(user=self.user, name="German", config=self.config)
+        self.card = Card.objects.create(deck=self.deck, front="Tisch")
+        self.today = date(2026, 8, 10)  # a Monday, arbitrary fixed anchor
+
+    def _log_on(self, day: date):
+        log = ReviewLog.objects.create(
+            card=self.card, user=self.user, rating=3,
+            state_before="new", state_after="review", prev_snapshot={},
+        )
+        ReviewLog.objects.filter(pk=log.pk).update(
+            reviewed_at=timezone.make_aware(datetime.combine(day, datetime.min.time()))
+        )
+
+    def test_no_activity_is_zero_today_and_zero_streak(self):
+        self.assertEqual(streak_summary(self.user, self.today), {"today": 0, "streak": 0})
+
+    def test_counts_todays_reviews(self):
+        self._log_on(self.today)
+        self._log_on(self.today)
+        self.assertEqual(streak_summary(self.user, self.today)["today"], 2)
+
+    def test_streak_counts_consecutive_days_ending_today(self):
+        for d in (self.today, self.today - timedelta(days=1), self.today - timedelta(days=2)):
+            self._log_on(d)
+        self.assertEqual(streak_summary(self.user, self.today)["streak"], 3)
+
+    def test_streak_survives_before_todays_review_using_yesterday(self):
+        # Studied every day through yesterday, hasn't opened the app yet today.
+        for d in (self.today - timedelta(days=1), self.today - timedelta(days=2)):
+            self._log_on(d)
+        self.assertEqual(streak_summary(self.user, self.today)["streak"], 2)
+
+    def test_gap_breaks_the_streak(self):
+        self._log_on(self.today)
+        self._log_on(self.today - timedelta(days=2))  # gap at yesterday
+        self.assertEqual(streak_summary(self.user, self.today)["streak"], 1)

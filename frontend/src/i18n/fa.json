@@ -42,6 +42,23 @@
     "importTitle": "وارد کردن",
     "importBody": "یک لیست کلمه بچسبان یا یک دستهٔ انکی بیاور — کارت‌ها خودشان ساخته می‌شوند."
   },
+  "studyBuddy": {
+    "title": "همراه مطالعه",
+    "hint": "با یه دوست جفت شو تا پیشرفت همدیگه رو ببینید.",
+    "emailPlaceholder": "friend@example.com",
+    "inviteBtn": "دعوت",
+    "inviting": "در حال دعوت…",
+    "waitingFor": "منتظر تأیید {{email}}…",
+    "cancelBtn": "لغو",
+    "invitedYou": "{{email}} می‌خواد همراه مطالعه‌ات بشه",
+    "acceptBtn": "قبول",
+    "declineBtn": "رد کردن",
+    "you": "تو",
+    "todayCount": "{{count}} امروز",
+    "nudgeBtn": "👋 یادآوری بفرست",
+    "nudgedBtn": "امروز فرستادی ✓",
+    "unpairBtn": "جدا شدن"
+  },
   "pwa": {
     "updateReady": "نسخهٔ جدید آماده است",
     "updateBtn": "به‌روزرسانی",

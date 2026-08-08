@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "apps.support",
     "apps.placement",
     "apps.notifications",
+    "apps.buddy",
 ]
 
 AUTH_USER_MODEL = "accounts.User"

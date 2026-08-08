@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { fetchDecks, type Deck } from "../auth/api";
 import { useAuth } from "../auth/AuthContext";
 import DailyDashboard from "../components/DailyDashboard";
+import StudyBuddyCard from "../components/StudyBuddyCard";
 
 /** Home: today's numbers and the study CTA (DailyDashboard), plus the
  * doorways that used to crowd the deck list — Books and Import. The deck
@@ -45,6 +46,8 @@ export default function Home() {
       ) : (
         <DailyDashboard decks={decks} />
       )}
+
+      <StudyBuddyCard />
 
       <div className="home__grid">
         <Link className="homecard" to="/app/books">
