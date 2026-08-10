@@ -406,7 +406,6 @@ kbd {
 .teamcard__bio p { margin: 0 0 12px; }
 .teamcard__bio p:last-child { margin-bottom: 0; }
 .teamcard__bio[dir="rtl"] { text-align: right; }
-.teamcard__contact { font-size: 0.9rem; font-weight: 600; }
 
 /* ---------- CTA band ---------- */
 .ctaband { padding: 30px 24px 88px; }
