@@ -390,6 +390,24 @@ kbd {
 .langpanel__chips > span { font-weight: 800; padding: 4px 12px; border-radius: 999px; font-size: 0.9rem; }
 .langpanel__list { margin: 0; padding-left: 18px; color: var(--ink-soft); line-height: 1.75; font-size: 0.95rem; }
 
+/* ---------- About ---------- */
+.about { padding: 84px 24px; }
+.about__grid { max-width: 940px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 22px; }
+.teamcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 28px 26px; text-align: center; }
+.teamcard__avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: 50%; margin-bottom: 14px;
+  background: rgba(76, 110, 245, 0.12); color: var(--brand-dark);
+  font-weight: 800; font-size: 1.05rem;
+}
+.teamcard__name { font-size: 1.1rem; margin: 0 0 4px; }
+.teamcard__role { color: var(--brand-dark); font-weight: 600; font-size: 0.9rem; margin: 0 0 14px; }
+.teamcard__bio { color: var(--ink-soft); line-height: 1.65; font-size: 0.95rem; margin: 0 0 16px; text-align: left; }
+.teamcard__bio p { margin: 0 0 12px; }
+.teamcard__bio p:last-child { margin-bottom: 0; }
+.teamcard__bio[dir="rtl"] { text-align: right; }
+.teamcard__contact { font-size: 0.9rem; font-weight: 600; }
+
 /* ---------- CTA band ---------- */
 .ctaband { padding: 30px 24px 88px; }
 .ctaband__inner {
