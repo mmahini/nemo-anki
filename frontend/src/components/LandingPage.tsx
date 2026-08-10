@@ -357,9 +357,6 @@ export default function LandingPage() {
                 throughout the entire process of learning a language.
               </p>
             </div>
-            <a href="mailto:amene.yazdian101@gmail.com" className="teamcard__contact">
-              amene.yazdian101@gmail.com
-            </a>
           </article>
 
           <article className="teamcard">
@@ -381,9 +378,6 @@ export default function LandingPage() {
                 real-world, practical, and meaningful projects.
               </p>
             </div>
-            <a href="mailto:S.salehi2112@gmail.com" className="teamcard__contact">
-              S.salehi2112@gmail.com
-            </a>
           </article>
         </div>
       </section>
