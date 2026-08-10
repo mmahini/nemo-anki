@@ -125,6 +125,7 @@ export default function LandingPage() {
         <div className="landing__navlinks">
           <a href="#features" className="landing__navlink">Features</a>
           <a href="#ai" className="landing__navlink">How it works</a>
+          <a href="#about" className="landing__navlink">About</a>
           {/* Always go to /app — ProtectedRoute sends guests to sign-in, so a
               signed-in user is never asked to log in again. */}
           <Link to="/app" className="btn btn--ghost">
@@ -300,6 +301,89 @@ export default function LandingPage() {
               <li>Natural example sentences for every entry</li>
               <li>Reverse cards to test recall both ways</li>
             </ul>
+          </article>
+        </div>
+      </section>
+
+      {/* ---------- ABOUT ---------- */}
+      <section className="about" id="about">
+        <header className="section-head">
+          <span className="section-kicker">About us</span>
+          <h2>Why we built Nemo Anki</h2>
+          <p>
+            Most language apps cover one slice of learning — flashcards, or reading,
+            or conversation. We felt a genuinely complete tool was possible: one that
+            supports every side of learning a language, in the same place.
+          </p>
+        </header>
+
+        <div className="about__grid">
+          <article className="teamcard">
+            <span className="teamcard__avatar">AY</span>
+            <h3 className="teamcard__name">Amene Yazdian</h3>
+            <p className="teamcard__role">AI builder &amp; creator of Nemo Anki</p>
+            <div className="teamcard__bio">
+              <p>
+                I'm a Front-End Developer with React and JavaScript at the core of my
+                expertise. However, over the past few months, my journey has expanded
+                beyond front-end development, and I've become an <strong>AI Builder</strong>{" "}
+                — someone who can take an idea from UI design and development all the
+                way to the backend, product logic, and AI-powered features.
+              </p>
+              <p>
+                This transition wasn't just about learning a few new technologies; it
+                completely changed the way I think about building products. Today, I can
+                take an idea from scratch, design its architecture, develop its
+                different components, and ultimately turn it into a real, usable
+                product.
+              </p>
+              <p>
+                The idea for <strong>Nemo Anki</strong> came directly from this journey.
+              </p>
+              <p>
+                For a long time, while using different language-learning apps, I kept
+                running into the same problem: each app was good at one particular area,
+                but often lacked the others. One was great for flashcards, another
+                focused on reading, some prioritized speaking, while others focused on
+                writing. But there were very few tools that brought all of these
+                elements together into one cohesive experience that could support the
+                entire language-learning process.
+              </p>
+              <p>
+                That's why I built <strong>Nemo Anki</strong> — a platform designed to
+                bring flashcards, reading, writing, and speaking together in one place,
+                rather than focusing on just one aspect of language learning. The goal
+                is to create a more complete learning experience that supports the user
+                throughout the entire process of learning a language.
+              </p>
+            </div>
+            <a href="mailto:amene.yazdian101@gmail.com" className="teamcard__contact">
+              amene.yazdian101@gmail.com
+            </a>
+          </article>
+
+          <article className="teamcard">
+            <span className="teamcard__avatar">SS</span>
+            <h3 className="teamcard__name">Sahar Salehi</h3>
+            <p className="teamcard__role">Backend developer &amp; AI enthusiast</p>
+            <div className="teamcard__bio">
+              <p>
+                I am passionate about programming, artificial intelligence, and backend
+                development. I am currently pursuing my learning journey with a focus on
+                Python, Java, and AI-related concepts, while developing a strong
+                interest in building reliable and efficient backend systems.
+              </p>
+              <p>
+                Curiosity, problem-solving, and continuous learning are very important
+                to me. My goal is to strengthen my programming and backend development
+                skills, deepen my understanding of artificial intelligence, and
+                gradually grow from a learner into someone capable of building
+                real-world, practical, and meaningful projects.
+              </p>
+            </div>
+            <a href="mailto:S.salehi2112@gmail.com" className="teamcard__contact">
+              S.salehi2112@gmail.com
+            </a>
           </article>
         </div>
       </section>
