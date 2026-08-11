@@ -2403,3 +2403,227 @@ class TelegramVoiceMessageTests(APITestCase):
         self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
         _, kwargs = mock_post.call_args
         self.assertIn("AI limit", kwargs["json"]["text"])
+
+
+class TelegramPhotoMessageTests(APITestCase):
+    """Photo messages are an *input method*, not a separate premium AI
+    feature: the image is OCR'd (Gemini — one quota unit, the same logical
+    lookup a typed word costs) and the result is routed through the exact
+    same word/sentence card pipeline as typed text, via
+    _propose_word/_propose_sentence."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="photo@example.com")
+        self.link = TelegramLink.objects.create(
+            user=self.user, chat_id=777, default_language="de", default_back_language="English",
+        )
+
+    def _photo(self, sizes=None, chat_id=777):
+        return {
+            "update_id": 1,
+            "message": {
+                "photo": sizes or [
+                    {"file_id": "small", "width": 320, "height": 240, "file_size": 2000},
+                    {"file_id": "large", "width": 1280, "height": 960, "file_size": 5000},
+                ],
+                "chat": {"id": chat_id},
+            },
+        }
+
+    def _sendmessage_calls(self, mock_post):
+        return [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.extract_text_from_image")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_photo_word_flows_into_the_existing_word_pipeline(
+        self, mock_post, mock_download, mock_ocr, mock_enrich, mock_delay
+    ):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        mock_download.return_value = b"jpegdata"
+        mock_ocr.return_value = {"text": "Haus", "kind": "word"}
+        mock_enrich.return_value = {
+            "translations": ["house", "home"], "pronunciations": ["howss"],
+            "article": "das", "plural": "Häuser", "example": "Das ist mein Haus.",
+        }
+
+        process_telegram_update(self._photo(), "https://api.telegram.org/botX")
+
+        # The largest photo size is downloaded, OCR'd once, then fed through
+        # the exact same _propose_word pipeline as typed text.
+        mock_download.assert_called_once_with(
+            "https://api.telegram.org/botX", "large", max_bytes=10 * 1024 * 1024
+        )
+        mock_ocr.assert_called_once_with(b"jpegdata", mime_type="image/jpeg", language="de")
+        mock_enrich.assert_called_once_with("Haus", "de", "vocab", "English")
+        pending = PendingTelegramCard.objects.get(user=self.user)
+        self.assertEqual(pending.card_type, "vocab")
+        self.assertEqual(pending.front, "Haus")
+        self.assertEqual(pending.back, "house")
+        self.assertEqual(pending.reading, "howss")
+        self.assertEqual(pending.awaiting_field, "")
+        sendmessage_calls = self._sendmessage_calls(mock_post)
+        # The OCR echo comes first, then the proposal built on it — a misread
+        # photo is visible before a full proposal is read.
+        self.assertEqual(len(sendmessage_calls), 2)
+        self.assertIn('📷 I read: "Haus"', sendmessage_calls[0].kwargs["json"]["text"])
+        self.assertIn("Meaning: house", sendmessage_calls[1].kwargs["json"]["text"])
+
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.extract_text_from_image")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_photo_sentence_flows_into_the_existing_sentence_pipeline(
+        self, mock_post, mock_download, mock_ocr, mock_enrich, mock_delay
+    ):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        mock_download.return_value = b"jpegdata"
+        mock_ocr.return_value = {"text": "Ich gehe ins Kino.", "kind": "sentence"}
+        mock_enrich.return_value = {
+            "back": "I am going to the cinema.", "reading": "", "article": "none",
+            "plural": "", "example": "",
+        }
+
+        process_telegram_update(self._photo(), "https://api.telegram.org/botX")
+
+        mock_enrich.assert_called_once_with("Ich gehe ins Kino.", "de", "sentence", "English")
+        pending = PendingTelegramCard.objects.get(user=self.user)
+        self.assertEqual(pending.card_type, "sentence")
+        self.assertEqual(pending.front, "Ich gehe ins Kino.")
+        self.assertEqual(pending.back, "I am going to the cinema.")
+        self.assertEqual(pending.awaiting_field, "")
+        sendmessage_calls = self._sendmessage_calls(mock_post)
+        self.assertIn('📷 I read: "Ich gehe ins Kino."', sendmessage_calls[0].kwargs["json"]["text"])
+        self.assertIn("Sentence: Ich gehe ins Kino.", sendmessage_calls[1].kwargs["json"]["text"])
+
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.extract_text_from_image")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_photo_consumes_quota_exactly_once(
+        self, mock_post, mock_quota, mock_download, mock_ocr, mock_enrich, mock_delay
+    ):
+        # OCR + enrichment are two Gemini calls, but they are one logical
+        # lookup — quota must be charged exactly once, up front.
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        mock_download.return_value = b"jpegdata"
+        mock_ocr.return_value = {"text": "Haus", "kind": "word"}
+        mock_enrich.return_value = {
+            "translations": ["house"], "pronunciations": [], "article": "das", "plural": "", "example": "",
+        }
+
+        process_telegram_update(self._photo(), "https://api.telegram.org/botX")
+
+        mock_quota.assert_called_once_with(self.user)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.extract_text_from_image")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_photo_without_language_prompts_lang(self, mock_post, mock_quota, mock_download, mock_ocr):
+        self.link.default_language = ""
+        self.link.save(update_fields=["default_language"])
+
+        process_telegram_update(self._photo(), "https://api.telegram.org/botX")
+
+        mock_quota.assert_not_called()
+        mock_download.assert_not_called()
+        mock_ocr.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("/lang", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_photo_too_large_is_rejected(self, mock_post, mock_quota, mock_download):
+        process_telegram_update(
+            self._photo(
+                sizes=[{"file_id": "big", "width": 4000, "height": 3000, "file_size": 10 * 1024 * 1024 + 1}]
+            ),
+            "https://api.telegram.org/botX",
+        )
+
+        mock_quota.assert_not_called()
+        mock_download.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("too large", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.extract_text_from_image")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_download_failure_degrades_to_text_prompt(self, mock_post, mock_download, mock_ocr):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        mock_download.return_value = None
+
+        process_telegram_update(self._photo(), "https://api.telegram.org/botX")
+
+        mock_ocr.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        sendmessage_calls = self._sendmessage_calls(mock_post)
+        self.assertEqual(len(sendmessage_calls), 1)
+        self.assertIn("couldn't download", sendmessage_calls[0].kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.extract_text_from_image")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_ocr_failure_degrades_to_text_prompt(
+        self, mock_post, mock_download, mock_ocr, mock_enrich
+    ):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        mock_download.return_value = b"jpegdata"
+        mock_ocr.return_value = {"text": "", "kind": "word"}
+
+        process_telegram_update(self._photo(), "https://api.telegram.org/botX")
+
+        mock_enrich.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        sendmessage_calls = self._sendmessage_calls(mock_post)
+        self.assertEqual(len(sendmessage_calls), 1)
+        self.assertIn("couldn't make out", sendmessage_calls[0].kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_photo_mid_wizard_is_rejected_not_parsed(self, mock_post, mock_download):
+        pending = PendingTelegramCard.objects.create(
+            user=self.user, language="de", front="Haus", back="", awaiting_field="back",
+        )
+
+        process_telegram_update(self._photo(), "https://api.telegram.org/botX")
+
+        mock_download.assert_not_called()
+        pending.refresh_from_db()
+        self.assertEqual(pending.awaiting_field, "back")
+        _, kwargs = mock_post.call_args
+        self.assertIn("as text", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_photo_requires_connected_account(self, mock_post, mock_download):
+        process_telegram_update(self._photo(chat_id=999), "https://api.telegram.org/botX")
+
+        mock_download.assert_not_called()
+        _, kwargs = mock_post.call_args
+        self.assertIn("Connect your account", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.download_telegram_file")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_photo_quota_exceeded_replies_with_message(self, mock_post, mock_quota, mock_download):
+        from rest_framework.exceptions import Throttled
+
+        mock_quota.side_effect = Throttled(detail="You've reached today's AI limit (40).")
+
+        process_telegram_update(self._photo(), "https://api.telegram.org/botX")
+
+        mock_download.assert_not_called()
+        self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
+        _, kwargs = mock_post.call_args
+        self.assertIn("AI limit", kwargs["json"]["text"])

@@ -537,6 +537,66 @@ def transcribe_audio(audio_bytes: bytes, mime_type: str = "audio/ogg", language:
         return {"text": "", "kind": "word"}
 
 
+_IMAGE_OCR_PROMPT = """Extract the {language_name} text visible in this photo — \
+it is a single word, phrase, or short passage a language learner photographed \
+(e.g. a book page, a label, a note). Return ONLY JSON (no markdown, no commentary):
+{{"text": "<the exact text visible in the image>", "kind": "word" or "sentence"}}
+"kind" is "word" for a single word or short phrase, "sentence" for a full \
+sentence or passage. If the image contains no readable text, return \
+{{"text": "", "kind": "word"}}.
+"""
+
+
+def extract_text_from_image(image_bytes: bytes, mime_type: str = "image/jpeg", language: str = "") -> dict:
+    """Extract the text in a photo (e.g. a Telegram photo message) into what's
+    written, ready to drive the word/sentence card lookup. Returns
+    {"text": str, "kind": "word"|"sentence"}; on failure (no API key, no image,
+    network/parse error) it degrades to {"text": "", "kind": "word"} so the
+    caller can fall back to the typed-text path.
+
+    The bytes are sent to Gemini directly via inline_data — the same pattern
+    transcribe_audio uses for voice, so there's no separate OCR service or
+    image preprocessing step to install or run. mime_type must match the
+    source container (image/jpeg for Telegram photos)."""
+    if not image_bytes or not settings.GEMINI_API_KEY:
+        return {"text": "", "kind": "word"}
+    prompt = _IMAGE_OCR_PROMPT.format(
+        language_name=_LANG_NAMES.get(language, "the target language")
+    )
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+    )
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": mime_type or "image/jpeg",
+                            "data": base64.b64encode(image_bytes).decode("ascii"),
+                        }
+                    },
+                ]
+            }
+        ],
+        "generationConfig": {"temperature": 0.0, "responseMimeType": "application/json"},
+    }
+    verify = getattr(settings, "GEMINI_VERIFY_SSL", True)
+    try:
+        res = requests.post(url, json=payload, timeout=60, verify=verify)
+        res.raise_for_status()
+        raw = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+        obj = _extract_json_object(raw)
+        text = str(obj.get("text", "")).strip()
+        kind = "sentence" if obj.get("kind") == "sentence" else "word"
+        return {"text": text, "kind": kind}
+    except Exception:  # noqa: BLE001 — a Gemini hiccup degrades to the typed path
+        logger.exception("Gemini image OCR failed")
+        return {"text": "", "kind": "word"}
+
+
 def writing_topic(language: str) -> dict:
     """Suggest one short writing-practice topic for a learner of `language`."""
     name = _writing_lang_name(language)

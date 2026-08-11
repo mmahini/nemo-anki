@@ -15,7 +15,12 @@ from rest_framework.exceptions import Throttled
 from urllib3.util.retry import Retry
 
 from apps.cards.image_search import attach_thumbnail_from_url
-from apps.imports.gemini import enrich_card, enrich_card_options, transcribe_audio
+from apps.imports.gemini import (
+    enrich_card,
+    enrich_card_options,
+    extract_text_from_image,
+    transcribe_audio,
+)
 from apps.imports.services import create_sentence_card, create_vocab_card
 from apps.notifications.models import PendingTelegramCard, TelegramLink, TelegramPollerState
 from apps.subscriptions.quota import consume_ai_quota
@@ -46,6 +51,13 @@ MAX_LOOKUP_TEXT_LENGTH = 200
 # and its user-facing replies live with the flow that uses them.
 _VOICE_MAX_DURATION_SECONDS = 30
 _VOICE_MAX_BYTES = 10 * 1024 * 1024
+
+# Telegram photo messages (message.photo) arrive as several compressed sizes;
+# the largest is OCR'd. Cap both that size and the downloaded bytes so a huge
+# image can't stall the poller or run up Gemini cost — enforced here (not
+# inside extract_text_from_image) so the cap and its user-facing replies live
+# with the flow that uses them, mirroring the voice caps above.
+_PHOTO_MAX_BYTES = 10 * 1024 * 1024
 
 _CONNECT_FIRST_TEXT = 'Connect your account first — open Nemo Anki and tap "Connect Telegram".'
 
@@ -623,6 +635,63 @@ def _handle_voice_message(link: TelegramLink, api: str, chat_id, voice: dict) ->
         _propose_word(link, api, chat_id, text)
 
 
+def _largest_photo(photo: list) -> dict:
+    """Telegram sends one photo as an array of sizes (thumbnail → full); pick
+    the highest-resolution one for OCR so small text stands a chance."""
+    if not photo:
+        return {}
+    return max(photo, key=lambda p: (p.get("width") or 0) * (p.get("height") or 0))
+
+
+def _handle_photo_message(link: TelegramLink, api: str, chat_id, photo: list) -> None:
+    """A Telegram photo message is an *input method*, not a separate premium
+    AI feature: the image is OCR'd with Gemini (one AI call, one quota unit —
+    the same logical lookup a typed word costs) and the extracted text is fed
+    into the exact same word/sentence card pipeline as typed text, via
+    _propose_word/_propose_sentence (so they share the quota semantics and the
+    proposal UI). The bytes go straight to Gemini via inline_data — the same
+    pattern transcribe_audio uses for voice, so there's no separate OCR
+    service or image preprocessing step."""
+    largest = _largest_photo(photo)
+    if not largest or not largest.get("file_id"):
+        _reply(api, chat_id, "📷 I couldn't read that photo — send the word as text instead.")
+        return
+    if (largest.get("file_size") or 0) > _PHOTO_MAX_BYTES:
+        _reply(api, chat_id, "📷 That photo is too large — send the word as text instead.")
+        return
+    if not link.default_language:
+        _reply(api, chat_id, "Tell me your language first — send /lang de or /lang en.")
+        return
+    try:
+        consume_ai_quota(link.user)
+    except Throttled as e:
+        _reply(api, chat_id, str(e.detail))
+        return
+
+    _send_typing(api, chat_id)
+    data = download_telegram_file(api, largest["file_id"], max_bytes=_PHOTO_MAX_BYTES)
+    if not data:
+        _reply(api, chat_id, "📷 I couldn't download that photo — send the word as text instead.")
+        return
+    result = extract_text_from_image(
+        data, mime_type="image/jpeg", language=link.default_language
+    )
+    text = result.get("text", "")
+    if not text:
+        _reply(api, chat_id, "📷 I couldn't make out the text in that photo — send the word as text instead.")
+        return
+    text = text[:MAX_LOOKUP_TEXT_LENGTH]
+    # Echo what was read before the (multi-second) Gemini enrichment runs —
+    # a misread photo should be obvious to the user *before* they read a
+    # full proposal built around it, so they can /cancel instead of being
+    # presented with a card for the wrong text.
+    _reply(api, chat_id, f'📷 I read: "{text}" — one moment…')
+    if result.get("kind") == "sentence":
+        _propose_sentence(link, api, chat_id, text)
+    else:
+        _propose_word(link, api, chat_id, text)
+
+
 def _handle_reply(pending: PendingTelegramCard, api: str, chat_id, text: str) -> None:
     if pending.awaiting_field == "back":
         pending.back = text
@@ -780,9 +849,10 @@ def process_telegram_update(update: dict, api: str) -> None:
     (straight to a proposal, no picker), a word-lookup wizard (translation
     options, then pronunciation options, then a Create/Edit proposal
     screen), a voice message (transcribed, then routed into the same word/
-    sentence pipeline — it's an input method, never a wizard answer), or a
-    wizard button tap. Split out from the poll loop so it's unit-testable
-    without an infinite loop or a live getUpdates call.
+    sentence pipeline — it's an input method, never a wizard answer), a photo
+    message (OCR'd the same way — extracted text routed into the same word/
+    sentence pipeline), or a wizard button tap. Split out from the poll loop
+    so it's unit-testable without an infinite loop or a live getUpdates call.
     """
     if "callback_query" in update:
         _handle_callback_query(update, api)
@@ -791,8 +861,9 @@ def process_telegram_update(update: dict, api: str) -> None:
     message = update.get("message") or {}
     text = (message.get("text") or "").strip()
     voice = message.get("voice") or {}
+    photo = message.get("photo") or []
     chat_id = (message.get("chat") or {}).get("id")
-    if not (text or voice.get("file_id")) or not chat_id:
+    if not (text or voice.get("file_id") or photo) or not chat_id:
         return
 
     # Bare "start"/"menu"/"help" (no leading slash) are treated the same as
@@ -824,6 +895,16 @@ def process_telegram_update(update: dict, api: str) -> None:
             _reply(api, chat_id, "Please send that as text while we finish your card.")
             return
         _handle_voice_message(link, api, chat_id, voice)
+        return
+
+    if photo:
+        # Photo is an input method, but never a mid-wizard answer — its
+        # extracted text can't be relied on to fill a wizard field, so reject
+        # it rather than letting it fall through _handle_reply.
+        if pending and pending.awaiting_field:
+            _reply(api, chat_id, "Please send that as text while we finish your card.")
+            return
+        _handle_photo_message(link, api, chat_id, photo)
         return
 
     if pending and pending.awaiting_field:
@@ -892,7 +973,8 @@ class Command(BaseCommand):
         "welcome/help reply if there's no token to link), /lang sets a study language, /help "
         "repeats onboarding instructions, /menu shows the main menu keyboard, /sentence <text> "
         "proposes a sentence card directly, voice messages are transcribed (Gemini) and routed "
-        "into the same word/sentence proposal pipeline, and any other text starts a "
+        "into the same word/sentence proposal pipeline, photo messages are OCR'd (Gemini) the "
+        "same way, and any other text starts a "
         "translation/pronunciation wizard ending in a Create/Edit proposal screen (no public "
         "webhook needed)."
     )
