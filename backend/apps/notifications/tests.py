@@ -485,7 +485,9 @@ class SendReminderTelegramTests(APITestCase):
         ]
         self.assertIn("🔎 Lookup word", button_texts)
         self.assertIn("📝 Sentence", button_texts)
-        self.assertIn("🌐 Language", button_texts)
+        self.assertIn("📚 Study", button_texts)
+        self.assertIn("⚙️ Settings", button_texts)
+        self.assertIn("❓ Help", button_texts)
 
     @patch("apps.notifications.tasks.requests.post")
     def test_mentions_selected_language_when_set(self, mock_post):
@@ -552,7 +554,11 @@ class ProcessTelegramUpdateTests(APITestCase):
         mock_post.assert_called_once()
         _, kwargs = mock_post.call_args
         self.assertIn("Connected!", kwargs["json"]["text"])
-        self.assertIn("/lang", kwargs["json"]["text"])
+        self.assertIn("Welcome to Nemo Anki", kwargs["json"]["text"])
+        # Voice/image have no dedicated menu button — the welcome text is
+        # where a first-time user learns they exist at all.
+        self.assertIn("voice message", kwargs["json"]["text"])
+        self.assertIn("image", kwargs["json"]["text"])
         self.assertIn("reply_markup", kwargs["json"])
         button_texts = [
             button["text"]
@@ -561,7 +567,9 @@ class ProcessTelegramUpdateTests(APITestCase):
         ]
         self.assertIn("🔎 Lookup word", button_texts)
         self.assertIn("📝 Sentence", button_texts)
-        self.assertIn("🌐 Language", button_texts)
+        self.assertIn("📚 Study", button_texts)
+        self.assertIn("⚙️ Settings", button_texts)
+        self.assertIn("❓ Help", button_texts)
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_unmatched_token_does_not_link_and_prompts_connect(self, mock_post):
@@ -626,7 +634,9 @@ class ProcessTelegramUpdateTests(APITestCase):
         ]
         self.assertIn("🔎 Lookup word", button_texts)
         self.assertIn("📝 Sentence", button_texts)
-        self.assertIn("🌐 Language", button_texts)
+        self.assertIn("📚 Study", button_texts)
+        self.assertIn("⚙️ Settings", button_texts)
+        self.assertIn("❓ Help", button_texts)
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
@@ -663,8 +673,23 @@ class ProcessTelegramUpdateTests(APITestCase):
         process_telegram_update(update, "https://api.telegram.org/botX")
         mock_post.assert_called_once()
         _, kwargs = mock_post.call_args
-        self.assertIn("/lang", kwargs["json"]["text"])
-        self.assertIn("/sentence", kwargs["json"]["text"])
+        text = kwargs["json"]["text"]
+        self.assertIn("/lang", text)
+        self.assertIn("/sentence", text)
+        # Voice/image have no dedicated menu button — /help is where a user
+        # who hasn't found them yet learns they exist, in friendly terms
+        # (never the implementation names OCR/Speech-to-Text).
+        self.assertIn("voice message", text)
+        self.assertIn("image", text)
+        self.assertNotIn("ocr", text.lower())
+        self.assertNotIn("speech-to-text", text.lower())
+        # Help hands the menu straight back — no need to type /menu next.
+        self.assertIn("reply_markup", kwargs["json"])
+        button_texts = [
+            button["text"] for row in kwargs["json"]["reply_markup"]["inline_keyboard"] for button in row
+        ]
+        self.assertIn("🔎 Lookup word", button_texts)
+        self.assertIn("📚 Study", button_texts)
         self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
@@ -696,7 +721,9 @@ class ProcessTelegramUpdateTests(APITestCase):
         ]
         self.assertIn("🔎 Lookup word", button_texts)
         self.assertIn("📝 Sentence", button_texts)
-        self.assertIn("🌐 Language", button_texts)
+        self.assertIn("📚 Study", button_texts)
+        self.assertIn("⚙️ Settings", button_texts)
+        self.assertIn("❓ Help", button_texts)
         self.assertFalse(PendingTelegramCard.objects.filter(user=self.user).exists())
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
@@ -944,7 +971,7 @@ class TelegramLangCommandTests(APITestCase):
         buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
         callback_data = [b["callback_data"] for row in buttons for b in row]
         self.assertIn("menu:lookup", callback_data)
-        self.assertIn("menu:lang", callback_data)
+        self.assertIn("menu:settings", callback_data)
 
 
 class TelegramPendingLookupTests(APITestCase):
@@ -1625,6 +1652,115 @@ class TelegramProposalImageTests(APITestCase):
         mock_post.assert_not_called()
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_duplicate_dispatch_for_the_same_snapshot_only_searches_once(self, mock_post):
+        # Two dispatches for the exact same proposal snapshot — a duplicate
+        # Regenerate/choose_reading tap, or a redelivered Telegram update,
+        # neither deduplicated upstream — must only run the Gemini/Openverse
+        # search once between them, and only edit the message once.
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {}})
+        with patch(
+            "apps.cards.image_search.find_thumbnail_url_for", return_value="https://images.example/apple.jpg",
+        ) as mock_find:
+            find_and_attach_proposal_image(
+                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+            )
+            find_and_attach_proposal_image(
+                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+            )
+
+        mock_find.assert_called_once()
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "https://images.example/apple.jpg")
+        mock_post.assert_called_once()
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_two_rapid_choose_reading_taps_only_search_once(self, mock_post):
+        # The concrete scenario from the bug report: choose_reading calls
+        # _send_proposal with no claim/state transition of its own, so two
+        # rapid taps each reset+re-send the proposal and each dispatch their
+        # own background task — that's the "duplicate dispatch" upstream of
+        # find_and_attach_proposal_image, reproduced here by not letting
+        # either task run until *both* taps have dispatched (real Celery
+        # dispatch is non-blocking, so this is the realistic ordering: both
+        # cheap dispatches land well before either task's slow Gemini/
+        # Openverse search even starts). The guard inside the task is what
+        # must then collapse the two dispatches into a single search.
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+        self.pending.pronunciation_options = ["haus", "hows"]
+        self.pending.save(update_fields=["pronunciation_options"])
+        update = self._callback(f"choose_reading:{self.pending.id}:0")
+        dispatched = []
+
+        with patch(
+            "apps.notifications.tasks.find_and_attach_proposal_image.delay",
+            side_effect=lambda *args: dispatched.append(args),
+        ):
+            process_telegram_update(update, "https://api.telegram.org/botX")
+            process_telegram_update(update, "https://api.telegram.org/botX")
+
+        self.assertEqual(len(dispatched), 2)  # both taps did dispatch a task
+
+        with patch(
+            "apps.cards.image_search.find_thumbnail_url_for", return_value="https://images.example/apple.jpg",
+        ) as mock_find:
+            for args in dispatched:
+                find_and_attach_proposal_image(*args)
+
+        mock_find.assert_called_once()
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_failed_search_releases_the_claim_for_a_later_attempt(self, mock_post):
+        with patch("apps.cards.image_search.find_thumbnail_url_for", return_value=""):
+            find_and_attach_proposal_image(
+                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+            )
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "")  # released, not stuck on the claim sentinel
+
+        with patch(
+            "apps.cards.image_search.find_thumbnail_url_for", return_value="https://images.example/apple.jpg",
+        ):
+            find_and_attach_proposal_image(
+                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+            )
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "https://images.example/apple.jpg")
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_exception_during_search_releases_the_claim(self, mock_post):
+        with patch("apps.cards.image_search.find_thumbnail_url_for", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                find_and_attach_proposal_image(
+                    self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+                )
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "")  # released despite the failure
+
+        with patch(
+            "apps.cards.image_search.find_thumbnail_url_for", return_value="https://images.example/apple.jpg",
+        ):
+            find_and_attach_proposal_image(
+                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+            )
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "https://images.example/apple.jpg")
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_stale_snapshot_never_reaches_the_search(self, mock_post):
+        # A Regenerate changed the back before this stale snapshot runs —
+        # the claim fails closed on its own, without spending a Gemini/
+        # Openverse call on content already known to be superseded.
+        self.pending.back = "a different meaning"
+        self.pending.save(update_fields=["back"])
+        with patch("apps.cards.image_search.find_thumbnail_url_for") as mock_find:
+            find_and_attach_proposal_image(
+                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
+            )
+
+        mock_find.assert_not_called()
+        mock_post.assert_not_called()
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_background_task_skips_editing_if_the_card_was_already_created(self, mock_post):
         pending_id = self.pending.id
         self.pending.delete()
@@ -1705,7 +1841,7 @@ class TelegramProposalImageTests(APITestCase):
         callback_data = [b["callback_data"] for row in buttons for b in row]
         self.assertIn("menu:lookup", callback_data)
         self.assertIn("menu:sentence", callback_data)
-        self.assertIn("menu:lang", callback_data)
+        self.assertIn("menu:settings", callback_data)
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.attach_thumbnail_from_url")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
@@ -2036,8 +2172,8 @@ class TelegramMainMenuCallbackTests(APITestCase):
 
     @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_menu_lang_shows_usage(self, mock_post):
-        process_telegram_update(self._callback("menu:lang"), "https://api.telegram.org/botX")
+    def test_menu_settings_shows_usage(self, mock_post):
+        process_telegram_update(self._callback("menu:settings"), "https://api.telegram.org/botX")
 
         # The tap is answered exactly once, and the usage hint is a single
         # reply — the menu is not a separate second sendMessage.
@@ -2048,6 +2184,71 @@ class TelegramMainMenuCallbackTests(APITestCase):
         self.assertEqual(sendmessage_calls[0].kwargs["json"]["text"], "Usage: /lang de or /lang en.")
         self.link.refresh_from_db()
         self.assertEqual(self.link.default_language, "")
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_menu_study_points_to_the_app_and_shows_menu(self, mock_post):
+        # No in-bot study flow exists — this is purely a pointer to where
+        # studying/reviewing actually happens, and the menu comes right
+        # back so the tap doesn't dead-end the conversation.
+        process_telegram_update(self._callback("menu:study"), "https://api.telegram.org/botX")
+
+        self.assertEqual(mock_post.call_count, 2)  # answerCallbackQuery + the pointer text
+        sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+        self.assertEqual(len(sendmessage_calls), 1)
+        kwargs = sendmessage_calls[0].kwargs
+        self.assertIn("Nemo Anki app", kwargs["json"]["text"])
+        self.assertIn("reply_markup", kwargs["json"])
+        button_texts = [
+            b["text"] for row in kwargs["json"]["reply_markup"]["inline_keyboard"] for b in row
+        ]
+        self.assertIn("🔎 Lookup word", button_texts)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_menu_help_shows_help_text_and_menu(self, mock_post):
+        process_telegram_update(self._callback("menu:help"), "https://api.telegram.org/botX")
+
+        self.assertEqual(mock_post.call_count, 2)  # answerCallbackQuery + the help text
+        sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+        self.assertEqual(len(sendmessage_calls), 1)
+        kwargs = sendmessage_calls[0].kwargs
+        text = kwargs["json"]["text"]
+        # Voice/image have no dedicated menu button — this is where a user
+        # who taps ❓ Help learns they exist, in friendly terms.
+        self.assertIn("voice message", text)
+        self.assertIn("image", text)
+        self.assertNotIn("ocr", text.lower())
+        self.assertIn("reply_markup", kwargs["json"])
+        button_texts = [
+            b["text"] for row in kwargs["json"]["reply_markup"]["inline_keyboard"] for b in row
+        ]
+        self.assertIn("📚 Study", button_texts)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_unrecognized_callback_data_is_still_acknowledged(self, mock_post):
+        # Anything that matches no known prefix — a typo, a future client
+        # sending something unexpected — must still dismiss the tapped
+        # button's loading spinner instead of leaving it stuck forever.
+        process_telegram_update(self._callback("menu:bogus"), "https://api.telegram.org/botX")
+
+        mock_post.assert_called_once()
+        args, _ = mock_post.call_args
+        self.assertIn("answerCallbackQuery", args[0])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_stale_pre_redesign_menu_lang_callback_is_still_acknowledged(self, mock_post):
+        # This redesign renamed menu:lang to menu:settings. A keyboard sent
+        # to a user just before deploy still carries the old callback_data
+        # — tapping it must not hang, even though nothing handles it by name
+        # anymore (see the fallback in _handle_callback_query).
+        process_telegram_update(self._callback("menu:lang"), "https://api.telegram.org/botX")
+
+        mock_post.assert_called_once()
+        args, _ = mock_post.call_args
+        self.assertIn("answerCallbackQuery", args[0])
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card_options")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
