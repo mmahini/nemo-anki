@@ -76,6 +76,16 @@ _CONNECTED_WELCOME_TEXT = (
     "Choose an option below 👇"
 )
 
+# Shown on every returning bare /start (see _handle_start) — voice/image have
+# no dedicated menu button, and the one-time _CONNECTED_WELCOME_TEXT above is
+# easy to forget, so this repeats the reminder every time a connected user
+# reopens the chat rather than leaving ❓ Help as the only way to rediscover them.
+_WELCOME_BACK_TEXT = (
+    "👋 Welcome back!\n\n"
+    "You can type a word/sentence, 🎤 send a voice message, or 📷 send an image any time.\n\n"
+    "What would you like to do?"
+)
+
 # Shared by /help, bare "help", and the ❓ Help button (menu:help) — lists every way
 # to create a card up front since voice/image have no dedicated menu button (see
 # _main_menu_keyboard): tapping a button just to be told "now send a voice message"
@@ -84,8 +94,8 @@ _HELP_TEXT = (
     "You can create cards by:\n"
     "🔎 Typing a word\n"
     "📝 Sending a full sentence (or /sentence <text>)\n"
-    "🎤 Sending a voice message\n"
-    "📷 Sending an image\n\n"
+    "🎤 Sending a voice message (under 30s)\n"
+    "📷 Sending an image (up to 10MB)\n\n"
     "I'll turn it into a study card for you.\n\n"
     "Set your target language with /lang de or /lang en. Study and review your cards in the "
     "Nemo Anki app. Send /cancel any time to stop."
@@ -231,12 +241,7 @@ def _handle_start(api: str, chat_id, text: str) -> None:
         _reply(api, chat_id, _CONNECTED_WELCOME_TEXT, reply_markup=_main_menu_keyboard())
         return
     if TelegramLink.objects.filter(chat_id=chat_id).exists():
-        _reply(
-            api,
-            chat_id,
-            "👋 Welcome back!\n\nWhat would you like to do?",
-            reply_markup=_main_menu_keyboard(),
-        )
+        _reply(api, chat_id, _WELCOME_BACK_TEXT, reply_markup=_main_menu_keyboard())
     else:
         _reply(api, chat_id, _CONNECT_FIRST_TEXT)
 

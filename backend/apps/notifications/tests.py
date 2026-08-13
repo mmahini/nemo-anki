@@ -626,12 +626,17 @@ class ProcessTelegramUpdateTests(APITestCase):
         mock_post.assert_called_once()
         _, kwargs = mock_post.call_args
         self.assertIn("Welcome back", kwargs["json"]["text"])
+        # Voice/image have no dedicated menu button — a returning user's only
+        # other reminder is ❓ Help, so this text repeats it every time.
+        self.assertIn("voice message", kwargs["json"]["text"])
+        self.assertIn("image", kwargs["json"]["text"])
         self.assertIn("reply_markup", kwargs["json"])
         button_texts = [
             button["text"]
             for row in kwargs["json"]["reply_markup"]["inline_keyboard"]
             for button in row
         ]
+        # The main menu keyboard itself is unchanged by this reminder.
         self.assertIn("🔎 Lookup word", button_texts)
         self.assertIn("📝 Sentence", button_texts)
         self.assertIn("📚 Study", button_texts)
@@ -683,6 +688,10 @@ class ProcessTelegramUpdateTests(APITestCase):
         self.assertIn("image", text)
         self.assertNotIn("ocr", text.lower())
         self.assertNotIn("speech-to-text", text.lower())
+        # Limits are stated up front so a user doesn't have to hit them to
+        # learn about them.
+        self.assertIn("under 30s", text)
+        self.assertIn("up to 10MB", text)
         # Help hands the menu straight back — no need to type /menu next.
         self.assertIn("reply_markup", kwargs["json"])
         button_texts = [
@@ -2216,6 +2225,8 @@ class TelegramMainMenuCallbackTests(APITestCase):
         self.assertIn("voice message", text)
         self.assertIn("image", text)
         self.assertNotIn("ocr", text.lower())
+        self.assertIn("under 30s", text)
+        self.assertIn("up to 10MB", text)
         self.assertIn("reply_markup", kwargs["json"])
         button_texts = [
             b["text"] for row in kwargs["json"]["reply_markup"]["inline_keyboard"] for b in row
