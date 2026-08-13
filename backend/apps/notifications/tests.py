@@ -934,6 +934,14 @@ class TelegramLangCommandTests(APITestCase):
         self.assertEqual(self.link.default_language, "de")
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_sets_default_language_to_english(self, mock_post):
+        process_telegram_update(self._update("/lang en"), "https://api.telegram.org/botX")
+        self.link.refresh_from_db()
+        self.assertEqual(self.link.default_language, "en")
+        _, kwargs = mock_post.call_args
+        self.assertIn("English", kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_case_insensitive(self, mock_post):
         process_telegram_update(self._update("/lang DE"), "https://api.telegram.org/botX")
         self.link.refresh_from_db()
@@ -2100,18 +2108,79 @@ class TelegramMainMenuCallbackTests(APITestCase):
 
     @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_menu_settings_shows_usage(self, mock_post):
+    def test_menu_settings_shows_language_buttons(self, mock_post):
         process_telegram_update(self._callback("menu:settings"), "https://api.telegram.org/botX")
 
-        # The tap is answered exactly once, and the usage hint is a single
-        # reply — the menu is not a separate second sendMessage.
+        # The tap is answered exactly once, and the language prompt is a
+        # single reply — the menu is not a separate second sendMessage.
         answer_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/answerCallbackQuery")]
         self.assertEqual(len(answer_calls), 1)
         sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
         self.assertEqual(len(sendmessage_calls), 1)
-        self.assertEqual(sendmessage_calls[0].kwargs["json"]["text"], "Usage: /lang de or /lang en.")
+        kwargs = sendmessage_calls[0].kwargs
+        self.assertIn("No language set yet", kwargs["json"]["text"])
+        buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
+        button_texts = [b["text"] for row in buttons for b in row]
+        callback_data = [b["callback_data"] for row in buttons for b in row]
+        self.assertIn("🇬🇧 English", button_texts)
+        self.assertIn("🇩🇪 Deutsch", button_texts)
+        self.assertIn("lang:en", callback_data)
+        self.assertIn("lang:de", callback_data)
         self.link.refresh_from_db()
         self.assertEqual(self.link.default_language, "")
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_menu_settings_shows_the_current_language_when_already_set(self, mock_post):
+        self.link.default_language = "de"
+        self.link.save(update_fields=["default_language"])
+
+        process_telegram_update(self._callback("menu:settings"), "https://api.telegram.org/botX")
+
+        sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+        self.assertEqual(len(sendmessage_calls), 1)
+        self.assertIn("currently set to German", sendmessage_calls[0].kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_lang_en_callback_sets_language_and_shows_main_menu(self, mock_post):
+        process_telegram_update(self._callback("lang:en"), "https://api.telegram.org/botX")
+
+        self.link.refresh_from_db()
+        self.assertEqual(self.link.default_language, "en")
+        sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+        self.assertEqual(len(sendmessage_calls), 1)
+        kwargs = sendmessage_calls[0].kwargs
+        self.assertIn("English", kwargs["json"]["text"])
+        # The main menu comes back — not the Settings keyboard — same as
+        # every other successful /lang change (see _apply_language).
+        buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
+        callback_data = [b["callback_data"] for row in buttons for b in row]
+        self.assertIn("menu:lookup", callback_data)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_lang_de_callback_sets_language_and_shows_main_menu(self, mock_post):
+        process_telegram_update(self._callback("lang:de"), "https://api.telegram.org/botX")
+
+        self.link.refresh_from_db()
+        self.assertEqual(self.link.default_language, "de")
+        sendmessage_calls = [c for c in mock_post.call_args_list if c.args[0].endswith("/sendMessage")]
+        self.assertEqual(len(sendmessage_calls), 1)
+        self.assertIn("German", sendmessage_calls[0].kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_lang_callback_with_unrecognized_code_is_acknowledged_without_change(self, mock_post):
+        # Can't come from our own keyboard (see _settings_keyboard) — a
+        # stale/tampered button must still be a safe no-op, not a crash.
+        process_telegram_update(self._callback("lang:fr"), "https://api.telegram.org/botX")
+
+        self.link.refresh_from_db()
+        self.assertEqual(self.link.default_language, "")
+        mock_post.assert_called_once()
+        args, _ = mock_post.call_args
+        self.assertIn("answerCallbackQuery", args[0])
 
     @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")

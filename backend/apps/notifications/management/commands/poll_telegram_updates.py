@@ -35,6 +35,10 @@ _FIRE_AND_FORGET = ThreadPoolExecutor(max_workers=4, thread_name_prefix="telegra
 
 SUPPORTED_LANGUAGES = {"de": "German", "en": "English"}
 
+# Emoji + native-name labels for the ⚙️ Settings language buttons — English
+# first to match SUPPORTED_LANGUAGES' /lang usage order.
+_LANGUAGE_LABELS = {"en": "🇬🇧 English", "de": "🇩🇪 Deutsch"}
+
 # How long a word/sentence sent before /lang is remembered for automatic
 # resume — generous on purpose (a learner may set up the bot, get pulled
 # away, and only finish a while later), not a "session" concept.
@@ -239,18 +243,19 @@ def _handle_start(api: str, chat_id, text: str) -> None:
 
 def _lang_usage_reply(link: TelegramLink) -> str:
     """The /lang usage hint, plus the current language when one is set —
-    shared by the text command and the menu:settings button so both give the
-    same hint instead of a bare command reference."""
+    shown when /lang is sent with a missing/invalid code."""
     current = SUPPORTED_LANGUAGES.get(link.default_language)
     current_part = f" Currently set to {current}." if current else ""
     return f"Usage: /lang de or /lang en.{current_part}"
 
 
-def _handle_lang(link: TelegramLink, api: str, chat_id, text: str) -> None:
-    code = text.lower().removeprefix("/lang").strip()
-    if code not in SUPPORTED_LANGUAGES:
-        _reply(api, chat_id, _lang_usage_reply(link))
-        return
+def _apply_language(link: TelegramLink, api: str, chat_id, code: str) -> None:
+    """Sets the user's target language and resumes anything stashed while
+    waiting for it (see _stash_pending_lookup) — the shared body behind both
+    the /lang <code> text command (see _handle_lang) and the ⚙️ Settings
+    language buttons (lang:<code> in _handle_callback_query), so the two
+    entry points can't drift apart. `code` must already be a validated key
+    of SUPPORTED_LANGUAGES — callers are responsible for that check."""
     link.default_language = code
     link.save(update_fields=["default_language"])
     _reply(
@@ -273,6 +278,14 @@ def _handle_lang(link: TelegramLink, api: str, chat_id, text: str) -> None:
             _handle_word_lookup(link, api, chat_id, resume_text)
 
 
+def _handle_lang(link: TelegramLink, api: str, chat_id, text: str) -> None:
+    code = text.lower().removeprefix("/lang").strip()
+    if code not in SUPPORTED_LANGUAGES:
+        _reply(api, chat_id, _lang_usage_reply(link))
+        return
+    _apply_language(link, api, chat_id, code)
+
+
 def _main_menu_keyboard() -> dict:
     return {
         "inline_keyboard": [
@@ -287,6 +300,23 @@ def _main_menu_keyboard() -> dict:
             [
                 {"text": "❓ Help", "callback_data": "menu:help"},
             ],
+        ]
+    }
+
+
+def _settings_text(link: TelegramLink) -> str:
+    """Shown on menu:settings — the current language (if any set), plus a
+    prompt for the buttons below it (see _settings_keyboard). /lang stays
+    mentioned so it's still discoverable for anyone who prefers typing it."""
+    current = SUPPORTED_LANGUAGES.get(link.default_language)
+    current_part = f"🌐 Your language is currently set to {current}.\n\n" if current else "🌐 No language set yet.\n\n"
+    return f"{current_part}Choose a language below, or send /lang de or /lang en."
+
+
+def _settings_keyboard() -> dict:
+    return {
+        "inline_keyboard": [
+            [{"text": label, "callback_data": f"lang:{code}"} for code, label in _LANGUAGE_LABELS.items()],
         ]
     }
 
@@ -794,7 +824,18 @@ def _handle_callback_query(update: dict, api: str) -> None:
 
     if data == "menu:settings":
         _answer_once()
-        _reply(api, chat_id, _lang_usage_reply(link))
+        _reply(api, chat_id, _settings_text(link), reply_markup=_settings_keyboard())
+        return
+
+    if data.startswith("lang:"):
+        _answer_once()
+        code = data.removeprefix("lang:")
+        if code in SUPPORTED_LANGUAGES:
+            _apply_language(link, api, chat_id, code)
+        # An unrecognized code can't come from our own keyboard (see
+        # _settings_keyboard) — only a stale/tampered button could send one.
+        # Same shape as the choose_back/choose_reading bad-index case: the
+        # tap is still acknowledged above, just with no further action.
         return
 
     if data == "menu:study":
