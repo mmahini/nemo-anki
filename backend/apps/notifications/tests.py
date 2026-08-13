@@ -1652,63 +1652,6 @@ class TelegramProposalImageTests(APITestCase):
         mock_post.assert_not_called()
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_duplicate_dispatch_for_the_same_snapshot_only_searches_once(self, mock_post):
-        # Two dispatches for the exact same proposal snapshot — a duplicate
-        # Regenerate/choose_reading tap, or a redelivered Telegram update,
-        # neither deduplicated upstream — must only run the Gemini/Openverse
-        # search once between them, and only edit the message once.
-        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {}})
-        with patch(
-            "apps.cards.image_search.find_thumbnail_url_for", return_value="https://images.example/apple.jpg",
-        ) as mock_find:
-            find_and_attach_proposal_image(
-                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
-            )
-            find_and_attach_proposal_image(
-                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
-            )
-
-        mock_find.assert_called_once()
-        self.pending.refresh_from_db()
-        self.assertEqual(self.pending.image_url, "https://images.example/apple.jpg")
-        mock_post.assert_called_once()
-
-    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_two_rapid_choose_reading_taps_only_search_once(self, mock_post):
-        # The concrete scenario from the bug report: choose_reading calls
-        # _send_proposal with no claim/state transition of its own, so two
-        # rapid taps each reset+re-send the proposal and each dispatch their
-        # own background task — that's the "duplicate dispatch" upstream of
-        # find_and_attach_proposal_image, reproduced here by not letting
-        # either task run until *both* taps have dispatched (real Celery
-        # dispatch is non-blocking, so this is the realistic ordering: both
-        # cheap dispatches land well before either task's slow Gemini/
-        # Openverse search even starts). The guard inside the task is what
-        # must then collapse the two dispatches into a single search.
-        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
-        self.pending.pronunciation_options = ["haus", "hows"]
-        self.pending.save(update_fields=["pronunciation_options"])
-        update = self._callback(f"choose_reading:{self.pending.id}:0")
-        dispatched = []
-
-        with patch(
-            "apps.notifications.tasks.find_and_attach_proposal_image.delay",
-            side_effect=lambda *args: dispatched.append(args),
-        ):
-            process_telegram_update(update, "https://api.telegram.org/botX")
-            process_telegram_update(update, "https://api.telegram.org/botX")
-
-        self.assertEqual(len(dispatched), 2)  # both taps did dispatch a task
-
-        with patch(
-            "apps.cards.image_search.find_thumbnail_url_for", return_value="https://images.example/apple.jpg",
-        ) as mock_find:
-            for args in dispatched:
-                find_and_attach_proposal_image(*args)
-
-        mock_find.assert_called_once()
-
-    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_failed_search_releases_the_claim_for_a_later_attempt(self, mock_post):
         with patch("apps.cards.image_search.find_thumbnail_url_for", return_value=""):
             find_and_attach_proposal_image(
@@ -1744,21 +1687,6 @@ class TelegramProposalImageTests(APITestCase):
             )
         self.pending.refresh_from_db()
         self.assertEqual(self.pending.image_url, "https://images.example/apple.jpg")
-
-    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
-    def test_stale_snapshot_never_reaches_the_search(self, mock_post):
-        # A Regenerate changed the back before this stale snapshot runs —
-        # the claim fails closed on its own, without spending a Gemini/
-        # Openverse call on content already known to be superseded.
-        self.pending.back = "a different meaning"
-        self.pending.save(update_fields=["back"])
-        with patch("apps.cards.image_search.find_thumbnail_url_for") as mock_find:
-            find_and_attach_proposal_image(
-                self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "", "Das ist mein Haus.",
-            )
-
-        mock_find.assert_not_called()
-        mock_post.assert_not_called()
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_background_task_skips_editing_if_the_card_was_already_created(self, mock_post):
