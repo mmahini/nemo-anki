@@ -153,6 +153,16 @@ def send_reminder_push(user_id, local_date_iso):
     User.objects.filter(id=user_id).update(study_reminder_last_sent=local_date_iso)
 
 
+# A non-empty sentinel written to PendingTelegramCard.image_url (a URLField,
+# but .update()/.save() never validate its shape) while a search is in
+# flight for the exact snapshot below — never a real URL, so a read of
+# image_url elsewhere while a search is in flight (e.g. _finalize, if Create
+# is tapped mid-search) can't mistake it for a found image:
+# attach_thumbnail_from_url already treats an unparseable URL as "no image",
+# the same degrade "" gets today.
+_IMAGE_SEARCH_CLAIMED = "claimed:searching"
+
+
 @shared_task
 def find_and_attach_proposal_image(pending_id, chat_id, message_id, front, back, language, card_type, reading, example):
     """Runs the Gemini depictability check + Openverse search in the
@@ -167,10 +177,40 @@ def find_and_attach_proposal_image(pending_id, chat_id, message_id, front, back,
     example, which front/back alone wouldn't catch. Best-effort throughout:
     any failure (nothing depictable, no result, the row already gone) just
     means no photo — never raises, never blocks card creation, which
-    already happens independently of this."""
+    already happens independently of this.
+
+    Claims the row for this exact snapshot before searching: two dispatches
+    for the same snapshot (a duplicate Regenerate/choose_reading tap, or a
+    redelivered Telegram update — neither is deduplicated upstream) would
+    otherwise both run the Gemini/Openverse search and both edit the
+    message, sometimes with two different images (find_thumbnail_url picks
+    randomly among its top results). The claim is a single conditional
+    UPDATE — atomic at the DB level, the same claim-by-update pattern
+    _finalize already uses (there, claim-by-delete) — so only the first
+    caller to see image_url still "" for this content can win it; a second,
+    concurrent caller updates zero rows and no-ops immediately, before
+    spending a Gemini/Openverse call on content already known to be
+    superseded (or already being searched). If the search then finds
+    nothing (or raises), the claim is released back to "" so a later,
+    genuinely new proposal for the same content isn't permanently blocked
+    from trying again."""
     from apps.cards.image_search import find_thumbnail_url_for
 
-    image_url = find_thumbnail_url_for(front, back, language, card_type)
+    content = {"front": front, "back": back, "card_type": card_type, "reading": reading, "example": example}
+    claimed = PendingTelegramCard.objects.filter(id=pending_id, image_url="", **content).update(
+        image_url=_IMAGE_SEARCH_CLAIMED
+    )
+    if not claimed:
+        return
+
+    image_url = ""
+    try:
+        image_url = find_thumbnail_url_for(front, back, language, card_type)
+    finally:
+        if not image_url:
+            PendingTelegramCard.objects.filter(id=pending_id, image_url=_IMAGE_SEARCH_CLAIMED, **content).update(
+                image_url=""
+            )
     if not image_url:
         return
     pending = PendingTelegramCard.objects.filter(id=pending_id).first()
