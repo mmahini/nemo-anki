@@ -61,13 +61,37 @@ _PHOTO_MAX_BYTES = 10 * 1024 * 1024
 
 _CONNECT_FIRST_TEXT = 'Connect your account first — open Nemo Anki and tap "Connect Telegram".'
 
-_ONBOARDING_EXAMPLE = (
-    "Send /lang de or /lang en to set your target language. Then just send a word to add it as "
-    "a card, or /sentence <text> for a full sentence. For example:\n\n"
-    "/lang de\n"
-    "Haus\n"
-    "/sentence Ich gehe heute ins Kino.\n\n"
-    "You can also send a voice message to look up the word or sentence you say."
+_CONNECTED_WELCOME_TEXT = (
+    "✅ Connected!\n\n"
+    "👋 Welcome to Nemo Anki!\n\n"
+    "Create flashcards in the easiest way:\n"
+    "📝 Type a word or sentence\n"
+    "🎤 Send a voice message\n"
+    "📷 Send an image\n\n"
+    "I'll turn it into a study card for you.\n\n"
+    "Choose an option below 👇"
+)
+
+# Shared by /help, bare "help", and the ❓ Help button (menu:help) — lists every way
+# to create a card up front since voice/image have no dedicated menu button (see
+# _main_menu_keyboard): tapping a button just to be told "now send a voice message"
+# would add a step for no benefit over sending one directly.
+_HELP_TEXT = (
+    "You can create cards by:\n"
+    "🔎 Typing a word\n"
+    "📝 Sending a full sentence (or /sentence <text>)\n"
+    "🎤 Sending a voice message\n"
+    "📷 Sending an image\n\n"
+    "I'll turn it into a study card for you.\n\n"
+    "Set your target language with /lang de or /lang en. Study and review your cards in the "
+    "Nemo Anki app. Send /cancel any time to stop."
+)
+
+# menu:study has no in-bot study flow — it's a pointer to where studying actually
+# happens, not a feature the bot implements.
+_STUDY_POINTER_TEXT = (
+    "📚 Studying and reviewing your cards happens in the Nemo Anki app — open it any time to "
+    "review what's due."
 )
 
 
@@ -200,7 +224,7 @@ def _handle_start(api: str, chat_id, text: str) -> None:
     nothing else matched it (see PR#7)."""
     token = text.split(" ", 1)[1].strip() if " " in text else ""
     if token and TelegramLink.objects.filter(connect_token=token, chat_id__isnull=True).update(chat_id=chat_id):
-        _reply(api, chat_id, f"Connected! {_ONBOARDING_EXAMPLE}", reply_markup=_main_menu_keyboard())
+        _reply(api, chat_id, _CONNECTED_WELCOME_TEXT, reply_markup=_main_menu_keyboard())
         return
     if TelegramLink.objects.filter(chat_id=chat_id).exists():
         _reply(
@@ -215,7 +239,7 @@ def _handle_start(api: str, chat_id, text: str) -> None:
 
 def _lang_usage_reply(link: TelegramLink) -> str:
     """The /lang usage hint, plus the current language when one is set —
-    shared by the text command and the menu:lang button so both give the
+    shared by the text command and the menu:settings button so both give the
     same hint instead of a bare command reference."""
     current = SUPPORTED_LANGUAGES.get(link.default_language)
     current_part = f" Currently set to {current}." if current else ""
@@ -257,7 +281,11 @@ def _main_menu_keyboard() -> dict:
                 {"text": "📝 Sentence", "callback_data": "menu:sentence"},
             ],
             [
-                {"text": "🌐 Language", "callback_data": "menu:lang"},
+                {"text": "📚 Study", "callback_data": "menu:study"},
+                {"text": "⚙️ Settings", "callback_data": "menu:settings"},
+            ],
+            [
+                {"text": "❓ Help", "callback_data": "menu:help"},
             ],
         ]
     }
@@ -764,9 +792,19 @@ def _handle_callback_query(update: dict, api: str) -> None:
         _reply(api, chat_id, "Send me a sentence.")
         return
 
-    if data == "menu:lang":
+    if data == "menu:settings":
         _answer_once()
         _reply(api, chat_id, _lang_usage_reply(link))
+        return
+
+    if data == "menu:study":
+        _answer_once()
+        _reply(api, chat_id, _STUDY_POINTER_TEXT, reply_markup=_main_menu_keyboard())
+        return
+
+    if data == "menu:help":
+        _answer_once()
+        _reply(api, chat_id, _HELP_TEXT, reply_markup=_main_menu_keyboard())
         return
 
     if data.startswith("choose_back:"):
@@ -840,6 +878,13 @@ def _handle_callback_query(update: dict, api: str) -> None:
         _cancel_active_work(link)
         _cancel_and_show_menu(api, chat_id)
         return
+
+    # Nothing matched — a stale button from an old keyboard (this menu
+    # redesign renamed menu:lang to menu:settings, so any message sent
+    # before deploy still carries the old callback_data), or simply an
+    # unrecognized one. Still dismiss the tap's loading spinner rather than
+    # leaving it stuck forever.
+    _answer_once()
 
 
 def process_telegram_update(update: dict, api: str) -> None:
@@ -916,7 +961,7 @@ def process_telegram_update(update: dict, api: str) -> None:
         return
 
     if text.lower().startswith("/help") or text.lower() == "help":
-        _reply(api, chat_id, _ONBOARDING_EXAMPLE)
+        _reply(api, chat_id, _HELP_TEXT, reply_markup=_main_menu_keyboard())
         return
 
     if text.lower().startswith("/menu") or text.lower() == "menu":
