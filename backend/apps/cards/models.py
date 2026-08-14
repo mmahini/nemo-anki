@@ -3,10 +3,38 @@ from django.utils import timezone
 
 
 class CardType(models.TextChoices):
+    """What the card teaches. Mostly a part of speech — "vocab" is the catch-all
+    for a word whose role has no type of its own, and "sentence"/"grammar" are
+    the two non-word formats."""
+
     VOCAB = "vocab", "Vocabulary"
     SENTENCE = "sentence", "Sentence"
     GRAMMAR = "grammar", "Grammar"
     VERB = "verb", "Verb"
+    ADJECTIVE = "adjective", "Adjective"
+    ADVERB = "adverb", "Adverb"
+    PREPOSITION = "preposition", "Preposition"
+
+
+# Single words, whatever their part of speech — as opposed to the "sentence"
+# and "grammar" formats.
+WORD_TYPES = frozenset({
+    CardType.VOCAB,
+    CardType.VERB,
+    CardType.ADJECTIVE,
+    CardType.ADVERB,
+    CardType.PREPOSITION,
+})
+
+# Single-word notes worth drilling in both directions. Verbs are excluded for
+# the same reason they always were: the reverse prompt ("to make") is ambiguous
+# once the card carries a whole conjugation table.
+REVERSIBLE_TYPES = frozenset({
+    CardType.VOCAB,
+    CardType.ADJECTIVE,
+    CardType.ADVERB,
+    CardType.PREPOSITION,
+})
 
 
 class CardState(models.TextChoices):
@@ -113,8 +141,9 @@ class Card(models.Model):
         return {f: getattr(self, f) for f in CONTENT_FIELDS}
 
     def wants_reverse(self) -> bool:
-        """Vocab notes are reviewed both ways; everything else is one-directional."""
-        return self.card_type == CardType.VOCAB
+        """Single-word notes are reviewed both ways; verbs, sentences and
+        grammar cards are one-directional."""
+        return self.card_type in REVERSIBLE_TYPES
 
     def build_reverse(self) -> "Card":
         """An unsaved reverse companion mirroring this (saved) forward card."""

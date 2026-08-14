@@ -18,17 +18,28 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_TYPES = {"vocab", "sentence", "grammar", "verb"}
+ALLOWED_TYPES = {"vocab", "sentence", "grammar", "verb", "adjective", "adverb", "preposition"}
+
+# The part-of-speech rules, shared by every prompt that has to classify a word,
+# so the same wording drives bulk import, single-card enrich and the Telegram
+# lookup. Kept verbatim in one place — the classification drifts when each
+# prompt phrases it slightly differently.
+_TYPE_RULES = """Single words: classify by part of speech — a verb (infinitive \
+or conjugated) -> "verb"; an adjective, including one used adverbially like \
+"kompliziert" or "schnell" -> "adjective"; a word that can ONLY be an adverb, \
+never inflected before a noun, like "gestern" or "sehr" -> "adverb"; a \
+preposition like "wegen", "trotz" or "mit" -> "preposition"; anything else \
+(nouns above all) -> "vocab". Full example sentences -> "sentence"; \
+rules/patterns -> "grammar". Pick the single most useful role when a word has \
+more than one."""
 ALLOWED_ARTICLES = {"none", "der", "die", "das", "plural"}
 
 _PROMPT = """You are a language-learning flashcard generator. Convert the text \
 below (a section of a {language_name} coursebook) into spaced-repetition cards.
 
 Return ONLY a JSON array. Each element has these keys:
-- "card_type": one of "vocab", "sentence", "grammar", "verb". Default to \
-"{default_type}" when unsure. Single words/phrases -> "vocab"; full example \
-sentences -> "sentence"; rules/patterns -> "grammar"; a verb worth learning \
-across tenses -> "verb".
+- "card_type": one of "vocab", "sentence", "grammar", "verb", "adjective", \
+"adverb", "preposition". Default to "{default_type}" when unsure. {type_rules}
 - "front": the prompt shown first (the {language_name} term/sentence, or for \
 grammar a cloze prompt using ___ for the gap).
 - "back": the answer (English translation, or the form that fills the grammar gap).
@@ -51,6 +62,9 @@ _LANG_NAMES = {"de": "German", "en": "English", "": "the target language"}
 
 _ENRICH_PROMPT = """For the {language_name} {card_type} below, return ONLY a JSON \
 object (no markdown, no commentary) with these keys:
+- "card_type": what the text actually is, which may differ from the label above \
+— one of "vocab", "sentence", "grammar", "verb", "adjective", "adverb", \
+"preposition". {type_rules}
 - "back": a concise translation / meaning written in {back_language}.
 - "reading": phonetic transcription (IPA) of the {language_name} text, or "".
 - "article": for a {language_name} noun one of "der","die","das","plural"; \
@@ -92,10 +106,12 @@ def _enrich_with_gemini(
     front: str, language: str, card_type: str, back_language: str,
     previous_proposal: dict | None = None,
 ) -> dict:
+    assumed_type = card_type if card_type in ALLOWED_TYPES else "vocab"
     prompt = _ENRICH_PROMPT.format(
         language_name=_LANG_NAMES.get(language, "the target language"),
         back_language=(back_language or "English").strip(),
-        card_type=card_type if card_type in ALLOWED_TYPES else "vocab",
+        card_type=assumed_type,
+        type_rules=_TYPE_RULES,
         front=front[:500],
     )
     if previous_proposal:
@@ -128,6 +144,9 @@ def _enrich_with_gemini(
     obj = _extract_json_object(raw)
     article = obj.get("article") if obj.get("article") in ALLOWED_ARTICLES else _detect_article(front)
     return {
+        # The detected part of speech, falling back to whatever the caller
+        # assumed. Callers are free to ignore it.
+        "card_type": obj.get("card_type") if obj.get("card_type") in ALLOWED_TYPES else assumed_type,
         "back": str(obj.get("back", "")).strip(),
         "reading": str(obj.get("reading", "")).strip(),
         "article": article,
@@ -138,6 +157,9 @@ def _enrich_with_gemini(
 
 _ENRICH_OPTIONS_PROMPT = """For the {language_name} {card_type} below, return ONLY a JSON \
 object (no markdown, no commentary) with these keys:
+- "card_type": what the text actually is, which may differ from the label above \
+— one of "vocab", "sentence", "grammar", "verb", "adjective", "adverb", \
+"preposition". {type_rules}
 - "translations": a JSON array of up to {n} DIFFERENT plausible translations \
 into {back_language}, ranked by likely correctness, each a short string.
 - "pronunciations": a JSON array of up to {n} DIFFERENT plausible phonetic \
@@ -162,8 +184,12 @@ def enrich_card_options(
     apps.notifications.management.commands.poll_telegram_updates).
     """
     front = (front or "").strip()
+    assumed_type = card_type if card_type in ALLOWED_TYPES else "vocab"
     if not front:
-        return {"translations": [], "pronunciations": [], "article": "none", "plural": "", "example": ""}
+        return {
+            "card_type": assumed_type, "translations": [], "pronunciations": [],
+            "article": "none", "plural": "", "example": "",
+        }
     if settings.GEMINI_API_KEY:
         try:
             return _enrich_options_with_gemini(front, language, card_type, back_language, n)
@@ -171,16 +197,18 @@ def enrich_card_options(
             pass
     fallback = _enrich_fallback(front)
     return {
-        "translations": [], "pronunciations": [],
+        "card_type": assumed_type, "translations": [], "pronunciations": [],
         "article": fallback["article"], "plural": fallback["plural"], "example": fallback["example"],
     }
 
 
 def _enrich_options_with_gemini(front: str, language: str, card_type: str, back_language: str, n: int) -> dict:
+    assumed_type = card_type if card_type in ALLOWED_TYPES else "vocab"
     prompt = _ENRICH_OPTIONS_PROMPT.format(
         language_name=_LANG_NAMES.get(language, "the target language"),
         back_language=(back_language or "English").strip(),
-        card_type=card_type if card_type in ALLOWED_TYPES else "vocab",
+        card_type=assumed_type,
+        type_rules=_TYPE_RULES,
         n=n,
         front=front[:500],
     )
@@ -198,6 +226,7 @@ def _enrich_options_with_gemini(front: str, language: str, card_type: str, back_
     obj = _extract_json_object(raw)
     article = obj.get("article") if obj.get("article") in ALLOWED_ARTICLES else _detect_article(front)
     return {
+        "card_type": obj.get("card_type") if obj.get("card_type") in ALLOWED_TYPES else assumed_type,
         "translations": _dedupe_strings(obj.get("translations"), n),
         "pronunciations": _dedupe_strings(obj.get("pronunciations"), n),
         "article": article,
@@ -332,14 +361,17 @@ object (no markdown, no commentary):
 - "back": a concise meaning of the verb written in {back_language} (e.g. \
 "to make / to do"), or "".
 - "conjugations": an ordered JSON array. Each element is an object:
-  - "tense": the name of the situation/tense (e.g. "Infinitiv", "Präsens", \
-"Präteritum", "Perfekt", "Futur", "Imperativ"). For English use "base form", \
-"present (3rd person)", "past simple", "past participle", "-ing form".
+  - "tense": the name of the situation/tense. Use EXACTLY one of these labels, \
+with no additions, no pronouns and no parentheses — for German: "Infinitiv", \
+"Präsens", "Präteritum", "Perfekt", "Futur I", "Imperativ", "Konjunktiv II"; \
+for English: "base form", "present (3rd person)", "past simple", \
+"past participle", "-ing form".
   - "form": the {language_name} conjugated form, using a natural example \
 subject where helpful (e.g. "er macht", "er hat gemacht").
   - "meaning": the {back_language} equivalent of that exact form (e.g. \
 "he makes", "he has made").
-Cover the most useful forms for a learner (aim for 4-6). Be accurate.
+Cover the most useful forms for a learner (aim for 4-6), at most one row per \
+label. Be accurate.
 
 VERB: {front}
 """
@@ -363,11 +395,75 @@ def conjugate_verb(front: str, language: str = "", back_language: str = "English
         obj = _extract_json_object(_gemini_text(prompt, timeout=45))
     except Exception:  # noqa: BLE001 — degrade gracefully
         return {"back": "", "conjugations": []}
-    return {"back": str(obj.get("back", "")).strip(), "conjugations": _clean_conjugations(obj.get("conjugations"))}
+    return {
+        "back": str(obj.get("back", "")).strip(),
+        "conjugations": _clean_conjugations(obj.get("conjugations"), language),
+    }
 
 
-def _clean_conjugations(raw) -> list[dict]:
-    """Coerce an LLM conjugation array into clean {tense, form, meaning} rows."""
+# Canonical German tense labels in the order a learner wants to read them. The
+# prompt asks for these exact strings, but the model still drifts ("Präsens
+# (er/sie/es)", "Perfekt / Partizip II", "present tense"), which makes every verb
+# card look slightly different. Labels are normalised server-side instead.
+_DE_TENSE_ORDER = [
+    "Infinitiv",
+    "Präsens",
+    "Präteritum",
+    "Perfekt",
+    "Futur I",
+    "Imperativ",
+    "Konjunktiv II",
+]
+
+_DE_TENSE_ALIASES = {
+    "infinitiv": "Infinitiv",
+    "infinitive": "Infinitiv",
+    "grundform": "Infinitiv",
+    "prasens": "Präsens",
+    "present": "Präsens",
+    "gegenwart": "Präsens",
+    "prateritum": "Präteritum",
+    "imperfekt": "Präteritum",
+    "vergangenheit": "Präteritum",
+    "past": "Präteritum",
+    "perfekt": "Perfekt",
+    "partizip ii": "Perfekt",
+    "partizip 2": "Perfekt",
+    "partizip perfekt": "Perfekt",
+    "futur": "Futur I",
+    "futur i": "Futur I",
+    "futur 1": "Futur I",
+    "zukunft": "Futur I",
+    "imperativ": "Imperativ",
+    "befehlsform": "Imperativ",
+    "konjunktiv": "Konjunktiv II",
+    "konjunktiv ii": "Konjunktiv II",
+    "konjunktiv 2": "Konjunktiv II",
+}
+
+# "Präsens (er/sie/es)" -> "Präsens"; also drops a trailing " - 3rd person".
+_TENSE_SUFFIX_RE = re.compile(r"\s*[\(\[/–—-].*$")
+
+_UMLAUT_FOLD = str.maketrans({"ä": "a", "ö": "o", "ü": "u", "ß": "s"})
+
+
+def _canonical_tense(tense: str) -> str:
+    """Map a free-form German tense label onto a canonical one.
+
+    Unrecognised labels are returned unchanged so an unusual but correct tense is
+    never silently dropped.
+    """
+    base = _TENSE_SUFFIX_RE.sub("", tense).strip()
+    key = base.lower().translate(_UMLAUT_FOLD).strip(" .:")
+    return _DE_TENSE_ALIASES.get(key, base or tense)
+
+
+def _clean_conjugations(raw, language: str = "") -> list[dict]:
+    """Coerce an LLM conjugation array into clean {tense, form, meaning} rows.
+
+    For German the tense labels are normalised, de-duplicated and re-ordered so
+    every verb card presents the same tidy ladder of forms.
+    """
     out: list[dict] = []
     if not isinstance(raw, list):
         return out
@@ -380,7 +476,17 @@ def _clean_conjugations(raw) -> list[dict]:
         if not (tense or form or meaning):
             continue
         out.append({"tense": tense, "form": form, "meaning": meaning})
-    return out
+    if language != "de":
+        return out
+
+    deduped: dict[str, dict] = {}
+    for row in out:
+        row["tense"] = _canonical_tense(row["tense"])
+        # First row wins: the model lists the most idiomatic form first.
+        deduped.setdefault(row["tense"] or row["form"], row)
+    order = {name: i for i, name in enumerate(_DE_TENSE_ORDER)}
+    # Unknown labels keep their relative order and sort after the canonical ones.
+    return sorted(deduped.values(), key=lambda r: order.get(r["tense"], len(order)))
 
 
 _ANALYZE_PROMPT = """Analyse the German sentence below. For every noun, in order \
@@ -1026,6 +1132,7 @@ def _parse_with_gemini(text: str, language: str, default_type: str) -> list[dict
     prompt = _PROMPT.format(
         language_name=_LANG_NAMES.get(language, "the target language"),
         default_type=default_type,
+        type_rules=_TYPE_RULES,
         text=text[:12000],
     )
     url = (
@@ -1078,7 +1185,7 @@ def _normalise(item: dict, language: str, default_type: str) -> dict:
         "notes": str(item.get("notes", "")).strip(),
         "table": item.get("table") if isinstance(item.get("table"), dict) else None,
         "genders": [],
-        "conjugations": _clean_conjugations(item.get("conjugations")),
+        "conjugations": _clean_conjugations(item.get("conjugations"), language),
         "tags": [str(t).strip() for t in tags if str(t).strip()],
     }
 

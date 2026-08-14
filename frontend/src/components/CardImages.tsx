@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { addCardImage, deleteCardImage, findCardImage, type Card } from "../auth/api";
+import { CARD_IMAGE_SEARCH_ENABLED } from "../lib/features";
 
 /** Manage a card's photos (shown on the answer side during review). `onChange`
  * is called after any change so the parent can refresh the card. */
@@ -54,9 +55,11 @@ export default function CardImages({ card, onChange }: { card: Card; onChange: (
     <div className="cardimages">
       <span className="cardimages__label">
         {t("cardEditor.photosLabel")}
-        <button type="button" className="btn btn--ghost btn--sm cardimages__find" disabled={busy} onClick={autoFind}>
-          {images.length ? "🔄 Regenerate image" : "🔍 Find image"}
-        </button>
+        {CARD_IMAGE_SEARCH_ENABLED && (
+          <button type="button" className="btn btn--ghost btn--sm cardimages__find" disabled={busy} onClick={autoFind}>
+            {images.length ? "🔄 Regenerate image" : "🔍 Find image"}
+          </button>
+        )}
       </span>
       <div className="cardimages__grid">
         {images.map((im) => (

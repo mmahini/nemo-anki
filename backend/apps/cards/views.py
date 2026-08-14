@@ -1,6 +1,7 @@
 import datetime
 import math
 
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
@@ -339,6 +340,11 @@ class CardFindImageView(APIView):
     def post(self, request, pk):
         from .image_search import find_thumbnail
 
+        if not settings.CARD_IMAGE_SEARCH_ENABLED:
+            return Response(
+                {"detail": "Automatic image lookup is turned off."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         card = (
             Card.objects.filter(id=pk, deck__user=request.user)
             .select_related("reverse_of", "deck")

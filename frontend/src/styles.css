@@ -665,6 +665,9 @@ kbd {
 .cardtype--sentence { border-color: var(--art-die, #ef4444); }
 .cardtype--grammar { border-color: var(--art-das, #22c55e); }
 .cardtype--verb { border-color: var(--art-plural, #a855f7); }
+.cardtype--adjective { border-color: #f59e0b; }
+.cardtype--adverb { border-color: #14b8a6; }
+.cardtype--preposition { border-color: #ec4899; }
 .face__tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
 .tag { font-size: 0.72rem; background: var(--line-soft); color: var(--ink-soft); padding: 2px 8px; border-radius: 999px; }
 
@@ -674,6 +677,7 @@ kbd {
 .gtable__hl { background: rgba(76, 110, 245, 0.16); font-weight: 700; }
 
 /* Verb conjugation table (read-only, on the card back) */
+.conjtable-wrap { max-width: 100%; overflow-x: auto; }
 .conjtable { border-collapse: collapse; margin: 4px auto; font-size: 0.92rem; max-width: 100%; }
 .conjtable th, .conjtable td { border: 1px solid var(--line); padding: 5px 12px; text-align: left; vertical-align: top; }
 .conjtable__tense { background: var(--line-soft); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-soft); white-space: nowrap; }
@@ -683,15 +687,40 @@ kbd {
 
 /* Verb conjugation editor (in the card editor) */
 .cardeditor__conjhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.conjeditor { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
-.conjeditor__row { display: flex; align-items: center; gap: 6px; }
-.conjeditor__tense { flex: 0 0 26%; min-width: 0; }
-.conjeditor__form { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
-.conjeditor__form .input { min-width: 0; }
-.conjeditor__meaning { flex: 1; min-width: 0; }
-.conjeditor__del { flex: none; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 0.9rem; padding: 4px; }
+.conjeditor { display: flex; flex-direction: column; gap: 8px; margin: 6px 0; }
+/* Grid rather than flex: each field needs a real width floor. A flex row with
+ * min-width:0 on every child squeezes the three inputs down to a few characters
+ * on a phone, so "Präteritum" shows as "Prä" and the rest scrolls out of sight. */
+.conjeditor__row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.35fr) minmax(0, 1.2fr) auto;
+  grid-template-areas: "tense form meaning del";
+  align-items: center;
+  gap: 6px;
+}
+.conjeditor__tense { grid-area: tense; min-width: 0; }
+.conjeditor__form { grid-area: form; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.conjeditor__form .input { flex: 1; min-width: 0; }
+.conjeditor__meaning { grid-area: meaning; min-width: 0; }
+.conjeditor__del { grid-area: del; border: none; background: none; color: var(--ink-faint); cursor: pointer; font-size: 0.9rem; padding: 4px; }
 .conjeditor__del:hover { color: var(--again, #d33); }
 .conjeditor__add { align-self: flex-start; }
+
+/* Narrow screens: stack the three fields so each one gets the full row width. */
+@media (max-width: 640px) {
+  .conjeditor { gap: 12px; }
+  .conjeditor__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "tense   del"
+      "form    form"
+      "meaning meaning";
+    gap: 5px 6px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .conjeditor__row:last-child { border-bottom: none; padding-bottom: 0; }
+}
 
 .face__plural { color: var(--ink-soft); font-size: 0.95rem; display: inline-flex; align-items: center; gap: 6px; }
 .face__plural .art-plural { font-weight: 700; }

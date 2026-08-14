@@ -12,11 +12,11 @@ import {
   type DraftCard,
 } from "../auth/api";
 import { detectArticle } from "../lib/article";
+import { CARD_TYPES, isWordType } from "../lib/cardTypes";
 import { getTranslateLang, setTranslateLang, TRANSLATE_LANGS } from "../lib/translateLang";
 import CaseTable from "./CaseTable";
 import SpeakButton from "./SpeakButton";
 
-const CARD_TYPES: CardType[] = ["vocab", "sentence", "grammar", "verb"];
 const ARTICLES: Article[] = ["none", "der", "die", "das", "plural"];
 
 export function emptyDraft(language: "de" | "en" | "" = "", card_type: CardType = "vocab"): DraftCard {
@@ -77,10 +77,12 @@ export default function CardEditor({ value, onChange, compact }: Props) {
   const isGerman = value.language === "de";
   const isSentence = value.card_type === "sentence";
   const isVerb = value.card_type === "verb";
-  const hasReading = value.card_type === "vocab" || isSentence || isVerb;
+  const isWord = isWordType(value.card_type);
+  const hasReading = isWord || isSentence;
+  // Only nouns carry an article, and those are the ones typed as plain vocab.
   const showArticle = isGerman && value.card_type === "vocab";
   // Accurate colouring only matters for multi-word German noun/sentence cards.
-  const showColourGenders = isGerman && value.card_type !== "vocab" && !isVerb;
+  const showColourGenders = isGerman && !isWord;
 
   // Editing the front invalidates a previous gender analysis.
   function onFrontChange(v: string) {
@@ -105,13 +107,17 @@ export default function CardEditor({ value, onChange, compact }: Props) {
         card_type: value.card_type,
         back_language: backLang,
       });
+      // The part of speech comes back detected; the caller's guess was only a
+      // hint. Sentence/grammar cards keep the type the user deliberately chose.
+      const detected = isWordType(value.card_type) && r.card_type ? r.card_type : value.card_type;
       onChange({
         ...value,
+        card_type: detected,
         back: r.back || value.back,
         reading: r.reading || value.reading,
         article: r.article && r.article !== "none" ? r.article : value.article,
         // Plural form is only meaningful for vocab nouns.
-        plural: value.card_type === "vocab" ? r.plural || value.plural : value.plural,
+        plural: detected === "vocab" ? r.plural || value.plural : value.plural,
         // A sentence card is its own example — don't add a separate one.
         example: isSentence ? "" : r.example || value.example,
       });
@@ -290,19 +296,24 @@ export default function CardEditor({ value, onChange, compact }: Props) {
 
       {!compact && (
         <>
-          {isVerb && (
+          {/* Also shown for a non-verb card that still carries conjugations, so
+            * stale rows stay visible and can be deleted rather than lingering
+            * invisibly on the card. */}
+          {(isVerb || value.conjugations.length > 0) && (
             <div className="cardeditor__field">
               <div className="cardeditor__conjhead">
                 <span>{t("cardEditor.conjugationsLabel")}</span>
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={fillConjugations}
-                  disabled={conjugating || !value.front.trim()}
-                  title={t("cardEditor.fillConjTitle")}
-                >
-                  {conjugating ? t("cardEditor.filling") : t("cardEditor.fillConj")}
-                </button>
+                {isVerb && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={fillConjugations}
+                    disabled={conjugating || !value.front.trim()}
+                    title={t("cardEditor.fillConjTitle")}
+                  >
+                    {conjugating ? t("cardEditor.filling") : t("cardEditor.fillConj")}
+                  </button>
+                )}
               </div>
               {value.conjugations.length > 0 && (
                 <div className="conjeditor">
@@ -311,6 +322,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
                       <input
                         className="input input--sm conjeditor__tense"
                         value={row.tense}
+                        title={row.tense}
                         onChange={(e) => updateConjRow(i, "tense", e.target.value)}
                         placeholder={t("cardEditor.tense")}
                       />
@@ -318,6 +330,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
                         <input
                           className="input input--sm"
                           value={row.form}
+                          title={row.form}
                           onChange={(e) => updateConjRow(i, "form", e.target.value)}
                           placeholder={t("cardEditor.form")}
                         />
@@ -327,6 +340,7 @@ export default function CardEditor({ value, onChange, compact }: Props) {
                         className="input input--sm conjeditor__meaning"
                         dir="auto"
                         value={row.meaning}
+                        title={row.meaning}
                         onChange={(e) => updateConjRow(i, "meaning", e.target.value)}
                         placeholder={t("cardEditor.meaning")}
                       />

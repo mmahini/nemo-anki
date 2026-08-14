@@ -16,6 +16,7 @@ from apps.subscriptions.quota import AiQuotaMixin
 
 from . import anki
 from .gemini import (
+    ALLOWED_TYPES,
     analyze_german,
     conjugate_verb,
     conversation_reply,
@@ -32,7 +33,7 @@ class ParseRequestSerializer(serializers.Serializer):
     text = serializers.CharField(max_length=20000)
     language = serializers.ChoiceField(choices=["de", "en", ""], required=False, default="")
     default_type = serializers.ChoiceField(
-        choices=["vocab", "sentence", "grammar", "verb"], required=False, default="vocab"
+        choices=sorted(ALLOWED_TYPES), required=False, default="vocab"
     )
 
 
@@ -40,7 +41,7 @@ class EnrichRequestSerializer(serializers.Serializer):
     front = serializers.CharField(max_length=500)
     language = serializers.ChoiceField(choices=["de", "en", ""], required=False, default="")
     card_type = serializers.ChoiceField(
-        choices=["vocab", "sentence", "grammar", "verb"], required=False, default="vocab"
+        choices=sorted(ALLOWED_TYPES), required=False, default="vocab"
     )
     # Language the translation ("back") should be written in.
     back_language = serializers.CharField(max_length=40, required=False, default="English")

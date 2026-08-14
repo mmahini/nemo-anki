@@ -432,7 +432,8 @@ def _send_proposal(api: str, chat_id, pending: PendingTelegramCard) -> None:
     caption = _proposal_caption(pending)
     keyboard = _proposal_keyboard(pending.id)
     message_id = _reply_and_get_message_id(api, chat_id, caption, reply_markup=keyboard)
-    if message_id:
+    # With image search off, `image_url` stays "" and _finalize sends plain text.
+    if message_id and settings.CARD_IMAGE_SEARCH_ENABLED:
         from apps.notifications.tasks import find_and_attach_proposal_image
 
         find_and_attach_proposal_image.delay(
@@ -576,7 +577,9 @@ def _propose_word(link: TelegramLink, api: str, chat_id, text: str) -> None:
     pending, _ = PendingTelegramCard.objects.update_or_create(
         user=link.user,
         defaults={
-            "card_type": "vocab",
+            # The part of speech Gemini detected — "vocab" is only the hint we
+            # sent it, and the catch-all it falls back to.
+            "card_type": result.get("card_type", "vocab"),
             "language": link.default_language,
             "front": text,
             "back": translations[0] if translations else "",

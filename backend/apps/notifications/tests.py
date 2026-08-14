@@ -1590,6 +1590,44 @@ class TelegramWizardFlowTests(APITestCase):
         self.assertIn("menu:lookup", callback_data)
 
 
+class CardImageSearchDisabledTests(APITestCase):
+    """Automatic image lookup is off by default (CARD_IMAGE_SEARCH_ENABLED).
+    The code stays in place behind the flag, but neither entry point fires."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        TelegramLink.objects.create(user=self.user, chat_id=777, default_language="de")
+        self.pending = PendingTelegramCard.objects.create(
+            user=self.user, language="de", front="Haus", back="house",
+            article="das", awaiting_field="reading",
+        )
+
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_telegram_proposal_does_not_dispatch_an_image_search(self, mock_post, mock_delay):
+        mock_post.return_value = Mock(json=lambda: {"ok": True, "result": {"message_id": 555}})
+
+        process_telegram_update(
+            {"update_id": 1, "message": {"text": "/skip", "chat": {"id": 777}}},
+            "https://api.telegram.org/botX",
+        )
+
+        mock_delay.assert_not_called()
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "")
+
+    def test_find_image_endpoint_is_unavailable(self):
+        config = DeckConfig.objects.create(user=self.user)
+        deck = Deck.objects.create(user=self.user, name="D", language="de", config=config)
+        card = Card.objects.create(deck=deck, language="de", front="Haus", back="house")
+        self.client.force_authenticate(self.user)
+
+        res = self.client.post(f"/api/cards/{card.id}/find-image/")
+
+        self.assertEqual(res.status_code, 503)
+        self.assertEqual(card.images.count(), 0)
+
+
 class TelegramProposalImageTests(APITestCase):
     """The Create/Edit proposal is sent as text immediately; the picture (if
     any) is searched for in the background and edited into that same
@@ -1613,6 +1651,7 @@ class TelegramProposalImageTests(APITestCase):
     def _callback(self, data):
         return {"update_id": 1, "callback_query": {"id": "cb1", "data": data, "message": {"chat": {"id": 777}}}}
 
+    @override_settings(CARD_IMAGE_SEARCH_ENABLED=True)
     @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_proposal_is_sent_immediately_and_the_image_search_is_backgrounded(self, mock_post, mock_delay):
@@ -1945,6 +1984,7 @@ class TelegramSentenceInputTests(APITestCase):
         args, _ = mock_enrich.call_args
         self.assertEqual(args[2], "sentence")
 
+    @override_settings(CARD_IMAGE_SEARCH_ENABLED=True)
     @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")

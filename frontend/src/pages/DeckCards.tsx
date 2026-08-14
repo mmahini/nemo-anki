@@ -18,11 +18,12 @@ import {
   type DraftCard,
 } from "../auth/api";
 
-const CARD_TYPES: CardType[] = ["vocab", "sentence", "grammar", "verb"];
 import CardEditor from "../components/CardEditor";
 import CardImages from "../components/CardImages";
 import GermanText from "../components/GermanText";
 import { articleClass } from "../lib/article";
+import { CARD_TYPES } from "../lib/cardTypes";
+import { CARD_IMAGE_SEARCH_ENABLED } from "../lib/features";
 
 /** The card's front, coloured by gender where it makes sense, on one line. */
 function FrontText({ card }: { card: Card }) {
@@ -344,7 +345,7 @@ export default function DeckCards() {
                   >
                     {t("deckCards.reviewBtn")}
                   </button>
-                  {c.card_type === "vocab" && (
+                  {CARD_IMAGE_SEARCH_ENABLED && c.card_type === "vocab" && (
                     <button
                       className="cardrow__colour"
                       title={(c.images?.length ?? 0) > 0 ? "Find a different image (regenerate)" : "Auto-find an image for this card"}

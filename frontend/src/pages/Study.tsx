@@ -13,6 +13,7 @@ import {
 import { CardBack, CardFront } from "../components/CardFace";
 import CardEditModal from "../components/CardEditModal";
 import { promptSpeech } from "../lib/cardSpeech";
+import { CARD_IMAGE_SEARCH_ENABLED } from "../lib/features";
 import { speak } from "../lib/tts";
 
 type Rating = 1 | 2 | 3 | 4;
@@ -205,7 +206,9 @@ export default function Study() {
         <div className="study__stage">
           <div className="cardtools">
             <button className="cardtools__btn" title={t("review.colourise")} disabled={cardBusy} onClick={colourise}>🎨</button>
-            <button className="cardtools__btn" title={t("review.findImage")} disabled={cardBusy} onClick={findImage}>🖼️</button>
+            {CARD_IMAGE_SEARCH_ENABLED && (
+              <button className="cardtools__btn" title={t("review.findImage")} disabled={cardBusy} onClick={findImage}>🖼️</button>
+            )}
             <button className="cardtools__btn" title={t("review.editCard")} onClick={() => setEditing(true)}>✎</button>
           </div>
           <div className={`reviewcard ${flipped ? "is-flipped" : ""}`}>
