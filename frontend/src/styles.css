@@ -1937,6 +1937,31 @@ kbd {
   .updatetoast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 }
 
+/* "No sound came out" panel. Wider and taller than the update toast because it
+   carries instructions, so it is a card rather than a pill. */
+.speechhelp {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  z-index: 95; display: flex; flex-direction: column; gap: 12px;
+  width: min(92vw, 440px);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 16px; box-shadow: var(--shadow-md);
+  padding: 16px 18px;
+}
+.speechhelp__body { display: flex; flex-direction: column; gap: 8px; }
+.speechhelp__title { font-size: 0.95rem; }
+.speechhelp__lead { margin: 0; font-size: 0.86rem; color: var(--ink-soft); }
+.speechhelp__steps {
+  margin: 0; padding-inline-start: 18px;
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 0.84rem; color: var(--ink-soft);
+}
+.speechhelp__actions { display: flex; gap: 10px; }
+.speechhelp__actions .btn { flex: 1; }
+/* Sit above the floating mobile tab bar. */
+@media (max-width: 720px) {
+  .speechhelp { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+
 /* Referral gift banner — the invited user's very first hello. On the
    bilingual language step it holds one line per language. */
 .wgift {

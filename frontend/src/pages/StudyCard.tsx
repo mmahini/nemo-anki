@@ -39,7 +39,7 @@ export default function StudyCard() {
         setCard(c);
         shownAt.current = Date.now();
         const s = promptSpeech(c);
-        if (s) speak(s.text, s.lang);
+        if (s) speak(s.text, s.lang, { auto: true });
       })
       .catch((e) => setError(e instanceof Error ? e.message : t("common.error")))
       .finally(() => setLoading(false));

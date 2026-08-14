@@ -55,7 +55,7 @@ export default function PlacementTestRun() {
   // way to first hear the text (matches how a real listening section works).
   useEffect(() => {
     if (run && stage === "question" && current?.section === "listening" && current.audio_text) {
-      speak(current.audio_text, run.language);
+      speak(current.audio_text, run.language, { auto: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, index]);
