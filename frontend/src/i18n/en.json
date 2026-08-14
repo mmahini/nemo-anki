@@ -79,6 +79,17 @@
     "updateBtn": "Update",
     "updating": "Updating…"
   },
+  "speechHelp": {
+    "title": "No sound came out",
+    "lead": "Reading a card aloud doesn't need any permission, so there's nothing to allow. Something is muting the audio:",
+    "iosSilentSwitch": "Check the Ring/Silent switch on the left edge of your iPhone — when it's set to silent it mutes this app's speech, and iOS gives websites no way to override it.",
+    "iosVolume": "Press volume-up once while the app is open, so the volume applies to media rather than the ringer.",
+    "iosReopen": "If it still stays quiet, close the app fully (swipe it away) and open it again from the home screen.",
+    "genericVolume": "Check the device volume isn't muted.",
+    "genericOffline": "If you're offline, the natural voice can't be fetched.",
+    "retry": "Try again",
+    "dismiss": "Close"
+  },
   "invite": {
     "title": "Invite a friend — they get a free month of Basic",
     "shareText": "Learn a language with me on Nemo Anki! Sign up with my link and your first month of Basic is free:",

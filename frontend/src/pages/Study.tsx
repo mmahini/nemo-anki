@@ -65,7 +65,7 @@ export default function Study() {
   useEffect(() => {
     if (!current) return;
     const s = promptSpeech(current);
-    if (s) speak(s.text, s.lang);
+    if (s) speak(s.text, s.lang, { auto: true });
   }, [current?.id]);
 
   const grade = useCallback(

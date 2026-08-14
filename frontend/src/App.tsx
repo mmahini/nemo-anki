@@ -28,6 +28,7 @@ import Subscribe from "./pages/Subscribe";
 import Classroom from "./pages/Classroom";
 import BackendStatus from "./components/BackendStatus";
 import UpdateToast from "./components/UpdateToast";
+import SpeechHelp from "./components/SpeechHelp";
 
 // Emit a Wiser CDP pageview on every route change (no-op unless the pixel is configured).
 function CdpRouteTracker() {
@@ -55,6 +56,7 @@ export default function App() {
         <CdpRouteTracker />
         <BackendStatus />
         <UpdateToast />
+        <SpeechHelp />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth/sign-in" element={<SignIn />} />
