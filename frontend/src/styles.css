@@ -37,6 +37,21 @@
 }
 
 :root {
+  /* Safe-area insets, named once so every pinned surface reads the same thing.
+     These only resolve to real values because index.html sets
+     viewport-fit=cover; the fallback keeps them at 0 everywhere else.
+
+     --gutter-l/r are for anything touching a screen edge: on a phone with
+     rounded corners and, in landscape, a notch, a bar flush to the edge gets
+     its corners clipped, so it keeps at least the normal 14px gutter and grows
+     to clear the inset when there is one. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --gutter-l: max(14px, var(--safe-l));
+  --gutter-r: max(14px, var(--safe-r));
+
   --ink: #1c2230;
   --ink-soft: #5b6478;
   --ink-faint: #939bad;
@@ -424,7 +439,9 @@ kbd {
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 12px 24px;
+  /* Grows into the status bar / notch instead of sliding under it, and clears
+     the rounded corners in landscape. */
+  padding: calc(12px + var(--safe-t)) max(24px, var(--safe-r)) 12px max(24px, var(--safe-l));
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   position: sticky;
@@ -441,7 +458,7 @@ kbd {
 .shell__link.active { background: rgba(76, 110, 245, 0.1); color: var(--brand-dark); }
 .shell__user { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .shell__email { color: var(--ink-faint); font-size: 0.85rem; }
-.shell__main { flex: 1; width: 100%; max-width: 960px; margin: 0 auto; padding: 28px 24px 64px; }
+.shell__main { flex: 1; width: 100%; max-width: 960px; margin: 0 auto; padding: 28px max(24px, var(--safe-r)) 64px max(24px, var(--safe-l)); }
 
 /* ============================================================
    Decks list
@@ -536,7 +553,7 @@ kbd {
 .study__bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .study__progress { display: flex; gap: 6px; }
 /* Bottom padding leaves room for the pinned .reviewbar, which is out of flow. */
-.study__stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 32px 20px calc(132px + env(safe-area-inset-bottom)); }
+.study__stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 32px max(20px, var(--safe-r)) calc(132px + var(--safe-b)) max(20px, var(--safe-l)); }
 .cardtools { display: flex; gap: 8px; width: 100%; max-width: 560px; justify-content: flex-end; margin-bottom: -16px; }
 .cardtools__btn { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; width: 38px; height: 38px; font-size: 1.05rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .cardtools__btn:hover:not(:disabled) { border-color: var(--ink-faint); }
@@ -546,6 +563,11 @@ kbd {
 .editmodal .lessonview__head { flex: none; }
 .editmodal__body { flex: 1 1 auto; min-height: 0; padding: 16px 18px; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 14px; }
 .editmodal__foot { flex: none; display: flex; justify-content: flex-end; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--line); background: var(--surface); }
+/* Full-screen on mobile, so the footer owns the bottom edge and the head the top. */
+@media (max-width: 640px) {
+  .editmodal__foot { padding: 12px max(18px, var(--safe-r)) calc(12px + var(--safe-b)) max(18px, var(--safe-l)); }
+  .lessonview__card, .lessonview__card--split, .editmodal { padding-top: var(--safe-t); }
+}
 .study__show { min-width: 220px; justify-content: center; }
 .study__done { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
 .study__done-emoji { font-size: 3rem; }
@@ -746,7 +768,10 @@ kbd {
 .reviewbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
   display: flex; justify-content: center;
-  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+  /* The surface runs to the physical bottom edge so no strip of page shows
+     under it; the buttons themselves are lifted clear of the home indicator
+     and the rounded corners. */
+  padding: 12px max(20px, var(--safe-r)) calc(12px + var(--safe-b)) max(20px, var(--safe-l));
   background: var(--surface);
   border-top: 1px solid var(--line);
   box-shadow: 0 -4px 16px rgba(20, 28, 46, 0.06);
@@ -851,7 +876,9 @@ kbd {
 .wakebanner {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   display: flex; align-items: center; justify-content: center; gap: 10px;
-  padding: 10px 16px; font-size: 0.88rem; font-weight: 600;
+  /* Full-bleed to the top edge, text pushed clear of the status bar. */
+  padding: calc(10px + var(--safe-t)) max(16px, var(--safe-r)) 10px max(16px, var(--safe-l));
+  font-size: 0.88rem; font-weight: 600;
   background: var(--brand); color: #fff; text-align: center;
   box-shadow: var(--shadow-sm);
 }
@@ -1126,8 +1153,8 @@ kbd {
   .btn--sm { padding: 8px 12px; font-size: 0.9rem; }
 
   /* Header: brand + account menu only (primary nav moves to the bottom bar) */
-  .shell__bar { gap: 12px; padding: 10px 14px; }
-  .shell__main { padding: 18px 14px 24px; }
+  .shell__bar { gap: 12px; padding: calc(10px + var(--safe-t)) max(14px, var(--safe-r)) 10px max(14px, var(--safe-l)); }
+  .shell__main { padding: 18px max(14px, var(--safe-r)) 24px max(14px, var(--safe-l)); }
 
   /* Decks list: name (+counts) on the left, compact Study + ⋯ on the right */
   .decks__head { gap: 8px; }
@@ -1151,9 +1178,9 @@ kbd {
   .typepanel__tools { justify-content: space-between; }
 
   /* Study / single-card review */
-  .study__stage { padding: 24px 14px calc(124px + env(safe-area-inset-bottom)); gap: 22px; }
+  .study__stage { padding: 24px max(14px, var(--safe-r)) calc(124px + var(--safe-b)) max(14px, var(--safe-l)); gap: 22px; }
   .study__show { width: 100%; min-width: 0; }
-  .reviewbar { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
+  .reviewbar { padding: 10px max(14px, var(--safe-r)) calc(10px + var(--safe-b)) max(14px, var(--safe-l)); }
 
   /* Card editor */
   .cardeditor__row { flex-wrap: wrap; }
@@ -1409,7 +1436,7 @@ kbd {
   .invite__panel {
     position: fixed; top: auto; bottom: 0; left: 0; right: 0; width: auto;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+    padding: 20px max(20px, var(--safe-r)) calc(20px + var(--safe-b)) max(20px, var(--safe-l));
     animation: sheet-up 0.2s ease;
   }
 }
@@ -1437,7 +1464,7 @@ kbd {
   /* Floating frosted-glass bar, lifted off the bottom edge */
   .shell__tabbar {
     display: flex; position: fixed; z-index: 20;
-    left: 14px; right: 14px; bottom: calc(12px + env(safe-area-inset-bottom));
+    left: var(--gutter-l); right: var(--gutter-r); bottom: calc(12px + var(--safe-b));
     justify-content: space-around; gap: 2px; padding: 8px;
     border-radius: 26px;
     background: rgba(255, 255, 255, 0.68);
@@ -1447,15 +1474,15 @@ kbd {
     box-shadow: 0 12px 32px rgba(20, 28, 46, 0.18), 0 2px 8px rgba(20, 28, 46, 0.08);
   }
   /* leave room so content never hides behind the floating bar */
-  .shell__main { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+  .shell__main { padding-bottom: calc(104px + var(--safe-b)); }
   /* Sub-pages have no tab bar (they carry a back button instead), so no gap. */
-  .shell--subpage .shell__main { padding-bottom: 24px; }
+  .shell--subpage .shell__main { padding-bottom: calc(24px + var(--safe-b)); }
 
   /* Account menu becomes a bottom sheet */
   .usermenu__backdrop { background: rgba(15, 20, 40, 0.45); }
   .usermenu__panel {
     position: fixed; top: auto; bottom: 0; left: 0; right: 0; width: auto;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 10px 10px calc(16px + env(safe-area-inset-bottom));
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 10px max(10px, var(--safe-r)) calc(16px + var(--safe-b)) max(10px, var(--safe-l));
     animation: sheet-up 0.2s ease;
   }
   .usermenu__item { padding: 15px 12px; }
@@ -1523,7 +1550,7 @@ kbd {
   .modal__panel {
     width: 100%; max-width: none; max-height: 92dvh;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--safe-b);
     animation: sheet-up 0.22s ease;
   }
   .modal__grip {
@@ -1846,7 +1873,7 @@ kbd {
    ============================================================ */
 .welcome {
   min-height: 100%; display: grid; place-items: center;
-  padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+  padding: calc(24px + var(--safe-t)) max(16px, var(--safe-r)) calc(24px + var(--safe-b)) max(16px, var(--safe-l));
   background:
     radial-gradient(760px 420px at 50% -8%, rgba(76, 110, 245, 0.10), transparent 70%),
     var(--bg);
@@ -1952,7 +1979,7 @@ kbd {
 .updatetoast .btn { border-radius: 999px; }
 /* Sit above the floating mobile tab bar. */
 @media (max-width: 720px) {
-  .updatetoast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .updatetoast { bottom: calc(84px + var(--safe-b)); left: var(--gutter-l); right: var(--gutter-r); transform: none; max-width: none; }
 }
 
 /* "No sound came out" panel. Wider and taller than the update toast because it
@@ -1977,7 +2004,7 @@ kbd {
 .speechhelp__actions .btn { flex: 1; }
 /* Sit above the floating mobile tab bar. */
 @media (max-width: 720px) {
-  .speechhelp { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .speechhelp { bottom: calc(84px + var(--safe-b)); left: var(--gutter-l); right: var(--gutter-r); transform: none; width: auto; }
 }
 
 /* Referral gift banner — the invited user's very first hello. On the
@@ -2073,7 +2100,7 @@ kbd {
 .wfeature__body { display: block; color: var(--ink-soft); font-size: 0.88rem; line-height: 1.55; }
 
 @media (max-width: 560px) {
-  .welcome { padding: 16px 12px calc(16px + env(safe-area-inset-bottom)); }
+  .welcome { padding: calc(16px + var(--safe-t)) max(12px, var(--safe-r)) calc(16px + var(--safe-b)) max(12px, var(--safe-l)); }
   .welcome__card { padding: 22px 18px 20px; border-radius: var(--radius); }
   .wstep__title { font-size: 1.3rem; }
   .wlangs { grid-template-columns: 1fr; gap: 10px; }
