@@ -242,9 +242,23 @@ export function speak(text: string, lang: string, opts: SpeakOptions = {}): void
 
   const token = playToken;
   let i = 0;
+  // A failed load fires BOTH the element's error event and a rejection from
+  // play(), so without this latch the fallback runs twice and the text is read
+  // out twice over.
+  let failed = false;
   const onFail = () => {
-    if (token !== playToken) return;
+    if (token !== playToken || failed) return;
+    failed = true;
+    // Silence the element before handing over. play() can reject while the
+    // element still goes on to produce sound, and then both voices would talk
+    // over each other.
+    const stale = currentAudio;
     currentAudio = null;
+    if (stale) {
+      stale.onended = null;
+      stale.onerror = null;
+      stale.pause();
+    }
     // Google unreachable — read the remaining text via the browser voice, and
     // speak up if that makes no sound either.
     webSpeak(chunks.slice(i).join(" "), lang).then((ok) => {
