@@ -217,26 +217,31 @@ export default function Study() {
             {flipped && <CardBack card={current} />}
           </div>
 
-          {!flipped ? (
-            <button className="btn btn--primary btn--lg study__show" onClick={() => setFlipped(true)}>
-              {t("study.showAnswer")} <kbd>{t("review.spaceKey")}</kbd>
-            </button>
-          ) : (
-            <div className="grades">
-              {RATING_KEYS.map((m) => (
-                <button
-                  key={m.rating}
-                  className={m.cls}
-                  disabled={busy}
-                  onClick={() => grade(m.rating)}
-                >
-                  <span className="grade__label">{t(m.key)}</span>
-                  <span className="grade__interval">{current.intervals?.[String(m.rating)] ?? ""}</span>
-                  <kbd>{m.rating}</kbd>
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Pinned to the bottom of the viewport: these are tapped on every
+              single card, so they stay under the thumb instead of drifting
+              down the page as the answer makes the card taller. */}
+          <div className="reviewbar">
+            {!flipped ? (
+              <button className="btn btn--primary btn--lg study__show" onClick={() => setFlipped(true)}>
+                {t("study.showAnswer")} <kbd>{t("review.spaceKey")}</kbd>
+              </button>
+            ) : (
+              <div className="grades">
+                {RATING_KEYS.map((m) => (
+                  <button
+                    key={m.rating}
+                    className={m.cls}
+                    disabled={busy}
+                    onClick={() => grade(m.rating)}
+                  >
+                    <span className="grade__label">{t(m.key)}</span>
+                    <span className="grade__interval">{current.intervals?.[String(m.rating)] ?? ""}</span>
+                    <kbd>{m.rating}</kbd>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -535,7 +535,8 @@ kbd {
 .study { min-height: 100%; display: flex; flex-direction: column; background: var(--bg); }
 .study__bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .study__progress { display: flex; gap: 6px; }
-.study__stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 32px 20px; }
+/* Bottom padding leaves room for the pinned .reviewbar, which is out of flow. */
+.study__stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 32px 20px calc(132px + env(safe-area-inset-bottom)); }
 .cardtools { display: flex; gap: 8px; width: 100%; max-width: 560px; justify-content: flex-end; margin-bottom: -16px; }
 .cardtools__btn { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; width: 38px; height: 38px; font-size: 1.05rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .cardtools__btn:hover:not(:disabled) { border-color: var(--ink-faint); }
@@ -737,6 +738,19 @@ kbd {
 .casebadge--Dativ { background: rgba(31, 157, 87, 0.12); color: var(--good); }
 .casebadge--Genitiv { background: rgba(138, 99, 210, 0.14); color: var(--art-plural); }
 .cardeditor__cases { overflow-x: auto; }
+
+/* The answer / grade buttons, pinned to the bottom of the viewport. They are
+   tapped on every card, so they hold one position under the thumb instead of
+   sliding down the page as the revealed answer grows the card. The review
+   screens are sub-pages, so there is no mobile tab bar to sit above. */
+.reviewbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  display: flex; justify-content: center;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -4px 16px rgba(20, 28, 46, 0.06);
+}
 
 .grades { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 560px; }
 .grade {
@@ -1088,8 +1102,12 @@ kbd {
 
 @media (max-width: 720px) {
   .addcard__grid { grid-template-columns: 1fr; }
-  .grades { gap: 8px; }
-  .grade { min-width: calc(50% - 4px); }
+  /* One row of four inside the pinned bar — a 2x2 block would eat a third of
+     a phone screen and push the card out of view. */
+  .grades { gap: 8px; flex-wrap: nowrap; }
+  .grade { flex: 1; min-width: 0; padding: 12px 4px; }
+  .grade__label { font-size: 0.86rem; }
+  .grade__interval { font-size: 0.7rem; }
 }
 
 /* ============================================================
@@ -1133,9 +1151,9 @@ kbd {
   .typepanel__tools { justify-content: space-between; }
 
   /* Study / single-card review */
-  .study__stage { padding: 24px 14px; gap: 22px; }
+  .study__stage { padding: 24px 14px calc(124px + env(safe-area-inset-bottom)); gap: 22px; }
   .study__show { width: 100%; min-width: 0; }
-  .grade { min-width: calc(50% - 4px); }
+  .reviewbar { padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
 
   /* Card editor */
   .cardeditor__row { flex-wrap: wrap; }

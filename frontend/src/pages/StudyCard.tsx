@@ -146,21 +146,24 @@ export default function StudyCard() {
             {flipped && <CardBack card={card} />}
           </div>
 
-          {!flipped ? (
-            <button className="btn btn--primary btn--lg study__show" onClick={() => setFlipped(true)}>
-              {t("study.showAnswer")} <kbd>{t("review.spaceKey")}</kbd>
-            </button>
-          ) : (
-            <div className="grades">
-              {RATING_KEYS.map((m) => (
-                <button key={m.rating} className={m.cls} disabled={busy} onClick={() => grade(m.rating)}>
-                  <span className="grade__label">{t(m.key)}</span>
-                  <span className="grade__interval">{card.intervals?.[String(m.rating)] ?? ""}</span>
-                  <kbd>{m.rating}</kbd>
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Pinned to the bottom of the viewport — see Study.tsx. */}
+          <div className="reviewbar">
+            {!flipped ? (
+              <button className="btn btn--primary btn--lg study__show" onClick={() => setFlipped(true)}>
+                {t("study.showAnswer")} <kbd>{t("review.spaceKey")}</kbd>
+              </button>
+            ) : (
+              <div className="grades">
+                {RATING_KEYS.map((m) => (
+                  <button key={m.rating} className={m.cls} disabled={busy} onClick={() => grade(m.rating)}>
+                    <span className="grade__label">{t(m.key)}</span>
+                    <span className="grade__interval">{card.intervals?.[String(m.rating)] ?? ""}</span>
+                    <kbd>{m.rating}</kbd>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
