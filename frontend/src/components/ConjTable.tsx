@@ -8,19 +8,23 @@ import SpeakButton from "./SpeakButton";
 export default function ConjTable({ rows, lang }: { rows: Conjugation[]; lang: string }) {
   const { t } = useTranslation();
   return (
-    <table className="conjtable">
-      <tbody>
-        {rows.map((r, i) => (
-          <tr key={i}>
-            <th className="conjtable__tense">{r.tense}</th>
-            <td className="conjtable__form">
-              <span>{r.form}</span>
-              <SpeakButton text={r.form} lang={lang} small title={t("cardEditor.hearForm")} />
-            </td>
-            <td className="conjtable__meaning" dir="auto">{r.meaning}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    // The wrapper scrolls instead of letting a long form/meaning pair bleed past
+    // the card edge on narrow screens.
+    <div className="conjtable-wrap">
+      <table className="conjtable">
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <th className="conjtable__tense">{r.tense}</th>
+              <td className="conjtable__form">
+                <span>{r.form}</span>
+                <SpeakButton text={r.form} lang={lang} small title={t("cardEditor.hearForm")} />
+              </td>
+              <td className="conjtable__meaning" dir="auto">{r.meaning}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

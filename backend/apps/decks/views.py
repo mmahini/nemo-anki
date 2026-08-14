@@ -266,14 +266,18 @@ class DeckColourizeView(AiQuotaMixin, APIView):
 
 
 class DeckAutotypeView(APIView):
-    """Auto-detect each card's type (vocab / sentence / grammar) from its
-    content and update it. A fast, free heuristic — no LLM."""
+    """Auto-detect each card's format (single word / sentence / grammar) from
+    its content and update it. A fast, free heuristic — no LLM, so it cannot
+    tell a noun from an adjective; a part of speech already on the card is
+    preserved rather than flattened back to "vocab"."""
 
     permission_classes = [IsAuthenticated]
 
     @staticmethod
     def _classify(card) -> str:
         import re
+
+        from apps.cards.models import WORD_TYPES
 
         f = (card.front or "").strip()
         low = f.lower()
@@ -284,7 +288,7 @@ class DeckAutotypeView(APIView):
         # Reads like a sentence: several words, or ends with sentence punctuation.
         if len(words) >= 4 or (len(words) >= 2 and f[-1:] in ".!?"):
             return "sentence"
-        return "vocab"
+        return card.card_type if card.card_type in WORD_TYPES else "vocab"
 
     def post(self, request, pk):
         from apps.cards.models import Card, sync_card_group
@@ -295,10 +299,10 @@ class DeckAutotypeView(APIView):
 
         cards = Card.objects.filter(deck_id__in=deck.descendant_ids(), reverse_of__isnull=True)
         changed = 0
-        counts = {"vocab": 0, "sentence": 0, "grammar": 0}
+        counts: dict[str, int] = {"vocab": 0, "sentence": 0, "grammar": 0}
         for card in cards:
             new_type = self._classify(card)
-            counts[new_type] += 1
+            counts[new_type] = counts.get(new_type, 0) + 1
             if new_type != card.card_type:
                 card.card_type = new_type
                 card.save(update_fields=["card_type"])

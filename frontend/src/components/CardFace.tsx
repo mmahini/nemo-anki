@@ -116,7 +116,9 @@ export function CardBack({ card }: { card: AnyCard }) {
       )}
       {card.notes && <div className="face__notes">{card.notes}</div>}
       {card.table && <GrammarTable table={card.table} />}
-      {card.card_type === "verb" && card.conjugations?.length > 0 && (
+      {/* Not gated on card_type: conjugations that survive a type change should
+        * stay visible rather than silently disappearing from the card. */}
+      {card.conjugations?.length > 0 && (
         <ConjTable rows={card.conjugations} lang={cardLang(card)} />
       )}
       {card.card_type === "sentence" && card.genders.length > 0 && (

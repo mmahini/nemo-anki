@@ -414,3 +414,38 @@ class StreakSummaryTests(TestCase):
         self._log_on(self.today)
         self._log_on(self.today - timedelta(days=2))  # gap at yesterday
         self.assertEqual(streak_summary(self.user, self.today)["streak"], 1)
+
+
+class CardTypeReverseTests(TestCase):
+    """Single-word notes are drilled both ways. Adjectives, adverbs and
+    prepositions are words like any other, so they earn a reverse card;
+    verbs, sentences and grammar cards stay one-directional."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        config = DeckConfig.objects.create(user=self.user)
+        self.deck = Deck.objects.create(user=self.user, name="German", config=config)
+
+    def _card(self, card_type):
+        return Card.objects.create(deck=self.deck, front="x", back="y", card_type=card_type)
+
+    def test_word_types_want_a_reverse(self):
+        for card_type in ("vocab", "adjective", "adverb", "preposition"):
+            with self.subTest(card_type=card_type):
+                self.assertTrue(self._card(card_type).wants_reverse())
+
+    def test_verbs_sentences_and_grammar_do_not(self):
+        for card_type in ("verb", "sentence", "grammar"):
+            with self.subTest(card_type=card_type):
+                self.assertFalse(self._card(card_type).wants_reverse())
+
+    def test_add_reverse_cards_creates_the_companion_for_an_adjective(self):
+        from .models import add_reverse_cards
+
+        card = self._card("adjective")
+
+        add_reverse_cards([card])
+
+        reverse = Card.objects.filter(reverse_of=card).first()
+        self.assertIsNotNone(reverse)
+        self.assertEqual(reverse.card_type, "adjective")

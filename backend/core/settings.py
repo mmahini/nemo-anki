@@ -199,6 +199,12 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 GEMINI_VERIFY_SSL = os.getenv("GEMINI_VERIFY_SSL", "1") != "0"
 
+# Auto image lookup (Gemini picks a search phrase, Openverse supplies the
+# picture). Off by default: the pictures it finds are usually a poor match for
+# the word. Manual uploads and images from Anki/deck-share imports are
+# unaffected. Set CARD_IMAGE_SEARCH_ENABLED=1 to turn it back on.
+CARD_IMAGE_SEARCH_ENABLED = os.getenv("CARD_IMAGE_SEARCH_ENABLED", "0") == "1"
+
 # Resend — transactional email for sign-in OTP codes. When RESEND_API_KEY is
 # set the code is emailed (and never returned in the API response); otherwise
 # (local dev) the code is surfaced as `dev_code` so sign-in still works offline.

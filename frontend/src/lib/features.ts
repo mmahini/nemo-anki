@@ -18,3 +18,11 @@ export function useFlag(flag: FeatureFlag): boolean {
   const { user } = useAuth();
   return hasFlag(user, flag);
 }
+
+/** Build-time switch for automatic image lookup ("Find image" / 🖼️ buttons).
+ *
+ * Unlike FLAGS above this is not per-user — it is baked into the bundle. Off by
+ * default: the pictures it finds are usually a poor match for the word. Manual
+ * photo upload is unaffected. Must match the backend's
+ * CARD_IMAGE_SEARCH_ENABLED — set both to turn the feature back on. */
+export const CARD_IMAGE_SEARCH_ENABLED = import.meta.env.VITE_CARD_IMAGE_SEARCH === "1";

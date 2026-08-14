@@ -243,7 +243,17 @@ export type VerifyOtpResponse = AuthTokens & {
   referral_applied: boolean;
 };
 
-export type CardType = "vocab" | "sentence" | "grammar" | "verb";
+/** What the card teaches — mostly a part of speech. "vocab" is the catch-all
+ * for a word whose role has no type of its own (nouns above all); "sentence"
+ * and "grammar" are the two non-word formats. Mirrors backend CardType. */
+export type CardType =
+  | "vocab"
+  | "sentence"
+  | "grammar"
+  | "verb"
+  | "adjective"
+  | "adverb"
+  | "preposition";
 export type Article = "none" | "der" | "die" | "das" | "plural";
 
 /** One row of a verb card's conjugation table: a tense/situation, the
@@ -712,6 +722,9 @@ export function parseImport(payload: {
 }
 
 export type EnrichResult = {
+  /** The part of speech detected from the text — may differ from the card_type
+   * sent in the request, which is only a hint. */
+  card_type?: CardType;
   back: string;
   reading: string;
   article: Article;
