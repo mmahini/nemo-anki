@@ -85,6 +85,11 @@ jobs:
       - name: Poll reels
         working-directory: backend
         run: |
+          # pipefail matters more than it looks: without it the pipeline's exit
+          # status is tee's, so poll_reels could crash — a bad DATABASE_URL, a
+          # dead actor — and the daily job would still go green. A cron that
+          # fails silently is worse than no cron.
+          set -o pipefail
           python manage.py poll_reels \
             ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }} \
             | tee "$GITHUB_STEP_SUMMARY"
