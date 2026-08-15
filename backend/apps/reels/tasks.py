@@ -20,6 +20,8 @@ from django.utils import timezone
 from . import apify, costs, ingest
 from .models import (
     INSTAGRAM,
+    MEDIA_FAILED,
+    MEDIA_PENDING,
     MEDIA_PURGED,
     MEDIA_STORED,
     OWN,
@@ -137,6 +139,14 @@ def _run_batch(sources: list[ReelSource], results_limit: int, triggered_by: str)
         )
         if created:
             new_ids.append(reel.pk)
+            pending_ingest.append((reel.pk, parsed["video_url"], parsed["poster_url"]))
+        elif reel.media_status in (MEDIA_PENDING, MEDIA_FAILED) and parsed["video_url"]:
+            # Self-heal. A reel whose media never landed — the download failed,
+            # or the broker was down when we tried to queue it — is dead weight:
+            # it's excluded from the feed but blocks a re-fetch, because the row
+            # is what dedupes. This item is already paid for in this run, and
+            # its signed URLs are fresh, so retry the ingest rather than leaving
+            # a reel we bought but can't show.
             pending_ingest.append((reel.pk, parsed["video_url"], parsed["poster_url"]))
 
     run.status = "succeeded"
