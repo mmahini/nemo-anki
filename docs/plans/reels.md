@@ -233,21 +233,38 @@ at 10,000 MAU, egress stays $0 and ops stay inside the free tier. There is no
 input to this model that makes hosting expensive — which is exactly why we
 should not spend engineering time on transcoding to save space.
 
-#### Two caveats worth knowing up front
+#### The CDN domain — settled 2026-08-15
 
-- **DNS moves to Cloudflare.** An R2 custom domain (`cdn.nemoapps.xyz`) requires
-  the zone to be on Cloudflare — the `r2.dev` URL is rate-limited and explicitly
-  not for production. So `nemoapps.xyz` DNS moves to Cloudflare (free); existing
-  Render and Vercel records carry over as **DNS-only (grey cloud)** entries and
-  keep working unchanged. Caching on the custom domain needs a *Cache Everything*
-  rule to cover MP4s.
-- **Reachability from Iran is an assumption to verify, not a fact.** Our own
-  domain isn't on a blocklist the way `instagram.com` is by name, which is the
-  whole point — but Cloudflare ranges have been throttled in Iran at times.
-  Phase 0 must test `cdn.nemoapps.xyz` from a real Iranian connection. Fallback
-  if it's poor: Bunny.net at ~$8/month for the same traffic (different IP
-  footprint), or ArvanCloud for a domestic-CDN option. Both are cheap enough that
-  this is a reachability decision, not a budget one.
+Media is served from **`cdn.anki.nemoapps.xyz`**, an R2 custom domain on the
+`nemo-anki` bucket. Verified live: `200`, `content-type: video/mp4`,
+`cf-cache-status: HIT`, and `206` range requests so seeking works in `<video>`.
+
+Three things we expected to be problems and weren't:
+
+- **DNS was already on Cloudflare.** `nemoapps.xyz` had been moved for the
+  frontend's `anki` CNAME, so no migration was needed.
+- **MP4s cache without a *Cache Everything* rule.** The custom domain returns
+  `cf-cache-status: HIT` on video out of the box.
+- **A two-level subdomain works.** Cloudflare's free Universal SSL only covers
+  one level (`*.nemoapps.xyz`), so `cdn.anki.nemoapps.xyz` looked like it would
+  fail TLS — but an R2 custom domain provisions its own per-hostname
+  certificate rather than leaning on the zone wildcard, so the deeper name is
+  fine. It takes a few minutes to go from "Initializing" to "Active"; until then
+  the handshake fails outright, which reads like a misconfiguration and isn't.
+
+The name is app-scoped on purpose: `nemoapps.xyz` hosts several projects, so a
+bare `cdn.` would say nothing about which one owns the bucket.
+
+Switching domains needed no data migration — django-storages builds every URL
+from `custom_domain` at read time, so the reels already stored picked up the new
+host on the next request.
+
+**Still to verify: reachability from Iran.** Our own domain isn't on a blocklist
+the way `instagram.com` is by name, which is the whole point — but Cloudflare
+ranges have been throttled in Iran at times, and this has not been tested from a
+real Iranian connection. Fallback if it's poor: Bunny.net at ~$8/month for the
+same traffic (different IP footprint), or ArvanCloud for a domestic option. Both
+are cheap enough that this stays a reachability decision, not a budget one.
 
 #### User-side data usage
 
@@ -776,8 +793,9 @@ Django's *default storage* — `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_ACCOUNT_ID`
 `R2_BUCKET`, `R2_PUBLIC_DOMAIN`, `R2_LOCATION_PREFIX` — with `django-storages[s3]`
 and `boto3` already in `requirements.txt`. Reel media is therefore a plain
 `FileField`/`ImageField`: it lands on R2 when those vars are set and on the local
-filesystem otherwise, and nothing in `apps.reels` touches boto3 directly. The
-only outstanding infra step is pointing `cdn.nemoapps.xyz` at the bucket.
+filesystem otherwise, and nothing in `apps.reels` touches boto3 directly.
+`R2_PUBLIC_DOMAIN` is `cdn.anki.nemoapps.xyz` in production — see
+[The CDN domain](#the-cdn-domain--settled-2026-08-15).
 
 Reconciliation reads Apify's own reported usage through `APIFY_TOKEN`; R2's
 side is derived from stored bytes and cross-checked in the Cloudflare dashboard,
@@ -836,8 +854,8 @@ iframe, no third-party script, and it works regardless of whether Instagram is
 reachable:
 
 ```html
-<video src="https://cdn.nemoapps.xyz/reels/<key>.mp4"
-       poster="https://cdn.nemoapps.xyz/reels/<key>.jpg"
+<video src="https://cdn.anki.nemoapps.xyz/reels/<key>.mp4"
+       poster="https://cdn.anki.nemoapps.xyz/reels/<key>.jpg"
        playsinline controls preload="none" />
 ```
 
@@ -1017,7 +1035,7 @@ Both are cheap: one aggregate query a day.
 
 | Phase | Scope | Spend risk |
 |---|---|---|
-| **0** ✅ | **Done 2026-08-15** — see [Measured, not modelled](#7-measured-not-modelled--phase-0-results). Rate is $2.07/1k, reels are ~0.10 MB/s, the actor's field names match, and stored MP4s play. Original scope: sign up for Apify Free; run `instagram-reel-scraper` by hand against 3 accounts and confirm multi-username input, the output field names, and the real per-result charge. Then: **(a)** download one `videoUrl` and record the actual MB — the storage model assumes 6 MB; **(b)** check the download works from a Render-like datacenter IP; **(c)** put one MP4 on R2 behind `cdn.nemoapps.xyz` and **test playback from a real Iranian connection**. **(c) is still outstanding and is the one that can still change the architecture.** | ~$0.01 spent |
+| **0** ✅ | **Done 2026-08-15** — see [Measured, not modelled](#7-measured-not-modelled--phase-0-results). Rate is $2.07/1k, reels are ~0.10 MB/s, the actor's field names match, and stored MP4s play. Original scope: sign up for Apify Free; run `instagram-reel-scraper` by hand against 3 accounts and confirm multi-username input, the output field names, and the real per-result charge. Then: **(a)** download one `videoUrl` and record the actual MB — the storage model assumes 6 MB; **(b)** check the download works from a Render-like datacenter IP; **(c)** put one MP4 on R2 behind `cdn.anki.nemoapps.xyz` and **test playback from a real Iranian connection** — the domain is live and serving, but **the Iran test is still outstanding and is the one thing that can still change the architecture.** | ~$0.01 spent |
 | **1** | `apps.reels` app: models, migrations, Apify client, R2 ingest, budget guard. **The admin dashboard** — add source, **upload our own reels**, sources table, reels grid, manual *Fetch now*, reel upload, purge panel with preview — and **the Costs page** with spend, projection, per-source breakdown and Telegram budget alerts. No scheduler, no user-facing frontend. Move `nemoapps.xyz` DNS to Cloudflare. | Manual only |
 | **2** ✅ | **Done 2026-08-15.** API (`/api/reels/`, seen, save, saved) + `/app/reels` page + nav + the language gate. Shipped to everyone rather than behind the `STAFF` flag — there is nothing risky to gate, and the language question makes an empty feed self-explanatory. Still to do: register the first ~20 accounts, starting with the ones that granted permission. | Manual only |
 | **3** ✅ | **Done 2026-08-15.** `.github/workflows/reels-poll.yml` armed: secrets + variables set, `REELS_SCRAPING_ENABLED=True`, budget $5/mo, `REELS_RETENTION_DAYS=90`. Verified by a dry run and a real run against production. | **~$0/mo** |

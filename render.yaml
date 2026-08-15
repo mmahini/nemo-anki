@@ -60,6 +60,9 @@ services:
         sync: false
       - key: R2_BUCKET
         sync: false
+      # cdn.anki.nemoapps.xyz — an R2 custom domain on the nemo-anki bucket.
+      # App-scoped because nemoapps.xyz hosts several projects. The r2.dev URL
+      # it replaced is rate-limited and not meant for production traffic.
       - key: R2_PUBLIC_DOMAIN
         sync: false
       - key: R2_LOCATION_PREFIX
