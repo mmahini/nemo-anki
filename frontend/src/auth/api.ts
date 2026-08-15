@@ -1288,3 +1288,8 @@ export function toggleReelSaved(id: number): Promise<{ saved: boolean }> {
 export function fetchSavedReels(): Promise<{ results: Reel[] }> {
   return jsonRequest<{ results: Reel[] }>("/api/reels/saved/", { method: "GET" });
 }
+
+/** The home card's badge — a bare count, never a feed serialisation. */
+export function fetchReelsUnseenCount(): Promise<{ count: number }> {
+  return jsonRequest<{ count: number }>("/api/reels/unseen-count/", { method: "GET" });
+}

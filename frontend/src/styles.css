@@ -1931,6 +1931,17 @@ kbd {
 .homecard:hover { border-color: var(--brand); }
 .homecard__icon { font-size: 1.5rem; line-height: 1.2; }
 .homecard__title { display: block; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.homecard__badge {
+  display: inline-block;
+  margin-inline-start: 8px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--brand, #4c6ef5);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  vertical-align: 2px;
+}
 .homecard__body { display: block; font-size: 0.85rem; color: var(--ink-soft); line-height: 1.55; }
 
 /* Study Buddy — pairing card on Home (invite / pending / paired stats). */
@@ -2179,9 +2190,46 @@ kbd {
 .reels-feed::-webkit-scrollbar { display: none; }
 .reels-feed__more { height: 2px; }
 
-.reels-feed__pill {
+/* For you / Saved switch, floating over the feed like the pill. */
+.reels-tabs {
   position: absolute;
   top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  transition: opacity 0.25s ease;
+}
+.reels-tabs__tab {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 16px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.reels-tabs__tab--on { background: rgba(255, 255, 255, 0.92); color: #111; }
+body.reels-immersive .reels-tabs { opacity: 0; pointer-events: none; }
+
+.reels-stage__empty {
+  margin: auto;
+  padding: 24px;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: center;
+}
+
+.reels-feed__pill {
+  position: absolute;
+  /* Below the For-you/Saved switch. */
+  top: 58px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 3;
