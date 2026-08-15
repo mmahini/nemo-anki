@@ -475,3 +475,31 @@ class AdminPageTests(TestCase):
         with patch("apps.reels.apify.account_usage_usd", return_value=3.0):
             res = self.client.get(reverse("admin:reels_costs"))
         self.assertContains(res, "diverges")
+
+
+class SourceLanguageSyncTests(TestCase):
+    """Reels copy the source's language pair at ingest, so correcting a source
+    afterwards has to be able to catch its existing reels up."""
+
+    def test_applying_languages_updates_the_channels_reels(self):
+        staff = User.objects.create_superuser("s@x.com", "pw12345!")
+        self.client.force_login(staff)
+
+        source = make_source(username="deutsch", target_language="de", base_language="")
+        make_reel(source, key="a", target_language="de", base_language="")
+        other = make_source(username="other", target_language="tr", base_language="fa")
+        make_reel(other, key="b", target_language="tr", base_language="fa")
+
+        source.base_language = "en"  # it actually teaches German in English
+        source.save()
+
+        res = self.client.post(
+            reverse("admin:reels_reelsource_changelist"),
+            {"action": "apply_languages", "_selected_action": [str(source.pk)]},
+            follow=True,
+        )
+        self.assertEqual(res.status_code, 200)
+
+        self.assertEqual(Reel.objects.get(key="a").base_language, "en")
+        # Untouched: only the selected channel's reels move.
+        self.assertEqual(Reel.objects.get(key="b").base_language, "fa")
