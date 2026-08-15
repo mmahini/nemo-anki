@@ -681,8 +681,10 @@
   "reels": {
     "empty": "No reels yet for the languages you picked. We add new channels regularly.",
     "caughtUp": "You've seen everything new — here's the library again.",
-    "more": "Load more",
     "play": "Play",
+    "pause": "Pause",
+    "mute": "Mute",
+    "unmute": "Unmute",
     "save": "Save",
     "saved": "Saved",
     "ours": "Nemo",

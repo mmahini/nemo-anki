@@ -87,6 +87,7 @@ const MAIN_ROUTES = [
   /^\/app\/?$/,
   /^\/app\/decks\/?$/,
   /^\/app\/practice(\/[\w-]+)?\/?$/,
+  /^\/app\/reels\/?$/,
   /^\/app\/placement-test\/?$/,
 ];
 
@@ -94,10 +95,13 @@ export default function AppShell() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const isMain = MAIN_ROUTES.some((re) => re.test(pathname));
+  // Reels is an immersive full-bleed feed: the shell drops its gutters and
+  // pins its height so the feed can snap one-reel-per-screen.
+  const isReels = /^\/app\/reels\/?$/.test(pathname);
 
   return (
     <SubscriptionProvider>
-      <div className={`shell${isMain ? "" : " shell--subpage"}`}>
+      <div className={`shell${isMain ? "" : " shell--subpage"}${isReels ? " shell--reels" : ""}`}>
         <header className="shell__bar">
           <Link to="/app" className="shell__brand">Nemo&nbsp;Anki</Link>
           <nav className="shell__nav">
