@@ -3,6 +3,7 @@ import zoneinfo
 from django.utils import timezone
 from rest_framework import serializers
 
+from .languages import clean_codes
 from .models import OTP_LENGTH, User
 
 
@@ -21,6 +22,16 @@ class VerifyOTPSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    # What the user is learning, and what they already understand — drives which
+    # reels reach them (apps.reels.matching). Validated against the catalogue so
+    # a typo can't silently empty someone's feed.
+    learning_languages = serializers.ListField(
+        child=serializers.CharField(), required=False, allow_empty=True
+    )
+    known_languages = serializers.ListField(
+        child=serializers.CharField(), required=False, allow_empty=True
+    )
+
     # Effective flags (includes implicit superuser flags). Read-only — a user
     # must never be able to grant themselves a flag via PATCH /api/me.
     feature_flags = serializers.SerializerMethodField()
@@ -39,6 +50,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "email", "display_name", "ui_language", "date_joined",
+            "learning_languages", "known_languages",
             "feature_flags", "subscription", "onboarded", "is_staff",
             "referral_code",
             "study_reminder_time", "study_reminder_timezone", "study_reminder_channel",
@@ -48,6 +60,15 @@ class UserSerializer(serializers.ModelSerializer):
             "id", "email", "date_joined", "feature_flags", "subscription", "is_staff",
             "referral_code", "telegram_connected",
         ]
+
+    # Unknown codes are dropped rather than rejected: a client sending a stale
+    # code should lose that one entry, not fail to save the rest.
+    def validate_learning_languages(self, value):
+        return clean_codes(value)
+
+    def validate_known_languages(self, value):
+        return clean_codes(value)
+
 
     def get_feature_flags(self, obj) -> list[str]:
         return obj.effective_flags

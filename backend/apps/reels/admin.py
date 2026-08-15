@@ -19,6 +19,8 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
 
+from apps.accounts.languages import label as language_label
+
 from . import costs, ingest, tasks
 from .forms import ManualReelForm, PurgeForm, ReelSourceForm
 from .models import (
@@ -46,7 +48,7 @@ class ReelSourceAdmin(admin.ModelAdmin):
     list_display = (
         "username",
         "kind",
-        "language",
+        "teaches",
         "is_active",
         "permission_granted",
         "results_limit",
@@ -55,9 +57,18 @@ class ReelSourceAdmin(admin.ModelAdmin):
         "last_polled_at",
         "reel_count",
     )
-    list_filter = ("kind", "is_active", "language", "permission_granted")
+    list_filter = ("kind", "is_active", "target_language", "base_language", "permission_granted")
     search_fields = ("username", "display_name")
     actions = ["fetch_now", "activate", "deactivate"]
+
+    @admin.display(description="Teaches")
+    def teaches(self, obj) -> str:
+        """"German in Persian", or "German (immersive)" when there's no
+        translation language."""
+        target = language_label(obj.target_language)
+        if not obj.base_language:
+            return f"{target} (immersive)"
+        return f"{target} in {language_label(obj.base_language)}"
 
     @admin.display(description="Reels")
     def reel_count(self, obj) -> int:
@@ -201,7 +212,7 @@ class ReelAdmin(admin.ModelAdmin):
         "thumb",
         "__str__",
         "source",
-        "language",
+        "teaches",
         "level",
         "posted_at",
         "media_status",
@@ -209,10 +220,20 @@ class ReelAdmin(admin.ModelAdmin):
         "is_published",
         "is_evergreen",
     )
-    list_filter = ("source__kind", "media_status", "is_published", "is_evergreen", "language", "source")
+    list_filter = (
+        "source__kind", "media_status", "is_published", "is_evergreen",
+        "target_language", "base_language", "source",
+    )
     search_fields = ("key", "title", "caption")
     readonly_fields = ("video_bytes", "media_purged_at", "fetched_at")
     actions = ["publish", "unpublish", "mark_evergreen", "purge_media", "hard_delete"]
+
+    @admin.display(description="Teaches")
+    def teaches(self, obj) -> str:
+        target = language_label(obj.target_language)
+        if not obj.base_language:
+            return f"{target} (immersive)"
+        return f"{target} in {language_label(obj.base_language)}"
 
     @admin.display(description="")
     def thumb(self, obj):

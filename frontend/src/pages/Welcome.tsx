@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/AuthContext";
 import { updateMe } from "../auth/api";
 import { applyLanguage } from "../i18n";
+import LanguagePicker from "../components/LanguagePicker";
 import { hasReferralGift } from "../lib/referral";
 
 /** Nemo — the guide. Rendered in a circle, which is also what keeps the source
@@ -55,6 +56,13 @@ export default function Welcome() {
   const [referralGift] = useState(hasReferralGift);
   const [name, setName] = useState(user?.display_name ?? "");
   const [lang, setLang] = useState<"en" | "fa">(user?.ui_language ?? "en");
+  // Which languages they want to learn, and which they already read. Seeded
+  // from the UI language they just picked — someone reading the app in Persian
+  // almost certainly understands Persian — but still shown for confirmation.
+  const [learning, setLearning] = useState<string[]>(user?.learning_languages ?? []);
+  const [known, setKnown] = useState<string[]>(
+    user?.known_languages?.length ? user.known_languages : [user?.ui_language ?? "en"],
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +72,9 @@ export default function Welcome() {
     setLang(code);
     applyLanguage(code);
     updateMe({ ui_language: code }).catch(() => {});
+    // They've just told us they read this language; pre-tick it rather than
+    // making them say it twice.
+    setKnown((prev) => (prev.includes(code) ? prev : [...prev, code]));
     setStep(1);
   }
 
@@ -74,6 +85,8 @@ export default function Welcome() {
       await updateMe({
         display_name: name.trim(),
         ui_language: lang,
+        learning_languages: learning,
+        known_languages: known,
         onboarded: true,
       });
       await refreshUser();
@@ -125,6 +138,25 @@ export default function Welcome() {
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && name.trim() && setStep(2)}
       />
+    </div>,
+
+    <div className="wstep wstep--langs" key="langs">
+      <Nemo />
+      <h1 className="wstep__title">
+        {firstName
+          ? t("welcome.langsTitleNamed", { name: firstName })
+          : t("welcome.langsTitle")}
+      </h1>
+      <p className="wstep__lede">{t("welcome.langsLede")}</p>
+      <LanguagePicker
+        learning={learning}
+        known={known}
+        onChange={(next) => {
+          setLearning(next.learning);
+          setKnown(next.known);
+        }}
+      />
+      <p className="wstep__note">{t("welcome.langsNote")}</p>
     </div>,
 
     <div className="wstep" key="decks">

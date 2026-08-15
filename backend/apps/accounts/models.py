@@ -56,6 +56,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     display_name = models.CharField(max_length=80, blank=True, default="")
     ui_language = models.CharField(max_length=4, choices=UI_LANGUAGE_CHOICES, default="en")
+    # What the user wants to learn, and what they already understand — distinct
+    # from ui_language, which is only what the interface is written in. Someone
+    # can read the app in Persian, be learning German, and understand both
+    # Persian and English. Ordered lists; the first entry is the primary.
+    # Empty means "not asked yet", which is what makes the reels feed prompt for
+    # them. Codes come from accounts.languages. See docs/plans/reels.md.
+    learning_languages = models.JSONField(default=list, blank=True)
+    known_languages = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     # Per-user feature flags — a list of capability strings (see

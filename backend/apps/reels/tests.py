@@ -12,7 +12,9 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from . import costs, tasks
+from apps.accounts.languages import clean_codes
+
+from . import costs, matching, tasks
 from .forms import ManualReelForm
 from .models import (
     INSTAGRAM,
@@ -35,7 +37,10 @@ MP4_HEAD = b"\x00\x00\x00\x18ftypisom" + b"\x00" * 64
 
 
 def make_source(**kwargs):
-    defaults = {"username": "deutsch", "kind": INSTAGRAM, "results_limit": 3}
+    defaults = {
+        "username": "deutsch", "kind": INSTAGRAM, "results_limit": 3,
+        "target_language": "de", "base_language": "",
+    }
     return ReelSource.objects.create(**{**defaults, **kwargs})
 
 
@@ -280,7 +285,8 @@ class ManualReelTests(TestCase):
         data = {
             "source": self.own.pk,
             "title": "Der Dativ",
-            "language": "de",
+            "target_language": "de",
+            "base_language": "",
             "level": "",
             **overrides,
         }
@@ -305,7 +311,8 @@ class ManualReelTests(TestCase):
 
     def test_non_mp4_is_rejected_before_it_reaches_an_iphone(self):
         form = ManualReelForm(
-            {"source": self.own.pk, "title": "x", "language": "de", "level": ""},
+            {"source": self.own.pk, "title": "x", "target_language": "de",
+             "base_language": "", "level": ""},
             {"video": SimpleUploadedFile("clip.mp4", b"not an mp4 at all", content_type="video/mp4")},
         )
         self.assertFalse(form.is_valid())
@@ -323,6 +330,115 @@ class ManualReelTests(TestCase):
         form = self._form(source=ig.pk)
         self.assertFalse(form.is_valid())
         self.assertIn("original_url", form.errors)
+
+
+class LanguageMatchingTests(TestCase):
+    """A reel teaches one language *in* another. Both halves have to match the
+    user, or we hand a learner explanations they can't read."""
+
+    def setUp(self):
+        # German taught in Persian, in English, and immersively.
+        self.de_fa = make_source(username="de_fa", target_language="de", base_language="fa")
+        self.de_en = make_source(username="de_en", target_language="de", base_language="en")
+        self.de_only = make_source(username="de_de", target_language="de", base_language="")
+        self.tr_fa = make_source(username="tr_fa", target_language="tr", base_language="fa")
+        for src in (self.de_fa, self.de_en, self.de_only, self.tr_fa):
+            make_reel(
+                src,
+                key=f"r-{src.username}",
+                days_old=1,
+                target_language=src.target_language,
+                base_language=src.base_language,
+            )
+
+    def _user(self, learning, known):
+        user = User.objects.create_user(f"{'-'.join(learning + known)}@x.com")
+        user.learning_languages = learning
+        user.known_languages = known
+        user.save()
+        return user
+
+    def keys(self, user):
+        return set(matching.feed_for(user).values_list("key", flat=True))
+
+    def test_persian_speaker_learning_german_skips_the_english_narrated_reel(self):
+        user = self._user(["de"], ["fa"])
+        self.assertEqual(self.keys(user), {"r-de_fa", "r-de_de"})
+
+    def test_english_speaker_learning_german_skips_the_persian_narrated_reel(self):
+        user = self._user(["de"], ["en"])
+        self.assertEqual(self.keys(user), {"r-de_en", "r-de_de"})
+
+    def test_knowing_both_base_languages_widens_the_feed(self):
+        user = self._user(["de"], ["en", "fa"])
+        self.assertEqual(self.keys(user), {"r-de_fa", "r-de_en", "r-de_de"})
+
+    def test_immersive_reels_reach_every_learner_of_the_target(self):
+        """No translation language means nothing extra to require."""
+        user = self._user(["de"], [])
+        self.assertEqual(self.keys(user), {"r-de_de"})
+
+    def test_learning_two_languages_gets_both(self):
+        user = self._user(["de", "tr"], ["fa"])
+        self.assertEqual(self.keys(user), {"r-de_fa", "r-de_de", "r-tr_fa"})
+
+    def test_a_language_the_user_is_not_learning_never_appears(self):
+        user = self._user(["tr"], ["fa"])
+        self.assertEqual(self.keys(user), {"r-tr_fa"})
+
+    def test_unplayable_and_unpublished_reels_stay_out(self):
+        user = self._user(["de"], ["fa"])
+        Reel.objects.filter(key="r-de_fa").update(media_status="pending")
+        Reel.objects.filter(key="r-de_de").update(is_published=False)
+        self.assertEqual(self.keys(user), set())
+
+    def test_prefs_are_unset_until_asked(self):
+        blank = User.objects.create_user("blank@x.com")
+        self.assertFalse(matching.has_language_prefs(blank))
+        self.assertEqual(self.keys(blank), set())
+        self.assertTrue(matching.has_language_prefs(self._user(["de"], ["fa"])))
+
+    def test_ui_language_is_the_suggested_default_for_known(self):
+        user = User.objects.create_user("fa@x.com", ui_language="fa")
+        self.assertEqual(matching.default_known_languages(user), ["fa"])
+
+    def test_pinned_reels_lead_the_feed(self):
+        user = self._user(["de"], ["fa"])
+        Reel.objects.filter(key="r-de_de").update(
+            pin_until=timezone.now() + timedelta(days=1)
+        )
+        self.assertEqual(matching.feed_for(user).first().key, "r-de_de")
+
+    def test_unseen_excludes_what_the_user_watched(self):
+        user = self._user(["de"], ["fa"])
+        ReelView.objects.create(user=user, reel=Reel.objects.get(key="r-de_fa"))
+        self.assertEqual(
+            set(matching.unseen_for(user).values_list("key", flat=True)), {"r-de_de"}
+        )
+
+
+class LanguageProfileTests(TestCase):
+    def test_unknown_codes_are_dropped_not_rejected(self):
+        """A stale code from an old client should cost that entry, not the save."""
+        self.assertEqual(clean_codes(["de", "klingon", "FA", "de"]), ["de", "fa"])
+        self.assertEqual(clean_codes("de"), [])
+
+    def test_profile_api_round_trips_the_pair(self):
+        from rest_framework.test import APIClient
+
+        user = User.objects.create_user("u@x.com")
+        client = APIClient()
+        client.force_authenticate(user=user)  # the API is JWT-only, not session
+        res = client.patch(
+            reverse("me"),
+            data={"learning_languages": ["de", "en"], "known_languages": ["fa", "nope"]},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        user.refresh_from_db()
+        self.assertEqual(user.learning_languages, ["de", "en"])
+        self.assertEqual(user.known_languages, ["fa"])  # unknown code dropped
+        self.assertEqual(res.data["learning_languages"], ["de", "en"])
 
 
 class AdminPageTests(TestCase):

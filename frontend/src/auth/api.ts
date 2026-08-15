@@ -208,6 +208,11 @@ export type AuthUser = {
   email: string;
   display_name: string;
   ui_language: "en" | "fa";
+  /** What the user wants to learn, and what they already understand. Distinct
+   *  from ui_language, which is only the interface. Drive which reels reach
+   *  them — see lib/languages.ts. Empty means "not asked yet". */
+  learning_languages: string[];
+  known_languages: string[];
   date_joined: string;
   /** Feature flags this user holds (see lib/features.ts). */
   feature_flags: string[];
@@ -390,6 +395,8 @@ export function updateMe(
       AuthUser,
       | "display_name"
       | "ui_language"
+      | "learning_languages"
+      | "known_languages"
       | "onboarded"
       | "study_reminder_time"
       | "study_reminder_timezone"

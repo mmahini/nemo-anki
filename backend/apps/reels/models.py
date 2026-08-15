@@ -45,7 +45,15 @@ class ReelSource(models.Model):
     username = models.CharField(max_length=80, unique=True)  # no leading @
     display_name = models.CharField(max_length=120, blank=True, default="")
     avatar = models.ImageField(upload_to="reel_avatars/", null=True, blank=True)
-    language = models.CharField(max_length=4, default="de")
+    # Every account teaches one language *in* another: @easytodeutsch teaches
+    # German to English speakers (target=de, base=en); a Persian-language German
+    # channel is target=de, base=fa. A reel only reaches a user whose
+    # learning_languages contain the target AND whose known_languages contain
+    # the base — otherwise we'd show a learner explanations they can't read.
+    # base_language="" means immersive (taught in the target language itself),
+    # which reaches every learner of the target. See accounts.languages.
+    target_language = models.CharField(max_length=4, default="de")
+    base_language = models.CharField(max_length=4, blank=True, default="")
     level = models.CharField(max_length=2, choices=LEVELS, blank=True, default="")
     topics = models.CharField(max_length=200, blank=True, default="")  # free tags, comma-separated
 
@@ -120,7 +128,10 @@ class Reel(models.Model):
     like_count = models.BigIntegerField(default=0)
     comment_count = models.BigIntegerField(default=0)
 
-    language = models.CharField(max_length=4, default="de")
+    # Copied from the source at ingest, overridable per reel — a mostly-Persian
+    # channel still posts the occasional immersive clip.
+    target_language = models.CharField(max_length=4, default="de")
+    base_language = models.CharField(max_length=4, blank=True, default="")
     level = models.CharField(max_length=2, choices=LEVELS, blank=True, default="")
     topics = models.CharField(max_length=200, blank=True, default="")
 
@@ -135,7 +146,7 @@ class Reel(models.Model):
     class Meta:
         ordering = ["-posted_at", "-id"]
         indexes = [
-            models.Index(fields=["is_published", "language", "-posted_at"]),
+            models.Index(fields=["is_published", "target_language", "-posted_at"]),
             models.Index(fields=["media_status"]),
         ]
 
