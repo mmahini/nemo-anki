@@ -24,7 +24,7 @@ services:
     container_name: nemo-anki-backend
     restart: unless-stopped
     command: >
-      sh -c "python manage.py makemigrations accounts decks cards imports books subscriptions placement notifications &&
+      sh -c "python manage.py makemigrations accounts decks cards imports books subscriptions placement notifications reels &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
     environment:
@@ -45,6 +45,15 @@ services:
       VAPID_SUBJECT_EMAIL: ${VAPID_SUBJECT_EMAIL:-support@nemoapps.xyz}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      # Reels (apps.reels). Unset APIFY_TOKEN leaves the scraping side inert;
+      # REELS_SCRAPING_ENABLED unset means only the admin's "Fetch now" spends.
+      APIFY_TOKEN: ${APIFY_TOKEN:-}
+      APIFY_REEL_ACTOR: ${APIFY_REEL_ACTOR:-apify/instagram-reel-scraper}
+      REELS_RATE_PER_1000: ${REELS_RATE_PER_1000:-2.60}
+      REELS_SCRAPING_ENABLED: ${REELS_SCRAPING_ENABLED:-}
+      REELS_MONTHLY_BUDGET_USD: ${REELS_MONTHLY_BUDGET_USD:-5.00}
+      REELS_RETENTION_DAYS: ${REELS_RETENTION_DAYS:-0}
+      REELS_BUDGET_ALERT_PCT: ${REELS_BUDGET_ALERT_PCT:-50,80,100}
     volumes:
       - ./backend:/app
       - backend_media:/app/media
@@ -85,8 +94,20 @@ services:
       VAPID_SUBJECT_EMAIL: ${VAPID_SUBJECT_EMAIL:-support@nemoapps.xyz}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      # Reels (apps.reels). Unset APIFY_TOKEN leaves the scraping side inert;
+      # REELS_SCRAPING_ENABLED unset means only the admin's "Fetch now" spends.
+      APIFY_TOKEN: ${APIFY_TOKEN:-}
+      APIFY_REEL_ACTOR: ${APIFY_REEL_ACTOR:-apify/instagram-reel-scraper}
+      REELS_RATE_PER_1000: ${REELS_RATE_PER_1000:-2.60}
+      REELS_SCRAPING_ENABLED: ${REELS_SCRAPING_ENABLED:-}
+      REELS_MONTHLY_BUDGET_USD: ${REELS_MONTHLY_BUDGET_USD:-5.00}
+      REELS_RETENTION_DAYS: ${REELS_RETENTION_DAYS:-0}
+      REELS_BUDGET_ALERT_PCT: ${REELS_BUDGET_ALERT_PCT:-50,80,100}
     volumes:
       - ./backend:/app
+      # Reel media is written by the ingest task; without this the worker
+      # writes into its own container and the web service 404s on it.
+      - backend_media:/app/media
     depends_on:
       db:
         condition: service_healthy
@@ -113,8 +134,20 @@ services:
       VAPID_SUBJECT_EMAIL: ${VAPID_SUBJECT_EMAIL:-support@nemoapps.xyz}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      # Reels (apps.reels). Unset APIFY_TOKEN leaves the scraping side inert;
+      # REELS_SCRAPING_ENABLED unset means only the admin's "Fetch now" spends.
+      APIFY_TOKEN: ${APIFY_TOKEN:-}
+      APIFY_REEL_ACTOR: ${APIFY_REEL_ACTOR:-apify/instagram-reel-scraper}
+      REELS_RATE_PER_1000: ${REELS_RATE_PER_1000:-2.60}
+      REELS_SCRAPING_ENABLED: ${REELS_SCRAPING_ENABLED:-}
+      REELS_MONTHLY_BUDGET_USD: ${REELS_MONTHLY_BUDGET_USD:-5.00}
+      REELS_RETENTION_DAYS: ${REELS_RETENTION_DAYS:-0}
+      REELS_BUDGET_ALERT_PCT: ${REELS_BUDGET_ALERT_PCT:-50,80,100}
     volumes:
       - ./backend:/app
+      # Reel media is written by the ingest task; without this the worker
+      # writes into its own container and the web service 404s on it.
+      - backend_media:/app/media
     depends_on:
       db:
         condition: service_healthy

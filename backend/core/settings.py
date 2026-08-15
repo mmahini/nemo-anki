@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.buddy",
     "apps.classroom",
+    "apps.reels",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -225,7 +226,40 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.notifications.tasks.check_study_reminders",
         "schedule": crontab(minute="*"),
     },
+    # Reels (apps.reels). All three are no-ops until their env switches are set,
+    # so adding them to the schedule can't start spending money on its own.
+    "poll-reel-sources": {
+        "task": "apps.reels.tasks.poll_reel_sources",
+        "schedule": crontab(minute=7),  # hourly, off the reminder minute
+    },
+    "purge-expired-reel-media": {
+        "task": "apps.reels.tasks.purge_expired_reel_media",
+        "schedule": crontab(hour=3, minute=20),
+    },
+    "snapshot-reels-storage": {
+        "task": "apps.reels.tasks.snapshot_reels_storage",
+        "schedule": crontab(hour=3, minute=40),  # after the purge
+    },
 }
+
+# Reels — Instagram reels scraped through Apify, plus our own uploads.
+# See docs/plans/reels.md. Cost is entirely determined by the knobs below plus
+# each source's results_limit, and is capped three ways: maxTotalChargeUsd per
+# run, the monthly budget guard, and this kill switch.
+APIFY_TOKEN = os.getenv("APIFY_TOKEN", "")
+APIFY_REEL_ACTOR = os.getenv("APIFY_REEL_ACTOR", "apify/instagram-reel-scraper")
+# Apify bills per reel *returned* — free plan $2.60/1k, Starter $2.30/1k.
+REELS_RATE_PER_1000 = float(os.getenv("REELS_RATE_PER_1000", "2.60"))
+# Unset means the hourly poll does nothing: the only way to spend is the admin's
+# "Fetch now" button. Arm this only after measuring real cost (plan, phase 3).
+REELS_SCRAPING_ENABLED = os.getenv("REELS_SCRAPING_ENABLED", "") == "True"
+REELS_MONTHLY_BUDGET_USD = os.getenv("REELS_MONTHLY_BUDGET_USD", "5.00")
+# Media TTL. Purges the stored video, never the row — deleting rows would let
+# the next poll re-scrape and re-bill the same reels. 0/unset = keep forever.
+REELS_RETENTION_DAYS = int(os.getenv("REELS_RETENTION_DAYS", "0") or 0)
+REELS_BUDGET_ALERT_PCT = [
+    int(p) for p in os.getenv("REELS_BUDGET_ALERT_PCT", "50,80,100").split(",") if p.strip()
+]
 
 # Web Push (VAPID) — one shared keypair for both study-reminder push
 # (apps.notifications.tasks.send_reminder_push) and staff push alerts on new
