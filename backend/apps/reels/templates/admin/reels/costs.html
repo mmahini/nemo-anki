@@ -1,0 +1,156 @@
+{% extends "admin/base_site.html" %}
+{% block extrastyle %}{{ block.super }}{% include "admin/reels/_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="reels-page">
+
+  <div class="toolbar">
+    <a class="button" href="{{ dashboard_url }}">← Dashboard</a>
+    <span class="muted">Every expense Reels generates — no need to log into Apify or Cloudflare.</span>
+  </div>
+
+  {# 1 — this month. #}
+  <div class="card" style="margin-bottom:24px">
+    <h2>This month ({{ summary.month }})</h2>
+    <table style="max-width:640px">
+      <tr>
+        <td>Apify</td>
+        <td class="num"><b>${{ summary.spent|floatformat:2 }}</b> / ${{ summary.budget_usd|floatformat:2 }} budget</td>
+        <td style="width:40%">
+          <div class="bar {% if summary.over_budget %}over{% elif summary.budget_pct >= 80 %}warn{% endif %}">
+            <span style="width: {{ summary.budget_pct|floatformat:0 }}%"></span>
+          </div>
+        </td>
+      </tr>
+      <tr><td>R2 storage</td><td class="num">{{ summary.stored_gb|floatformat:2 }} GB-month → <b>${{ summary.storage_usd }}</b></td><td class="muted">first 10 GB free</td></tr>
+      <tr><td>R2 egress + operations</td><td class="num"><b>$0.00</b></td><td class="muted">R2 never charges egress</td></tr>
+      <tr><td><b>Total</b></td><td class="num"><b>${{ summary.total_usd|floatformat:2 }}</b></td><td></td></tr>
+      <tr>
+        <td><b>Projected month-end</b></td>
+        <td class="num"><b>${{ summary.projection|floatformat:2 }}</b></td>
+        <td>{% if summary.over_budget %}<b style="color:#e23b54">Budget reached — scraping paused</b>
+            {% elif summary.projection > summary.budget_usd %}<b style="color:#e8973a">On track to exceed budget</b>
+            {% else %}<span class="muted">Within budget</span>{% endif %}</td>
+      </tr>
+    </table>
+  </div>
+
+  {# 2 — history. Survives retention purges: cost outlives the content. #}
+  <div class="card" style="margin-bottom:24px">
+    <h2>History</h2>
+    <table>
+      <tr>
+        <th>Month</th><th class="num">Billed</th><th class="num">New kept</th><th class="num">Apify $</th>
+        <th class="num">Avg GB</th><th class="num">Storage $</th><th class="num">Total</th><th class="num">$ / new reel</th>
+      </tr>
+      {% for m in history %}
+      <tr>
+        <td>{{ m.month }}</td>
+        <td class="num">{{ m.reels_billed }}</td>
+        <td class="num">{{ m.reels_new }}</td>
+        <td class="num">${{ m.apify_usd|floatformat:2 }}</td>
+        <td class="num">{{ m.storage_gb_month|floatformat:2 }}</td>
+        <td class="num">${{ m.storage_usd|floatformat:2 }}</td>
+        <td class="num"><b>${{ m.total_usd|floatformat:2 }}</b></td>
+        <td class="num">{% if m.reels_new %}${{ m.apify_usd|floatformat:4 }}{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="muted">No months rolled up yet — snapshot_reels_storage writes these daily.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  {# 3 — the page's real job: name the account wasting money. #}
+  <div class="card" style="margin-bottom:24px">
+    <h2>Cost by source · last {{ since_days }} days</h2>
+    <p class="muted">
+      Sorted worst-first. A high <b>$ per new reel</b> means we're paying for reels we
+      already have — lower that source's <code>results_limit</code> or poll it less often.
+    </p>
+    <table>
+      <tr>
+        <th>Channel</th><th class="num">Billed</th><th class="num">New kept</th>
+        <th class="num">Apify $</th><th class="num">Stored</th><th class="num">$ / new reel</th><th></th>
+      </tr>
+      {% for row in per_source %}
+      <tr>
+        <td>@{{ row.source.username }}
+          {% if row.source.kind == 'own' %}<span class="pill own">ours</span>{% endif %}</td>
+        <td class="num">{{ row.billed }}</td>
+        <td class="num">{{ row.new }}</td>
+        <td class="num">${{ row.apify_usd }}</td>
+        <td class="num">{{ row.stored_gb|floatformat:2 }} GB · {{ row.stored_count }}</td>
+        <td class="num">{% if row.per_new_usd %}<b>${{ row.per_new_usd }}</b>{% else %}—{% endif %}</td>
+        <td><a href="{% url 'admin:reels_reelsource_change' row.source.pk %}">tune</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="muted">No sources yet.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="grid cols-2" style="margin-bottom:24px">
+    {# 4 — fix it where you see it. #}
+    <div class="card">
+      <h2>Budget controls</h2>
+      <form class="inline-form" method="post">{% csrf_token %}
+        <input type="hidden" name="action" value="save_budget">
+        <p><label>Monthly budget (USD)</label>
+          <input type="number" step="0.01" name="monthly_budget_usd" value="{{ summary.budget.monthly_budget_usd }}"></p>
+        <p><label>Default results limit</label>
+          <input type="number" name="default_results_limit" value="{{ summary.budget.default_results_limit }}"></p>
+        <p><label>Default retention (days)</label>
+          <input type="number" name="default_retention_days" value="{{ summary.budget.default_retention_days }}"></p>
+        <button type="submit" class="default">Save</button>
+      </form>
+    </div>
+
+    {# 5 — is our arithmetic actually right? #}
+    <div class="card {% if reconcile.apify_diverged %}danger{% endif %}">
+      <h2>Reconciliation</h2>
+      <table>
+        <tr><td>Apify — our ledger</td><td class="num">${{ reconcile.apify_ours|floatformat:2 }}</td></tr>
+        <tr><td>Apify — their reported usage</td>
+          <td class="num">{% if reconcile.apify_theirs is None %}<span class="muted">unknown</span>
+            {% else %}${{ reconcile.apify_theirs|floatformat:2 }}{% endif %}</td></tr>
+        <tr><td>Drift</td>
+          <td class="num">{% if reconcile.apify_drift_pct is None %}—
+            {% else %}{{ reconcile.apify_drift_pct|floatformat:1 }}%{% endif %}</td></tr>
+      </table>
+      {% if reconcile.apify_diverged %}
+      <p style="color:#e23b54"><b>Our total diverges from Apify's by more than 5%.</b>
+        Trust their number and check for runs that failed before recording a cost.</p>
+      {% else %}
+      <p class="muted">Storage is derived from stored bytes; R2's own figure can be
+        cross-checked in the Cloudflare dashboard.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# The raw ledger. #}
+  <div class="card">
+    <h2>Recent runs</h2>
+    <table>
+      <tr><th>Started</th><th>Sources</th><th>Status</th><th class="num">Returned</th>
+        <th class="num">New</th><th class="num">Est.</th><th class="num">Actual</th><th>By</th></tr>
+      {% for run in runs %}
+      <tr>
+        <td>{{ run.started_at|date:"j M H:i" }}</td>
+        <td class="muted">{% for s in run.sources.all %}@{{ s.username }} {% endfor %}</td>
+        <td>{% if run.status == 'succeeded' %}{{ run.status }}
+            {% else %}<span class="pill bad">{{ run.status }}</span>{% endif %}</td>
+        <td class="num">{{ run.items_returned }}</td>
+        <td class="num">{{ run.items_new }}</td>
+        <td class="num">${{ run.estimated_usd }}</td>
+        <td class="num"><b>${{ run.cost_usd }}</b></td>
+        <td class="muted">{{ run.triggered_by }}</td>
+      </tr>
+      {% if run.error %}<tr><td colspan="8" class="muted">{{ run.error }}</td></tr>{% endif %}
+      {% empty %}
+      <tr><td colspan="8" class="muted">No runs yet.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+</div>
+{% endblock %}

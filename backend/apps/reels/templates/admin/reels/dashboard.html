@@ -1,0 +1,150 @@
+{% extends "admin/base_site.html" %}
+{% block extrastyle %}{{ block.super }}{% include "admin/reels/_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="reels-page">
+
+  <div class="toolbar">
+    <a class="button" href="{{ costs_url }}">Costs →</a>
+    <span class="muted">Scraping runs only when you ask it to; nothing here is on a schedule yet.</span>
+  </div>
+
+  {# 1 — money, at the top: the "what is this costing me" answer on one screen. #}
+  <div class="grid cols-3" style="margin-bottom:24px">
+    <div class="card">
+      <h2>Apify this month</h2>
+      <div class="kpi">${{ summary.spent|floatformat:2 }} <small>/ ${{ summary.budget_usd|floatformat:2 }}</small></div>
+      <div class="bar {% if summary.over_budget %}over{% elif summary.budget_pct >= 80 %}warn{% endif %}">
+        <span style="width: {{ summary.budget_pct|floatformat:0 }}%"></span>
+      </div>
+      <p class="muted">Projected month-end ${{ summary.projection|floatformat:2 }}
+        {% if summary.over_budget %}· <b style="color:#e23b54">budget reached — scraping is paused</b>{% endif %}</p>
+    </div>
+    <div class="card">
+      <h2>Reels</h2>
+      <div class="kpi">{{ summary.reels_new }} <small>new / {{ summary.reels_billed }} billed</small></div>
+      <p class="muted">
+        {% if summary.per_new_usd %}${{ summary.per_new_usd }} per new reel{% else %}No billed runs yet.{% endif %}
+      </p>
+    </div>
+    <div class="card">
+      <h2>Storage (R2)</h2>
+      <div class="kpi">{{ summary.stored_gb|floatformat:2 }} GB <small>→ ${{ summary.storage_usd }}/mo</small></div>
+      <p class="muted">
+        Egress $0.
+        {% if next_purge %}Next purge would free {{ next_purge.bytes|filesizeformat }} ({{ next_purge.count }} reels).{% endif %}
+      </p>
+    </div>
+  </div>
+
+  {# 2 — add content. #}
+  <div class="grid cols-2" style="margin-bottom:24px">
+    <div class="card">
+      <h2>Add a source</h2>
+      <form class="inline-form" method="post">{% csrf_token %}
+        <input type="hidden" name="action" value="add_source">
+        {{ source_form.as_p }}
+        <button type="submit" class="default">Add source</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Upload a reel — costs nothing</h2>
+      <form class="inline-form" method="post" enctype="multipart/form-data">{% csrf_token %}
+        <input type="hidden" name="action" value="add_reel">
+        {{ reel_form.as_p }}
+        <button type="submit" class="default">Upload</button>
+      </form>
+    </div>
+  </div>
+
+  {# 3 — sources. #}
+  <div class="card" style="margin-bottom:24px">
+    <h2>Sources</h2>
+    <table>
+      <tr>
+        <th>Channel</th><th>Kind</th><th>Lang</th><th class="num">Limit</th>
+        <th class="num">Every</th><th class="num">Keep</th><th>Permission</th>
+        <th>Last polled</th><th class="num">Reels</th><th class="num">Stored</th><th></th>
+      </tr>
+      {% for s in sources %}
+      <tr>
+        <td><a href="{% url 'admin:reels_reelsource_change' s.pk %}">@{{ s.username }}</a></td>
+        <td>{% if s.kind == 'own' %}<span class="pill own">ours</span>{% else %}Instagram{% endif %}</td>
+        <td>{{ s.language }}</td>
+        <td class="num">{% if s.kind == 'own' %}—{% else %}{{ s.results_limit }}{% endif %}</td>
+        <td class="num">{% if s.kind == 'own' %}—{% else %}{{ s.poll_interval_hours }}h{% endif %}</td>
+        <td class="num">{{ s.retention_days|default:"default" }}</td>
+        <td>{% if s.kind == 'own' %}n/a{% elif s.permission_granted %}✓ granted{% else %}<span class="muted">not asked</span>{% endif %}</td>
+        <td>{{ s.last_polled_at|default:"never" }}{% if s.last_status == 'failed' %} <span class="pill bad">failed</span>{% endif %}</td>
+        <td class="num">{{ s.n_reels }}</td>
+        <td class="num">{{ s.stored|default:0|filesizeformat }}</td>
+        <td>
+          {% if s.kind != 'own' %}
+          <form method="post" style="display:inline">{% csrf_token %}
+            <input type="hidden" name="action" value="fetch_source">
+            <input type="hidden" name="source_id" value="{{ s.pk }}">
+            <button type="submit">Fetch now</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="11" class="muted">No sources yet. Add one above, or upload a reel of our own.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  {# 4 — moderation grid. #}
+  <div class="card" style="margin-bottom:24px">
+    <h2>Latest reels</h2>
+    <div class="tiles">
+      {% for r in reels %}
+      <div class="tile">
+        {% if r.poster %}<img src="{{ r.poster.url }}" alt="">{% else %}<div class="noposter"></div>{% endif %}
+        <div class="meta">
+          <a href="{% url 'admin:reels_reel_change' r.pk %}">{{ r|truncatechars:28 }}</a><br>
+          <span class="muted">@{{ r.source.username }} · {{ r.posted_at|date:"j M" }}</span><br>
+          {% if r.source.kind == 'own' %}<span class="pill own">ours</span>{% endif %}
+          {% if not r.is_published %}<span class="pill bad">hidden</span>{% endif %}
+          {% if r.media_status != 'stored' %}<span class="pill">{{ r.media_status }}</span>{% endif %}
+          {% if r.is_evergreen %}<span class="pill">evergreen</span>{% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <p class="muted">Nothing yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# 5 — purge. Preview is mandatory before confirm. #}
+  <div class="card danger">
+    <h2>Purge media before a date</h2>
+    <p class="muted">
+      Deletes the stored video and poster, keeping the row so a later poll doesn't
+      re-scrape — and re-bill us for — the same reel. Our own reels, evergreen
+      reels and reels a user has saved are always skipped.
+    </p>
+    <form class="inline-form" method="post" style="max-width:320px">{% csrf_token %}
+      <input type="hidden" name="action" value="purge_preview">
+      {{ purge_form.cutoff.label_tag }}{{ purge_form.cutoff }}
+      <button type="submit" style="margin-top:8px">Preview</button>
+    </form>
+
+    {% if preview %}
+    <div style="margin-top:16px;padding:12px;border:1px solid #e23b54;border-radius:6px">
+      <p style="margin:0 0 8px">
+        Would purge <b>{{ preview.count }}</b> reels, freeing <b>{{ preview.bytes|filesizeformat }}</b>.
+        Skips {{ preview.skipped_own }} of our own, {{ preview.skipped_evergreen }} evergreen
+        and {{ preview.skipped_saved }} saved. <b>This cannot be undone.</b>
+      </p>
+      <form method="post" style="display:inline">{% csrf_token %}
+        <input type="hidden" name="action" value="purge_confirm">
+        <input type="hidden" name="cutoff" value="{{ preview.cutoff|date:'Y-m-d' }}">
+        <button type="submit" class="deletelink" style="border:0">Confirm purge</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

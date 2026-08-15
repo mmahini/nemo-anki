@@ -1,0 +1,44 @@
+{% comment %}
+Shared styling for the two Reels admin pages. Everything is scoped under
+.reels-page so it can't leak into the rest of Django admin, and colours come
+from admin's own CSS variables so the pages follow the light/dark theme.
+{% endcomment %}
+<style>
+  .reels-page .grid { display: grid; gap: 16px; }
+  .reels-page .cols-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .reels-page .cols-3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .reels-page .card {
+    background: var(--body-bg); border: 1px solid var(--hairline-color);
+    border-radius: 8px; padding: 16px;
+  }
+  .reels-page .card h2 { font-size: 14px; margin: 0 0 12px; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--body-quiet-color); }
+  .reels-page .kpi { font-size: 26px; font-weight: 700; line-height: 1.1; }
+  .reels-page .kpi small { font-size: 13px; font-weight: 400; color: var(--body-quiet-color); }
+  .reels-page .bar { height: 8px; border-radius: 4px; background: var(--darkened-bg); overflow: hidden; margin-top: 8px; }
+  .reels-page .bar span { display: block; height: 100%; background: var(--primary); }
+  .reels-page .bar.warn span { background: #e8973a; }
+  .reels-page .bar.over span { background: #e23b54; }
+  .reels-page table { width: 100%; border-collapse: collapse; }
+  .reels-page th, .reels-page td { padding: 7px 8px; text-align: left; border-bottom: 1px solid var(--hairline-color); font-size: 13px; }
+  .reels-page th { color: var(--body-quiet-color); font-weight: 600; }
+  .reels-page .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .reels-page .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .reels-page .tile { border: 1px solid var(--hairline-color); border-radius: 8px; overflow: hidden; }
+  .reels-page .tile img, .reels-page .tile .noposter {
+    width: 100%; aspect-ratio: 9/16; object-fit: cover; display: block; background: var(--darkened-bg);
+  }
+  .reels-page .tile .meta { padding: 6px 8px; font-size: 12px; }
+  .reels-page .pill { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; border: 1px solid var(--hairline-color); }
+  .reels-page .pill.own { background: #1f9d57; color: #fff; border-color: #1f9d57; }
+  .reels-page .pill.bad { background: #e23b54; color: #fff; border-color: #e23b54; }
+  .reels-page .danger { border-color: #e23b54; }
+  .reels-page .danger h2 { color: #e23b54; }
+  .reels-page .muted { color: var(--body-quiet-color); font-size: 12px; }
+  .reels-page form.inline-form p { margin: 0 0 8px; }
+  .reels-page form.inline-form label { display: block; font-size: 12px; color: var(--body-quiet-color); }
+  .reels-page form.inline-form input:not([type=checkbox]),
+  .reels-page form.inline-form select,
+  .reels-page form.inline-form textarea { width: 100%; box-sizing: border-box; }
+  .reels-page .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+</style>

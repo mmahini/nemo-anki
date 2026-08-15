@@ -64,6 +64,27 @@ services:
         sync: false
       - key: R2_LOCATION_PREFIX
         value: ""
+      # Reels (apps.reels) — Instagram reels scraped via Apify, plus our own
+      # uploads. Media rides the same R2 bucket as book PDFs above.
+      # NOTE: the daily fetch does NOT run here. Production has no Celery
+      # worker, so .github/workflows/reels-poll.yml runs `manage.py poll_reels`
+      # on a GitHub Actions runner instead (same pattern as keepalive.yml).
+      # These vars only power the admin's manual "Fetch now" button and the
+      # Costs page. See docs/plans/reels.md.
+      - key: APIFY_TOKEN
+        sync: false
+      - key: APIFY_REEL_ACTOR
+        value: apify/instagram-reel-scraper
+      - key: REELS_RATE_PER_1000
+        value: "2.07"
+      # REELS_SCRAPING_ENABLED is deliberately absent: arming the scheduler
+      # here would do nothing (no beat runs in prod), and leaving it unset
+      # keeps "Fetch now" the only thing that can spend. settings.py reads
+      # unset as off. It belongs on the GitHub Actions workflow instead.
+      - key: REELS_MONTHLY_BUDGET_USD
+        value: "5.00"
+      - key: REELS_RETENTION_DAYS
+        value: "0"
       - key: DJANGO_SUPERUSER_USERNAME
         sync: false
       - key: DJANGO_SUPERUSER_EMAIL

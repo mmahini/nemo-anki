@@ -1,0 +1,90 @@
+# Daily Reels fetch. Production is a single free-tier Render web service with no
+# Celery worker (CELERY_TASK_ALWAYS_EAGER — see core/settings.py), so `celery
+# beat` never runs there and the schedule has to live somewhere else. Same trick
+# as keepalive.yml: GitHub Actions is the cron daemon.
+#
+# The work runs *on the runner*, not through an HTTP call to the backend, because
+# fetching ~60 reels and pushing them to R2 takes minutes — far past gunicorn's
+# 30s request timeout. The runner has the time and the bandwidth; Render's free
+# instance has neither.
+#
+# Three independent off switches, any one of which stops all spending:
+#   1. disable this workflow in the GitHub UI
+#   2. unset the REELS_SCRAPING_ENABLED variable
+#   3. the monthly budget guard in the database (admin → Reels costs)
+name: reels-daily-poll
+
+on:
+  schedule:
+    # 04:20 UTC — off the hour so it doesn't collide with keepalive.yml, and
+    # early enough that a day's reels are ready well before peak usage.
+    - cron: "20 4 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report what's due and the cost without spending anything"
+        type: boolean
+        default: false
+
+concurrency:
+  # Two overlapping polls would each pay for the same reels.
+  group: reels-poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    name: Fetch new reels
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_SCHEMA: ${{ vars.DATABASE_SCHEMA }}
+      DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+      DJANGO_DEBUG: "0"
+      DJANGO_ALLOWED_HOSTS: "*"
+
+      APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+      APIFY_REEL_ACTOR: ${{ vars.APIFY_REEL_ACTOR || 'apify/instagram-reel-scraper' }}
+      REELS_RATE_PER_1000: ${{ vars.REELS_RATE_PER_1000 || '2.60' }}
+      REELS_SCRAPING_ENABLED: ${{ vars.REELS_SCRAPING_ENABLED }}
+      REELS_MONTHLY_BUDGET_USD: ${{ vars.REELS_MONTHLY_BUDGET_USD || '5.00' }}
+      REELS_RETENTION_DAYS: ${{ vars.REELS_RETENTION_DAYS || '0' }}
+
+      # Media goes straight to R2 — the runner is disposable, so anything left
+      # on its filesystem is lost.
+      R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+      R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_PUBLIC_DOMAIN: ${{ vars.R2_PUBLIC_DOMAIN }}
+      R2_LOCATION_PREFIX: ${{ vars.R2_LOCATION_PREFIX }}
+
+      # Budget alerts reuse the existing staff Telegram channel.
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Refuse to run without a database
+        if: ${{ env.DATABASE_URL == '' }}
+        run: |
+          echo "::error::DATABASE_URL secret is not set — the job would silently" \
+               "run against a throwaway database and pay Apify for nothing."
+          exit 1
+
+      - name: Poll reels
+        working-directory: backend
+        run: |
+          python manage.py poll_reels \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }} \
+            | tee "$GITHUB_STEP_SUMMARY"
