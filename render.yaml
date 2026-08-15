@@ -77,10 +77,10 @@ services:
         value: apify/instagram-reel-scraper
       - key: REELS_RATE_PER_1000
         value: "2.07"
-      # Deliberately unset: arming the scheduler here would do nothing (no
-      # beat), and leaving it off keeps "Fetch now" the only way to spend.
-      - key: REELS_SCRAPING_ENABLED
-        value: ""
+      # REELS_SCRAPING_ENABLED is deliberately absent: arming the scheduler
+      # here would do nothing (no beat runs in prod), and leaving it unset
+      # keeps "Fetch now" the only thing that can spend. settings.py reads
+      # unset as off. It belongs on the GitHub Actions workflow instead.
       - key: REELS_MONTHLY_BUDGET_USD
         value: "5.00"
       - key: REELS_RETENTION_DAYS
