@@ -14,6 +14,7 @@ class ReelSerializer(serializers.ModelSerializer):
     is_ours = serializers.SerializerMethodField()
     teaches = serializers.SerializerMethodField()
     saved = serializers.SerializerMethodField()
+    make_cards = serializers.SerializerMethodField()
 
     class Meta:
         model = Reel
@@ -25,7 +26,7 @@ class ReelSerializer(serializers.ModelSerializer):
             # The original post. Kept even though most of our users can't open
             # it — attribution is not conditional on the link being reachable.
             "url",
-            "posted_at", "saved",
+            "posted_at", "saved", "make_cards",
         ]
 
     def _media_url(self, field) -> str | None:
@@ -67,3 +68,13 @@ class ReelSerializer(serializers.ModelSerializer):
         """Prefetched by the view — never a query per row."""
         saved_ids = self.context.get("saved_ids")
         return obj.id in saved_ids if saved_ids is not None else False
+
+    def get_make_cards(self, obj) -> str | None:
+        """How "make cards from this reel" would run: "linked" (curated deck,
+        free), "ai" (caption-derived, costs quota), or None (nothing to work
+        with — the client hides the button)."""
+        if obj.linked_deck_id:
+            return "linked"
+        if obj.title or obj.caption:
+            return "ai"
+        return None

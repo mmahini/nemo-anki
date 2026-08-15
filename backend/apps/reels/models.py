@@ -135,6 +135,24 @@ class Reel(models.Model):
     level = models.CharField(max_length=2, choices=LEVELS, blank=True, default="")
     topics = models.CharField(max_length=200, blank=True, default="")
 
+    # "Make cards from this reel", two ways (docs/plans/reels.md, Phase 4):
+    #   * linked_deck — staff curated the cards; import is a plain deck copy,
+    #     costs no AI and no quota. The strongest form, meant for own reels.
+    #   * cards_cache — Gemini drafts built from the caption, generated ONCE
+    #     per reel and reused by every later user. The per-user quota is still
+    #     charged on each use (value delivered, not marginal cost) — see
+    #     ReelMakeCardsView.
+    linked_deck = models.ForeignKey(
+        "decks.Deck",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reels",
+        help_text="Optional: a curated deck that 'make cards from this reel' imports as-is.",
+    )
+    cards_cache = models.JSONField(default=list, blank=True)
+    cards_generated_at = models.DateTimeField(null=True, blank=True)
+
     posted_at = models.DateTimeField(null=True, blank=True)  # Instagram's timestamp
     is_published = models.BooleanField(default=True)
     # Exempt from the retention purge. Defaults true for our own reels (set in

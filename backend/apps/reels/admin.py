@@ -239,7 +239,10 @@ class ReelAdmin(admin.ModelAdmin):
         "target_language", "base_language", "source",
     )
     search_fields = ("key", "title", "caption")
-    readonly_fields = ("video_bytes", "media_purged_at", "fetched_at")
+    readonly_fields = ("video_bytes", "media_purged_at", "fetched_at", "cards_generated_at")
+    # A dropdown over every user's decks would be unusable (and a data leak in
+    # screenshots); staff paste the deck id they curated.
+    raw_id_fields = ("linked_deck",)
     actions = ["publish", "unpublish", "mark_evergreen", "purge_media", "hard_delete"]
 
     @admin.display(description="Teaches")

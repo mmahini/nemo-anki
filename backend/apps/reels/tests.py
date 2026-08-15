@@ -687,3 +687,118 @@ class UnseenCountTests(TestCase):
     def test_unplayable_media_does_not_count(self):
         make_reel(self.source, key="A1", days_old=1, base_language="en", media_status="pending")
         self.assertEqual(self.client.get(self.url).data["count"], 0)
+
+
+class MakeCardsTests(TestCase):
+    """"Make cards from this reel." The invariants that matter:
+
+    Gemini runs ONCE per reel (the drafts are cached on the row), but every
+    user who takes the cards pays one unit of their own daily AI quota —
+    including cache hits. The cache protects our Gemini bill, not the user's
+    quota. A repeat tap by the same user is free and idempotent, and a
+    staff-linked deck bypasses AI (and quota) entirely.
+    """
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.source = make_source(username="deutsch", base_language="en")
+        self.reel = make_reel(
+            self.source, key="MC1", days_old=1, base_language="en",
+            caption="Learn: der Tisch (the table)",
+        )
+        self.drafts = [{
+            "card_type": "vocab", "front": "der Tisch", "back": "the table",
+            "reading": "", "article": "der", "example": "Der Tisch ist neu.",
+        }]
+        self.alice = User.objects.create_user("alice@x.com")
+        self.bob = User.objects.create_user("bob@x.com")
+        self.client_a = APIClient()
+        self.client_a.force_authenticate(user=self.alice)
+        self.client_b = APIClient()
+        self.client_b.force_authenticate(user=self.bob)
+        self.url = reverse("reel-make-cards", args=[self.reel.pk])
+
+    def _usage(self, user) -> int:
+        from apps.subscriptions.models import AiUsage
+
+        return (
+            AiUsage.objects.filter(user=user, day=timezone.now().date())
+            .values_list("count", flat=True)
+            .first()
+            or 0
+        )
+
+    def test_first_use_generates_caches_and_charges(self):
+        from apps.cards.models import Card
+
+        with patch("apps.reels.cards.generate_card_drafts", return_value=self.drafts) as gen:
+            res = self.client_a.post(self.url)
+
+        self.assertEqual(res.status_code, 201)
+        gen.assert_called_once()
+        self.reel.refresh_from_db()
+        self.assertEqual(self.reel.cards_cache, self.drafts)
+        self.assertIsNotNone(self.reel.cards_generated_at)
+        self.assertEqual(self._usage(self.alice), 1)
+        # Forward + reverse (vocab is reviewed both ways).
+        self.assertEqual(Card.objects.filter(deck_id=res.data["deck"]).count(), 2)
+
+    def test_second_user_reuses_cache_but_is_still_charged(self):
+        """The user's core rule: cache hit → no new AI call, usage recorded."""
+        with patch("apps.reels.cards.generate_card_drafts", return_value=self.drafts):
+            self.client_a.post(self.url)
+
+        with patch("apps.reels.cards.generate_card_drafts") as gen:
+            res = self.client_b.post(self.url)
+
+        self.assertEqual(res.status_code, 201)
+        gen.assert_not_called()  # served from Reel.cards_cache
+        self.assertEqual(self._usage(self.bob), 1)  # ...but still metered
+
+    def test_repeat_tap_by_same_user_is_free_and_idempotent(self):
+        with patch("apps.reels.cards.generate_card_drafts", return_value=self.drafts):
+            first = self.client_a.post(self.url)
+        again = self.client_a.post(self.url)
+
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again.data["deck"], first.data["deck"])
+        self.assertEqual(self._usage(self.alice), 1)  # no second charge
+
+    def test_linked_deck_imports_without_touching_quota(self):
+        from apps.cards.models import Card
+        from apps.decks.models import Deck
+        from apps.decks.sharing import _default_config
+
+        staff = User.objects.create_user("staff@x.com")
+        curated = Deck.objects.create(
+            user=staff, name="Der Dativ", config=_default_config(staff), language="de"
+        )
+        Card.objects.create(deck=curated, front="dem Mann", back="to the man", card_type="vocab")
+        self.reel.linked_deck = curated
+        self.reel.save(update_fields=["linked_deck"])
+
+        with patch("apps.reels.cards.generate_card_drafts") as gen:
+            res = self.client_a.post(self.url)
+
+        self.assertEqual(res.status_code, 201)
+        gen.assert_not_called()
+        self.assertEqual(self._usage(self.alice), 0)
+        self.assertTrue(Card.objects.filter(deck_id=res.data["deck"]).exists())
+
+    def test_nothing_to_work_with_is_a_422_not_a_500(self):
+        with patch("apps.reels.cards.generate_card_drafts", return_value=[]):
+            res = self.client_a.post(self.url)
+        self.assertEqual(res.status_code, 422)
+
+    def test_unpublished_reel_404s(self):
+        self.reel.is_published = False
+        self.reel.save(update_fields=["is_published"])
+        self.assertEqual(self.client_a.post(self.url).status_code, 404)
+
+    def test_serializer_reports_the_path(self):
+        from .serializers import ReelSerializer
+
+        self.assertEqual(ReelSerializer(self.reel).data["make_cards"], "ai")
+        bare = make_reel(self.source, key="MC2", days_old=1, caption="", title="")
+        self.assertIsNone(ReelSerializer(bare).data["make_cards"])
