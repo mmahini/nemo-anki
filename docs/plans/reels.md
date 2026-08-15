@@ -345,6 +345,75 @@ These are functional requirements, not nice-to-haves. In order of importance:
 
 ---
 
+## Language matching
+
+Every teaching account has **two** languages, not one: the language it *teaches*
+and the language it *explains in*. `@easytodeutsch` teaches German to English
+speakers; a Persian-language German channel teaches the same German to a
+completely different audience. Filtering on "German" alone would put both in the
+same feed and hand half the users narration they can't follow.
+
+So content carries a pair, and so does the user:
+
+| Content (`ReelSource` and `Reel`) | User |
+|---|---|
+| `target_language` — what it teaches | `learning_languages[]` — what they want to learn |
+| `base_language` — what it's explained in | `known_languages[]` — what they already understand |
+
+A reel matches when **both** halves line up:
+
+```python
+target_language ∈ user.learning_languages
+AND (base_language ∈ user.known_languages OR base_language == "")
+```
+
+`base_language = ""` means **immersive** — German taught in German, no
+translation. There's no second language to require, so it reaches every learner
+of the target. Without this case, monolingual content would be invisible to
+everyone.
+
+Worked example, the one from the brief: a user learning **German + English** who
+reads **English + Persian** gets German-in-English, German-in-Persian,
+English-in-Persian, and every immersive German or English reel — but *not*
+German-in-Turkish.
+
+Both are ordered lists (first = primary) and multi-select, because people learn
+more than one language and most already read more than one.
+
+### Three different language questions
+
+The app now asks three things that are easy to conflate, and must not be:
+
+| Field | Question | Values |
+|---|---|---|
+| `User.ui_language` | What is the *interface* written in? | `en` / `fa` only — what we've translated |
+| `User.learning_languages` | What do you want to learn? | any catalogue code |
+| `User.known_languages` | What do you already understand? | any catalogue code |
+
+Someone can read the app in Persian, be learning German, and understand both
+Persian and English. `ui_language` is **not** a proxy for either of the others —
+it's only a good *default* for `known_languages`, which is how onboarding
+pre-ticks it.
+
+The catalogue lives in `apps/accounts/languages.py`, mirrored to
+`frontend/src/lib/languages.ts`. Unknown codes from a client are **dropped, not
+rejected** — a stale code should cost that one entry, not the whole save.
+
+### Where we ask
+
+- **Onboarding** — a step after the name, before decks (`Welcome.tsx`), using the
+  shared `LanguagePicker` component. `known_languages` is pre-ticked with the UI
+  language they just chose; a default to confirm, never a substitute for asking.
+- **The reels feed** — if `learning_languages` is empty, the feed shows the same
+  picker instead of content. Accounts created before this existed have no
+  preferences, and guessing from `ui_language` would quietly build the wrong
+  feed. One extra question beats a feed of videos they can't follow.
+
+Empty `learning_languages` is the "not asked yet" signal — checked by
+`matching.has_language_prefs()` / `hasLanguagePrefs()`.
+
+---
+
 ## Data model
 
 New app: `apps.reels` (added to `INSTALLED_APPS` and `core/urls.py` alongside
@@ -361,7 +430,7 @@ An Instagram account we scrape, **or** one of our own channels — see
 | `username` | unique, without `@`; a channel slug for `own` sources |
 | `display_name` | shown in the feed |
 | `profile_pic` | `ImageField`, cached like thumbnails |
-| `language` | `de` / `en` / … — matches the user's learning language |
+| `target_language` / `base_language` | what it teaches, and what it explains in — see [Language matching](#language-matching) |
 | `level` | optional `a1`…`c2`, for filtering later |
 | `topics` | free tags, e.g. `grammar,slang` |
 | `is_active` | bool, default `True` |
@@ -390,7 +459,7 @@ An Instagram account we scrape, **or** one of our own channels — see
 | `title` | used by own reels; blank for scraped ones |
 | `duration_seconds`, `view_count`, `like_count`, `comment_count` | as of fetch time; not refreshed |
 | `posted_at` | Instagram's timestamp — the feed sort key |
-| `language`, `level` | copied from source, overridable per reel |
+| `target_language`, `base_language`, `level` | copied from source, overridable per reel |
 | `is_published` | staff moderation gate |
 | `fetched_at` | |
 
@@ -722,7 +791,7 @@ Mirrors the existing DRF style (`apps/books/urls.py` as the shape reference).
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/reels/` | Feed. `?unseen=1` (default) filters out the user's `ReelView` rows; cursor pagination on `-posted_at`; filtered to the user's learning language. |
+| `GET` | `/api/reels/` | Feed. `?unseen=1` (default) filters out the user's `ReelView` rows; cursor pagination on `-posted_at`; filtered by [language matching](#language-matching). Returns `needs_language_prefs: true` instead of items when the user hasn't been asked yet. |
 | `POST` | `/api/reels/<id>/seen/` | Mark seen (idempotent). Sent when a card scrolls past / is opened. |
 | `POST` | `/api/reels/<id>/save/` | Toggle `saved`. |
 | `GET` | `/api/reels/saved/` | The user's saved reels. |
@@ -732,11 +801,16 @@ Mirrors the existing DRF style (`apps/books/urls.py` as the shape reference).
 Feed query, indexed on `(is_published, language, posted_at)`:
 
 ```python
-Reel.objects.filter(is_published=True, media_status="stored",
-                    language=user.learning_language)
+Reel.objects.filter(is_published=True, media_status="stored")
+            .filter(target_language__in=user.learning_languages)
+            .filter(Q(base_language__in=user.known_languages) | Q(base_language=""))
             .exclude(views__user=user)
             .order_by(F("pin_until").desc(nulls_last=True), "-posted_at")
 ```
+
+Implemented once in `apps/reels/matching.py` (`feed_for` / `unseen_for`) rather
+than inline, so the API, the admin and any future surface can't drift apart on
+the rule that decides what a user can actually understand.
 
 `pin_until` first means a pinned own reel leads the feed while its window is
 open, then falls back into normal date order — no separate "featured" query.

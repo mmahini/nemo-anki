@@ -7,6 +7,8 @@ from django import forms
 from django.utils import timezone
 from django.utils.text import slugify
 
+from apps.accounts.languages import IMMERSIVE, LANGUAGE_CHOICES
+
 from .models import INSTAGRAM, MEDIA_STORED, OWN, Reel, ReelSource
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
@@ -27,7 +29,8 @@ class ReelSourceForm(forms.ModelForm):
             "kind",
             "username",
             "display_name",
-            "language",
+            "target_language",
+            "base_language",
             "level",
             "topics",
             "results_limit",
@@ -69,7 +72,14 @@ class ManualReelForm(forms.Form):
         required=False,
         help_text="Recommended — without ffmpeg we can't extract a frame automatically.",
     )
-    language = forms.CharField(max_length=4, initial="de")
+    target_language = forms.ChoiceField(
+        choices=LANGUAGE_CHOICES, initial="de", label="Teaches"
+    )
+    base_language = forms.ChoiceField(
+        choices=[(IMMERSIVE, "— immersive (no translation) —")] + LANGUAGE_CHOICES,
+        required=False,
+        label="Explained in",
+    )
     level = forms.ChoiceField(choices=[("", "—")] + Reel._meta.get_field("level").choices, required=False)
     topics = forms.CharField(max_length=200, required=False)
     original_url = forms.URLField(
@@ -132,7 +142,8 @@ class ManualReelForm(forms.Form):
             url=data.get("original_url") or "",
             title=data.get("title") or "",
             caption=data.get("caption") or "",
-            language=data.get("language") or source.language,
+            target_language=data.get("target_language") or source.target_language,
+            base_language=data.get("base_language") or source.base_language,
             level=data.get("level") or source.level,
             topics=data.get("topics") or source.topics,
             posted_at=data.get("posted_at") or timezone.now(),

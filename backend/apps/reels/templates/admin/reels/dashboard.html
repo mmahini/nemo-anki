@@ -62,7 +62,7 @@
     <h2>Sources</h2>
     <table>
       <tr>
-        <th>Channel</th><th>Kind</th><th>Lang</th><th class="num">Limit</th>
+        <th>Channel</th><th>Kind</th><th>Teaches</th><th class="num">Limit</th>
         <th class="num">Every</th><th class="num">Keep</th><th>Permission</th>
         <th>Last polled</th><th class="num">Reels</th><th class="num">Stored</th><th></th>
       </tr>
@@ -70,7 +70,7 @@
       <tr>
         <td><a href="{% url 'admin:reels_reelsource_change' s.pk %}">@{{ s.username }}</a></td>
         <td>{% if s.kind == 'own' %}<span class="pill own">ours</span>{% else %}Instagram{% endif %}</td>
-        <td>{{ s.language }}</td>
+        <td>{{ s.target_language|upper }}{% if s.base_language %} <span class="muted">in {{ s.base_language|upper }}</span>{% else %} <span class="muted">immersive</span>{% endif %}</td>
         <td class="num">{% if s.kind == 'own' %}—{% else %}{{ s.results_limit }}{% endif %}</td>
         <td class="num">{% if s.kind == 'own' %}—{% else %}{{ s.poll_interval_hours }}h{% endif %}</td>
         <td class="num">{{ s.retention_days|default:"default" }}</td>

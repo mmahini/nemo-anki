@@ -609,7 +609,11 @@
     "next": "Next",
     "start": "Start learning",
     "saving": "Setting up…",
-    "referralGift": "You joined through a friend's invite — your first month of Basic is on us."
+    "referralGift": "You joined through a friend's invite — your first month of Basic is on us.",
+    "langsTitle": "Which languages?",
+    "langsTitleNamed": "{{name}}, which languages?",
+    "langsLede": "Tell us what you're learning and what you already understand.",
+    "langsNote": "You can change this any time in your account."
   },
   "cardEditor": {
     "articleTitle": "German article (colour-coded)",
@@ -662,5 +666,15 @@
     "findImage": "Find an image",
     "editCard": "Edit this card",
     "spaceKey": "Space"
+  },
+  "languages": {
+    "learningLabel": "Which languages are you learning?",
+    "learningHint": "Pick any number — we'll show you reels that teach them.",
+    "knownLabel": "Which languages do you already understand?",
+    "knownHint": "So we only show reels explained in a language you can follow.",
+    "needPrefsTitle": "First, which languages?",
+    "needPrefsLede": "Tell us what you're learning and what you already read, and we'll fill your feed.",
+    "save": "Save",
+    "change": "Change languages"
   }
 }
