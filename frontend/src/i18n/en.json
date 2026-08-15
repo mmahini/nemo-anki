@@ -15,7 +15,8 @@
     "quiz": "Quiz",
     "howItWorks": "How it works",
     "invite": "Invite friends",
-    "classroom": "Classroom"
+    "classroom": "Classroom",
+    "reels": "Reels"
   },
   "studyReminder": {
     "label": "Daily reminder",
@@ -676,5 +677,15 @@
     "needPrefsLede": "Tell us what you're learning and what you already read, and we'll fill your feed.",
     "save": "Save",
     "change": "Change languages"
+  },
+  "reels": {
+    "empty": "No reels yet for the languages you picked. We add new channels regularly.",
+    "caughtUp": "You've seen everything new — here's the library again.",
+    "more": "Load more",
+    "play": "Play",
+    "save": "Save",
+    "saved": "Saved",
+    "ours": "Nemo",
+    "original": "Original on Instagram"
   }
 }

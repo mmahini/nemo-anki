@@ -26,6 +26,7 @@ import Practice from "./pages/Practice";
 import Support from "./pages/Support";
 import Subscribe from "./pages/Subscribe";
 import Classroom from "./pages/Classroom";
+import Reels from "./pages/Reels";
 import BackendStatus from "./components/BackendStatus";
 import UpdateToast from "./components/UpdateToast";
 import SpeechHelp from "./components/SpeechHelp";
@@ -94,6 +95,7 @@ export default function App() {
               <Route path="/app/support" element={<Support />} />
               <Route path="/app/subscribe" element={<Subscribe />} />
               <Route path="/app/classroom" element={<Classroom />} />
+              <Route path="/app/reels" element={<Reels />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

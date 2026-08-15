@@ -30,6 +30,15 @@ function IconPractice() {
     </svg>
   );
 }
+function IconReels() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" strokeWidth="2" />
+      <path d="M3 9h18M9 4l3 5M15 4l3 5" stroke="currentColor" strokeWidth="2" opacity=".6" />
+      <path d="M11 12.5l4 2.2-4 2.3v-4.5z" fill="currentColor" />
+    </svg>
+  );
+}
 function IconQuiz() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -42,11 +51,16 @@ function IconQuiz() {
 /* Home carries the daily dashboard plus the Books/Import doorways, so neither
    needs a nav slot; Support lives in the account menu, and Writing +
    Conversation merged into Practice. Quiz (the placement test) is its own
-   destination — a full-screen flow, not a Practice tab. */
+   destination — a full-screen flow, not a Practice tab.
+
+   Five tabs is the ceiling on a phone: the labels are already short, and a
+   sixth would either wrap or force scrolling. Anything added after Reels has
+   to displace something, not squeeze in beside it. */
 const NAV = [
   { to: "/app", end: true, key: "nav.home", Icon: IconHome },
   { to: "/app/decks", end: false, key: "nav.decks", Icon: IconDecks },
   { to: "/app/practice", end: false, key: "nav.practice", Icon: IconPractice },
+  { to: "/app/reels", end: false, key: "nav.reels", Icon: IconReels },
   { to: "/app/placement-test", end: false, key: "nav.quiz", Icon: IconQuiz },
 ] as const;
 

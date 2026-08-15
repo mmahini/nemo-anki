@@ -7,6 +7,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -503,3 +504,112 @@ class SourceLanguageSyncTests(TestCase):
         self.assertEqual(Reel.objects.get(key="a").base_language, "en")
         # Untouched: only the selected channel's reels move.
         self.assertEqual(Reel.objects.get(key="b").base_language, "fa")
+
+
+class ReelApiTests(TestCase):
+    """The feed's contract: only reels this user can follow, and an honest
+    answer when we've never asked what they're learning."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.de_en = make_source(username="de_en", target_language="de", base_language="en")
+        self.de_fa = make_source(username="de_fa", target_language="de", base_language="fa")
+        make_reel(self.de_en, key="en1", days_old=1, target_language="de", base_language="en")
+        make_reel(self.de_fa, key="fa1", days_old=2, target_language="de", base_language="fa")
+
+        self.user = User.objects.create_user("api@x.com", ui_language="en")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def set_langs(self, learning, known):
+        self.user.learning_languages = learning
+        self.user.known_languages = known
+        self.user.save()
+
+    def test_feed_asks_for_languages_before_guessing_one(self):
+        res = self.client.get(reverse("reel-feed"))
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data["needs_language_prefs"])
+        self.assertEqual(res.data["results"], [])
+        # ui_language is a suggested default to confirm, not an assumption.
+        self.assertEqual(res.data["suggested_known_languages"], ["en"])
+
+    def test_feed_returns_only_reels_the_user_can_follow(self):
+        self.set_langs(["de"], ["en"])
+        res = self.client.get(reverse("reel-feed"))
+        self.assertFalse(res.data["needs_language_prefs"])
+        self.assertEqual([r["key"] for r in res.data["results"]], ["en1"])
+
+    def test_feed_serialises_what_the_card_needs(self):
+        self.set_langs(["de"], ["en"])
+        reel = self.client.get(reverse("reel-feed")).data["results"][0]
+        self.assertEqual(reel["source_username"], "de_en")
+        self.assertEqual(reel["teaches"], "German (Deutsch) · English")
+        self.assertFalse(reel["is_ours"])
+        self.assertFalse(reel["saved"])
+
+    def test_seen_is_idempotent_and_removes_the_reel_from_the_feed(self):
+        self.set_langs(["de"], ["en", "fa"])
+        first = self.client.get(reverse("reel-feed")).data["results"][0]
+        for _ in range(2):
+            self.assertEqual(
+                self.client.post(reverse("reel-seen", args=[first["id"]])).status_code, 200
+            )
+        self.assertEqual(ReelView.objects.filter(user=self.user).count(), 1)
+        keys = [r["key"] for r in self.client.get(reverse("reel-feed")).data["results"]]
+        self.assertNotIn(first["key"], keys)
+
+    def test_caught_up_replays_the_library_instead_of_an_empty_screen(self):
+        self.set_langs(["de"], ["en"])
+        reel = self.client.get(reverse("reel-feed")).data["results"][0]
+        self.client.post(reverse("reel-seen", args=[reel["id"]]))
+        res = self.client.get(reverse("reel-feed"))
+        self.assertTrue(res.data["caught_up"])
+        self.assertEqual(len(res.data["results"]), 1)
+
+    def test_save_toggles_and_shows_up_in_the_saved_list(self):
+        self.set_langs(["de"], ["en"])
+        reel = self.client.get(reverse("reel-feed")).data["results"][0]
+        self.assertTrue(self.client.post(reverse("reel-save", args=[reel["id"]])).data["saved"])
+        saved = self.client.get(reverse("reel-saved")).data["results"]
+        self.assertEqual([r["key"] for r in saved], ["en1"])
+        self.assertTrue(saved[0]["saved"])
+        self.assertFalse(self.client.post(reverse("reel-save", args=[reel["id"]])).data["saved"])
+        self.assertEqual(self.client.get(reverse("reel-saved")).data["results"], [])
+
+    def test_saving_a_reel_protects_it_from_the_retention_purge(self):
+        """The saved list is a promise; the purge has to honour it."""
+        self.set_langs(["de"], ["en"])
+        old = make_reel(self.de_en, key="old", days_old=300, target_language="de", base_language="en")
+        self.client.post(reverse("reel-save", args=[old.id]))
+        tasks.purge_expired_reel_media(
+            cutoff=timezone.now() - timedelta(days=90), triggered_by="test"
+        )
+        self.assertEqual(Reel.objects.get(key="old").media_status, MEDIA_STORED)
+
+    def test_the_feed_requires_a_signed_in_user(self):
+        from rest_framework.test import APIClient
+
+        self.assertEqual(APIClient().get(reverse("reel-feed")).status_code, 401)
+
+
+class MediaUrlTests(TestCase):
+    """The frontend is served from a different origin than the backend, so a
+    relative /media/ path would resolve against the wrong host."""
+
+    def test_media_urls_are_absolute_even_without_r2(self):
+        from rest_framework.test import APIClient
+
+        source = make_source(target_language="de", base_language="en")
+        reel = make_reel(source, key="abs", days_old=1, target_language="de", base_language="en")
+        reel.video.save("abs.mp4", ContentFile(b"x"), save=True)
+
+        user = User.objects.create_user("abs@x.com")
+        user.learning_languages, user.known_languages = ["de"], ["en"]
+        user.save()
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        url = client.get(reverse("reel-feed")).data["results"][0]["video_url"]
+        self.assertTrue(url.startswith("http"), url)
