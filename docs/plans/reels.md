@@ -863,13 +863,27 @@ reachable:
 6 MB per card on someone's mobile data. Posters load; video bytes only move on
 tap.
 
-MVP is a vertical list of cards — poster, source avatar + username, caption
-(clamped), duration, and a **link back to the original reel on Instagram** (see
-[Risks](#risks); attribution is non-negotiable, even though most users can't
-follow the link). Tapping plays inline. Full-screen TikTok-style swiping is
-Phase 4 — a UX upgrade, not a prerequisite.
+MVP was a vertical list of cards. **Superseded (Aug 2026): the page is now the
+full-screen Instagram-style feed** — one reel per screen, CSS scroll-snap
+(`scroll-snap-stop: always` so a fling can't skip reels), an IntersectionObserver
+autoplaying whichever slide owns ≥60% of the viewport and pausing the rest.
+Autoplay starts muted (browser policy); one tap on the sound icon unmutes the
+whole session. Tap anywhere on the video toggles play/pause — native `controls`
+are gone, because on mobile they swallow the first tap to reveal themselves.
+Play state comes from the video's own events (`playing`/`waiting`/`pause`), so
+the spinner/badge can never disagree with what's actually rendering. The card
+keeps poster, username, clamped caption, and the **link back to the original
+reel on Instagram** (see [Risks](#risks); attribution is non-negotiable, even
+though most users can't follow the link).
 
-Mark-as-seen fires on play, and on a card being ≥50% visible for 2s.
+`preload="none"` survives the redesign: only the on-screen reel downloads —
+scrolling *to* a reel is the user asking for it, scrolling past fetches nothing.
+
+Mark-as-seen fires the first time a reel's slide becomes the active one.
+
+Dev gotcha: the Vite proxy must NOT set `changeOrigin` — `ReelSerializer`
+absolutises media URLs from the `Host` header, and a rewritten Host makes dev
+emit unreachable `http://backend:8000/…` URLs (vite.config.ts has the comment).
 
 ---
 
@@ -1039,7 +1053,7 @@ Both are cheap: one aggregate query a day.
 | **1** | `apps.reels` app: models, migrations, Apify client, R2 ingest, budget guard. **The admin dashboard** — add source, **upload our own reels**, sources table, reels grid, manual *Fetch now*, reel upload, purge panel with preview — and **the Costs page** with spend, projection, per-source breakdown and Telegram budget alerts. No scheduler, no user-facing frontend. Move `nemoapps.xyz` DNS to Cloudflare. | Manual only |
 | **2** ✅ | **Done 2026-08-15.** API (`/api/reels/`, seen, save, saved) + `/app/reels` page + nav + the language gate. Shipped to everyone rather than behind the `STAFF` flag — there is nothing risky to gate, and the language question makes an empty feed self-explanatory. Still to do: register the first ~20 accounts, starting with the ones that granted permission. | Manual only |
 | **3** ✅ | **Done 2026-08-15.** `.github/workflows/reels-poll.yml` armed: secrets + variables set, `REELS_SCRAPING_ENABLED=True`, budget $5/mo, `REELS_RETENTION_DAYS=90`. Verified by a dry run and a real run against production. | **~$0/mo** |
-| **4** | Saved tab, level/topic filters, full-screen swipe player, `ffmpeg` in the image for auto-poster extraction, and — the real prize — *"make cards from this reel"*: an optional deck/`BookLesson` FK on own reels turning watch into one-tap import, plus the Gemini caption pipeline for scraped ones. | Marginal |
+| **4** | Saved tab, level/topic filters, ~~full-screen swipe player~~ (shipped Aug 2026 — see [The user page](#the-user-page)), `ffmpeg` in the image for auto-poster extraction, and — the real prize — *"make cards from this reel"*: an optional deck/`BookLesson` FK on own reels turning watch into one-tap import, plus the Gemini caption pipeline for scraped ones. | Marginal |
 
 ---
 

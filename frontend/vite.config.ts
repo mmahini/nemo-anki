@@ -80,14 +80,16 @@ export default defineConfig(({ mode }) => {
       host: "0.0.0.0",
       port: 5173,
       watch: { usePolling: true },
+      // changeOrigin stays off: Django builds absolute media URLs from the
+      // Host header (see ReelSerializer._media_url), and a rewritten Host
+      // would make it emit http://backend:8000/… — unreachable from the
+      // browser. ALLOWED_HOSTS defaults to * in dev, so the real Host is fine.
       proxy: {
         "/api": {
           target: backendUrl,
-          changeOrigin: true,
         },
         "/media": {
           target: backendUrl,
-          changeOrigin: true,
         },
       },
     },
@@ -97,11 +99,9 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": {
           target: backendUrl,
-          changeOrigin: true,
         },
         "/media": {
           target: backendUrl,
-          changeOrigin: true,
         },
       },
     },

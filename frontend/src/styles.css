@@ -2140,61 +2140,218 @@ kbd {
   font-weight: 600;
 }
 
-/* --- Reels feed ---------------------------------------------------------- */
-.reels__list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 20px; }
-@media (min-width: 720px) {
-  .reels__list { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-}
-.reels__caughtup { margin-top: 4px; }
+/* --- Reels feed ----------------------------------------------------------
+   Instagram-style immersive feed: the shell (via .shell--reels) pins its
+   height, and this stage fills what's left under the header. One reel per
+   screen, mandatory snap, the visible one autoplays. */
+
+/* Non-feed states (loading / language gate / empty) keep normal page framing,
+   since .shell--reels stripped the main gutters. */
+.reels-plain { width: 100%; max-width: 960px; margin: 0 auto; padding: 28px max(24px, var(--safe-r)) 64px max(24px, var(--safe-l)); }
 .reels-gate { display: grid; gap: 14px; justify-items: start; }
 
-.reelcard {
-  border: 1px solid var(--border, #d5d8e0);
-  border-radius: 14px;
-  overflow: hidden;
-  background: var(--surface, #fff);
+.shell--reels { height: 100vh; height: 100dvh; }
+.shell--reels .shell__main {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
-.reelcard__media { position: relative; background: #000; }
-.reelcard__video {
+
+.reels-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+}
+.reels-feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.reels-feed::-webkit-scrollbar { display: none; }
+.reels-feed__more { height: 2px; }
+
+.reels-feed__pill {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  margin: 0;
+  max-width: 92%;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+.reels-feed__pill--error { background: rgba(160, 30, 50, 0.85); }
+
+.reelview {
+  height: 100%;
+  scroll-snap-align: start;
+  /* A hard fling still stops at the next reel, never two past it. */
+  scroll-snap-stop: always;
+  display: grid;
+  /* Explicit 100% tracks: the frame's percentage height must resolve against
+     the slide, or it falls back to the video's intrinsic height and the
+     rail/caption overflow past the fold. */
+  grid-template-rows: 100%;
+  grid-template-columns: 100%;
+  place-items: center;
+}
+.reelview__frame { position: relative; width: 100%; height: 100%; }
+/* Desktop keeps the phone shape: a centred 9:16 column on black. */
+@media (min-width: 720px) {
+  .reelview__frame {
+    height: 100%;
+    width: auto;
+    aspect-ratio: 9 / 16;
+    max-width: 100%;
+  }
+}
+.reelview__video {
   display: block;
   width: 100%;
-  /* Reels are shot 9:16. Reserving the box up front stops the list jumping as
-     each poster loads. */
-  aspect-ratio: 9 / 16;
-  max-height: 70vh;
+  height: 100%;
   object-fit: contain;
   background: #000;
 }
-.reelcard__play {
+
+/* The whole frame is the tap target — play/pause is one tap anywhere, like
+   the reels UI people already know. */
+.reelview__tap {
   position: absolute;
   inset: 0;
-  margin: auto;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.reelview__badge {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  border: 0;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   font-size: 24px;
-  cursor: pointer;
-  /* A finger-sized target, centred, over a poster that may be any colour. */
+  /* Finger-sized and centred, readable over any frame. */
   display: grid;
   place-items: center;
+  pointer-events: none;
+  animation: reelfade 0.15s ease;
 }
-.reelcard__body { padding: 10px 12px 12px; display: grid; gap: 6px; }
-.reelcard__meta { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-.reelcard__source { font-weight: 700; unicode-bidi: isolate; }
-.reelcard__teaches { font-size: 0.8rem; opacity: 0.65; }
-.reelcard__caption {
+.reelview__spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: reelspin 0.8s linear infinite;
+}
+@keyframes reelspin {
+  to { transform: rotate(360deg); }
+}
+@keyframes reelfade {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Action rail on the trailing edge; mirrors automatically in RTL. */
+.reelview__rail {
+  position: absolute;
+  inset-inline-end: 8px;
+  bottom: calc(18px + var(--reels-clear, 0px));
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.reelview__action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
+  -webkit-tap-highlight-color: transparent;
+}
+.reelview__action:hover { text-decoration: none; color: #fff; }
+.reelview__action--on { color: var(--accent, #4c6ef5); }
+.reelview__action svg { width: 28px; height: 28px; }
+
+/* Attribution link inside the meta block; the block itself ignores taps so
+   the video underneath stays tappable, the link opts back in. */
+.reelview__origin {
+  pointer-events: auto;
+  width: fit-content;
+  color: #fff;
+  font-size: 0.78rem;
+  opacity: 0.75;
+  text-decoration: underline;
+}
+.reelview__origin:hover { color: #fff; }
+
+/* Who + caption over the bottom of the video, clear of the rail and tab bar. */
+.reelview__meta {
+  position: absolute;
+  inset-inline-start: 0;
+  bottom: 0;
+  width: 100%;
+  z-index: 1;
+  box-sizing: border-box;
+  padding-block-start: 40px;
+  padding-block-end: calc(14px + var(--reels-clear, 0px));
+  padding-inline-start: 14px;
+  padding-inline-end: 76px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
+  color: #fff;
+  pointer-events: none;
+  display: grid;
+  gap: 6px;
+}
+.reelview__who { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+/* Usernames are Latin; pinned LTR so RTL bidi can't flip "@name" to "name@". */
+.reelview__source { font-weight: 700; direction: ltr; unicode-bidi: isolate; }
+.reelview__teaches { font-size: 0.78rem; opacity: 0.8; }
+.reelview__caption {
   margin: 0;
-  font-size: 0.92rem;
-  /* Captions run long and are often a wall of hashtags; three lines is enough
+  font-size: 0.9rem;
+  /* Captions run long and are often a wall of hashtags; two lines is enough
      to tell what the reel is about. */
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  unicode-bidi: plaintext;
 }
-.reelcard__actions { display: flex; gap: 12px; align-items: center; margin-top: 2px; }
-.reelcard__origin { font-size: 0.8rem; opacity: 0.7; }
+
+/* The floating tab bar covers the bottom of the feed on phones; the rail and
+   caption climb above it. */
+@media (max-width: 720px) {
+  .reelview__rail,
+  .reelview__meta { --reels-clear: calc(86px + var(--safe-b)); }
+}
+
 .btn--on { background: var(--accent, #4c6ef5); color: #fff; }
