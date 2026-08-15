@@ -2279,6 +2279,19 @@ kbd {
   flex-direction: column;
   align-items: center;
   gap: 18px;
+  transition: opacity 0.25s ease;
+}
+
+/* Immersive mode: a second after playback starts the overlays step aside so
+   the reel owns the whole frame; one tap brings them back (Reels.tsx). */
+.reelview--immersive .reelview__rail,
+.reelview--immersive .reelview__meta,
+/* pointer-events:none doesn't cascade past a child's own `auto` — the
+   attribution link needs switching off explicitly or it stays clickable
+   while invisible. */
+.reelview--immersive .reelview__origin {
+  opacity: 0;
+  pointer-events: none;
 }
 .reelview__action {
   display: flex;
@@ -2330,6 +2343,7 @@ kbd {
   pointer-events: none;
   display: grid;
   gap: 6px;
+  transition: opacity 0.25s ease;
 }
 .reelview__who { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 /* Usernames are Latin; pinned LTR so RTL bidi can't flip "@name" to "name@". */
@@ -2352,6 +2366,16 @@ kbd {
 @media (max-width: 720px) {
   .reelview__rail,
   .reelview__meta { --reels-clear: calc(86px + var(--safe-b)); }
+}
+
+/* Immersive mode reaches outside the page too: the shell tab bar and the
+   caught-up pill fade with the overlays (body class set in Reels.tsx). */
+.shell__tabbar,
+.reels-feed__pill { transition: opacity 0.25s ease; }
+body.reels-immersive .shell__tabbar,
+body.reels-immersive .reels-feed__pill {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .btn--on { background: var(--accent, #4c6ef5); color: #fff; }
