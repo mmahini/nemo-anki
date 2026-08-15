@@ -701,6 +701,15 @@ Cost impact is negligible and worth stating: even 200 own reels at 6 MB is
    scripted than for a scraped clip, and it's the strongest version of the
    Phase 4 *make cards from this reel* idea.
 
+> **Shipped (Aug 2026).** `POST /api/reels/<pk>/make-cards/`, three tiers,
+> cheapest first: a repeat tap returns the user's existing deck free; a
+> staff-curated `linked_deck` imports as a plain copy (no AI, no quota);
+> otherwise Gemini turns the caption into drafts **once per reel**, cached in
+> `Reel.cards_cache` and reused by every later user. The metering rule is the
+> part worth remembering: **every AI-path use charges one unit of the user's
+> daily quota, cache hit or not** — the cache protects our Gemini bill, not
+> the user's quota; quota measures value delivered, not marginal cost.
+
 Because of (2), it's worth shipping own-reel upload **in Phase 1 alongside the
 scraper**, not deferring it — it costs little and means the feature has a working
 content path before a single Apify call is made.
@@ -1053,7 +1062,7 @@ Both are cheap: one aggregate query a day.
 | **1** | `apps.reels` app: models, migrations, Apify client, R2 ingest, budget guard. **The admin dashboard** — add source, **upload our own reels**, sources table, reels grid, manual *Fetch now*, reel upload, purge panel with preview — and **the Costs page** with spend, projection, per-source breakdown and Telegram budget alerts. No scheduler, no user-facing frontend. Move `nemoapps.xyz` DNS to Cloudflare. | Manual only |
 | **2** ✅ | **Done 2026-08-15.** API (`/api/reels/`, seen, save, saved) + `/app/reels` page + nav + the language gate. Shipped to everyone rather than behind the `STAFF` flag — there is nothing risky to gate, and the language question makes an empty feed self-explanatory. Still to do: register the first ~20 accounts, starting with the ones that granted permission. | Manual only |
 | **3** ✅ | **Done 2026-08-15.** `.github/workflows/reels-poll.yml` armed: secrets + variables set, `REELS_SCRAPING_ENABLED=True`, budget $5/mo, `REELS_RETENTION_DAYS=90`. Verified by a dry run and a real run against production. | **~$0/mo** |
-| **4** | Saved tab, level/topic filters, ~~full-screen swipe player~~ (shipped Aug 2026 — see [The user page](#the-user-page)), `ffmpeg` in the image for auto-poster extraction, and — the real prize — *"make cards from this reel"*: an optional deck/`BookLesson` FK on own reels turning watch into one-tap import, plus the Gemini caption pipeline for scraped ones. | Marginal |
+| **4** | Saved tab, level/topic filters, ~~full-screen swipe player~~ (shipped Aug 2026 — see [The user page](#the-user-page)), `ffmpeg` in the image for auto-poster extraction, and — the real prize, ~~shipped Aug 2026~~ (see [Why this matters](#why-this-matters-beyond-nice-to-have)) — *"make cards from this reel"*: an optional deck/`BookLesson` FK on own reels turning watch into one-tap import, plus the Gemini caption pipeline for scraped ones. | Marginal |
 
 ---
 
