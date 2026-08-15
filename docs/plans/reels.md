@@ -1019,11 +1019,41 @@ Both are cheap: one aggregate query a day.
 |---|---|---|
 | **0** ✅ | **Done 2026-08-15** — see [Measured, not modelled](#7-measured-not-modelled--phase-0-results). Rate is $2.07/1k, reels are ~0.10 MB/s, the actor's field names match, and stored MP4s play. Original scope: sign up for Apify Free; run `instagram-reel-scraper` by hand against 3 accounts and confirm multi-username input, the output field names, and the real per-result charge. Then: **(a)** download one `videoUrl` and record the actual MB — the storage model assumes 6 MB; **(b)** check the download works from a Render-like datacenter IP; **(c)** put one MP4 on R2 behind `cdn.nemoapps.xyz` and **test playback from a real Iranian connection**. **(c) is still outstanding and is the one that can still change the architecture.** | ~$0.01 spent |
 | **1** | `apps.reels` app: models, migrations, Apify client, R2 ingest, budget guard. **The admin dashboard** — add source, **upload our own reels**, sources table, reels grid, manual *Fetch now*, reel upload, purge panel with preview — and **the Costs page** with spend, projection, per-source breakdown and Telegram budget alerts. No scheduler, no user-facing frontend. Move `nemoapps.xyz` DNS to Cloudflare. | Manual only |
-| **2** | API + `/app/reels` page + nav + seen tracking, behind the `STAFF` flag. Seed the feed with our own reels, then register the first ~20 accounts (starting with the ones that granted permission). | Manual only |
-| **3** | Enable `.github/workflows/reels-poll.yml` (set the `REELS_SCRAPING_ENABLED` variable and the secrets), budget $5/mo, `REELS_RETENTION_DAYS=90`. Open the feature to all users. | **~$0/mo** |
+| **2** ✅ | **Done 2026-08-15.** API (`/api/reels/`, seen, save, saved) + `/app/reels` page + nav + the language gate. Shipped to everyone rather than behind the `STAFF` flag — there is nothing risky to gate, and the language question makes an empty feed self-explanatory. Still to do: register the first ~20 accounts, starting with the ones that granted permission. | Manual only |
+| **3** ✅ | **Done 2026-08-15.** `.github/workflows/reels-poll.yml` armed: secrets + variables set, `REELS_SCRAPING_ENABLED=True`, budget $5/mo, `REELS_RETENTION_DAYS=90`. Verified by a dry run and a real run against production. | **~$0/mo** |
 | **4** | Saved tab, level/topic filters, full-screen swipe player, `ffmpeg` in the image for auto-poster extraction, and — the real prize — *"make cards from this reel"*: an optional deck/`BookLesson` FK on own reels turning watch into one-tap import, plus the Gemini caption pipeline for scraped ones. | Marginal |
 
 ---
+
+### What the first live cron runs taught us
+
+Three things only showed up once it ran for real, all of them the
+fails-silently kind:
+
+1. **`| tee` swallowed the exit code.** The first dry run died on an
+   unresolvable database host and the job still reported success. `set -o
+   pipefail` fixes it. A cron that fails silently is worse than no cron: it
+   looks like reels are arriving daily while nothing happens.
+2. **Actions needs the *external* database URL.** Render's `DATABASE_URL` on the
+   service is the internal `dpg-…-a` hostname, which only resolves inside
+   Render's network. The GitHub secret uses
+   `externalConnectionString` from the Render API instead.
+3. **A runner has no Celery broker.** `.delay()` failed name resolution, so a
+   reel was fetched — and paid for — and its video never downloaded. The
+   workflow now sets `CELERY_TASK_ALWAYS_EAGER=True` so ingest runs inline.
+
+That third one also exposed a design gap worth keeping: a reel whose media never
+landed is **dead weight**. It's excluded from the feed, but its row *blocks a
+re-fetch*, because the row is the dedupe key. So the poller now **self-heals** —
+when a fetch returns an item we already have whose media is missing, it retries
+the ingest using that item's fresh signed URLs, which we've already paid for in
+that run.
+
+Self-healing only works while the reel is still in the account's newest
+`results_limit`. Past that, it can't be recovered without a re-scrape, and the
+right remedy is the admin's **hard delete** — which drops the row so a future
+poll can acquire it properly.
+
 
 ## Risks
 
