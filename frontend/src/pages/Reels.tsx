@@ -39,9 +39,10 @@ export default function Reels() {
 
   /** Which reel the viewport has settled on (drives play/pause). */
   const [activeId, setActiveId] = useState<number | null>(null);
-  /** One sound state for the whole feed, like Instagram: unmute once, every
-   * following reel plays with sound. */
-  const [muted, setMuted] = useState(true);
+  /** One sound state for the whole feed. Sound is ON by default; when the
+   * browser refuses un-muted autoplay (fresh page, no gesture yet) the slide
+   * falls back to muted playback and restores sound on the first tap. */
+  const [muted, setMuted] = useState(false);
 
   const seenRef = useRef<Set<number>>(new Set());
   const loadingMoreRef = useRef(false);
@@ -174,7 +175,7 @@ export default function Reels() {
             active={activeId === reel.id}
             muted={muted}
             onActive={() => onReelActive(reel)}
-            onToggleMuted={() => setMuted((m) => !m)}
+            onSetMuted={setMuted}
             onSave={() => void onSave(reel)}
           />
         ))}
@@ -215,14 +216,14 @@ function ReelSlide({
   active,
   muted,
   onActive,
-  onToggleMuted,
+  onSetMuted,
   onSave,
 }: {
   reel: Reel;
   active: boolean;
   muted: boolean;
   onActive: () => void;
-  onToggleMuted: () => void;
+  onSetMuted: (muted: boolean) => void;
   onSave: () => void;
 }) {
   const { t } = useTranslation();
@@ -237,6 +238,35 @@ function ReelSlide({
   const [buffering, setBuffering] = useState(false);
   /** The user tapped pause; don't fight them when the observer re-fires. */
   const userPausedRef = useRef(false);
+  /** Sound is on globally but the browser refused un-muted autoplay, so this
+   * slide is playing muted until a tap (a real gesture) restores sound. */
+  const [autoMuted, setAutoMuted] = useState(false);
+  const effectiveMuted = muted || autoMuted;
+
+  // Overlay chrome (caption, rail, tab bar). Visible while paused; once
+  // playback starts it stays for a beat, then gets out of the way.
+  const [chrome, setChrome] = useState(true);
+  const hideTimer = useRef<number | null>(null);
+  const clearHide = () => {
+    if (hideTimer.current !== null) {
+      window.clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  };
+  const scheduleHide = (ms: number) => {
+    clearHide();
+    hideTimer.current = window.setTimeout(() => setChrome(false), ms);
+  };
+  useEffect(() => clearHide, []);
+
+  // The tab bar lives in the shell, outside this page — it fades via a body
+  // class that only the active, chrome-less slide holds.
+  useEffect(() => {
+    if (active && !chrome) {
+      document.body.classList.add("reels-immersive");
+      return () => document.body.classList.remove("reels-immersive");
+    }
+  }, [active, chrome]);
 
   // The feed watches which slide owns the viewport.
   useEffect(() => {
@@ -260,14 +290,16 @@ function ReelSlide({
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    v.muted = muted;
+    v.muted = effectiveMuted;
     if (active) {
       if (!userPausedRef.current && v.paused) {
         v.play().catch(() => {
-          // Unmuted autoplay can be refused without a fresh gesture;
-          // muted playback is always allowed. Degrade rather than freeze.
+          // Un-muted autoplay is refused until the page has seen a gesture;
+          // muted playback is always allowed. Start silent rather than
+          // frozen — the first tap on the slide brings the sound back.
           if (!v.muted) {
             v.muted = true;
+            setAutoMuted(true);
             void v.play().catch(() => setBuffering(false));
           } else {
             setBuffering(false);
@@ -277,17 +309,34 @@ function ReelSlide({
     } else {
       if (!v.paused) v.pause();
       userPausedRef.current = false;
+      setAutoMuted(false);
     }
-  }, [active, muted]);
+  }, [active, effectiveMuted]);
 
-  // One tap toggles play/pause. No native controls — on mobile those swallow
-  // the first tap to reveal themselves, which forces a second one.
-  function toggle() {
+  /** Every tap is a real gesture — the one thing the autoplay fallback has
+   * been waiting for. */
+  function restoreSoundIfAutoMuted() {
+    const v = videoRef.current;
+    if (autoMuted && v) {
+      v.muted = muted;
+      setAutoMuted(false);
+    }
+  }
+
+  // Tap logic, Instagram-style. Chrome hidden: first tap only brings the
+  // overlays back. Chrome visible: tap toggles play/pause. No native
+  // controls — on mobile those swallow the first tap to reveal themselves.
+  function onTap() {
     const v = videoRef.current;
     if (!v) return;
+    restoreSoundIfAutoMuted();
     if (v.paused) {
       userPausedRef.current = false;
       void v.play().catch(() => setBuffering(false));
+    } else if (!chrome) {
+      setChrome(true);
+      // Longer than the after-play beat: leave room for the second tap.
+      scheduleHide(3000);
     } else {
       userPausedRef.current = true;
       v.pause();
@@ -295,7 +344,7 @@ function ReelSlide({
   }
 
   return (
-    <section ref={rootRef} className="reelview">
+    <section ref={rootRef} className={`reelview${chrome ? "" : " reelview--immersive"}`}>
       <div className="reelview__frame">
         <video
           ref={videoRef}
@@ -313,18 +362,24 @@ function ReelSlide({
             // already-buffered video skips it, so the badge doesn't flash.
             if (e.currentTarget.readyState < 3) setBuffering(true);
           }}
-          onPlaying={() => setBuffering(false)}
+          onPlaying={() => {
+            setBuffering(false);
+            // One clear second of context, then the reel gets the screen.
+            scheduleHide(1000);
+          }}
           onWaiting={() => setBuffering(true)}
           onPause={() => {
             setPaused(true);
             setBuffering(false);
+            clearHide();
+            setChrome(true);
           }}
         />
 
         <button
           className="reelview__tap"
           aria-label={paused ? t("reels.play") : t("reels.pause")}
-          onClick={toggle}
+          onClick={onTap}
         >
           {buffering ? (
             <span className="reelview__badge" aria-hidden="true">
@@ -344,16 +399,26 @@ function ReelSlide({
             className={`reelview__action${reel.saved ? " reelview__action--on" : ""}`}
             aria-pressed={reel.saved}
             aria-label={reel.saved ? t("reels.saved") : t("reels.save")}
-            onClick={onSave}
+            onClick={() => {
+              if (!paused) scheduleHide(3000);
+              onSave();
+            }}
           >
             <IconBookmark filled={reel.saved} />
           </button>
           <button
             className="reelview__action"
-            aria-label={muted ? t("reels.unmute") : t("reels.mute")}
-            onClick={onToggleMuted}
+            aria-label={effectiveMuted ? t("reels.unmute") : t("reels.mute")}
+            onClick={() => {
+              const v = videoRef.current;
+              const next = !effectiveMuted;
+              setAutoMuted(false);
+              if (v) v.muted = next;
+              onSetMuted(next);
+              if (!paused) scheduleHide(3000);
+            }}
           >
-            <IconSound muted={muted} />
+            <IconSound muted={effectiveMuted} />
           </button>
         </div>
 
