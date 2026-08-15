@@ -59,7 +59,7 @@ class ReelSourceAdmin(admin.ModelAdmin):
     )
     list_filter = ("kind", "is_active", "target_language", "base_language", "permission_granted")
     search_fields = ("username", "display_name")
-    actions = ["fetch_now", "activate", "deactivate"]
+    actions = ["fetch_now", "apply_languages", "activate", "deactivate"]
 
     @admin.display(description="Teaches")
     def teaches(self, obj) -> str:
@@ -94,6 +94,20 @@ class ReelSourceAdmin(admin.ModelAdmin):
             return
         result = tasks.poll_reel_sources(force_source_ids=ids, triggered_by=request.user.email)
         self.message_user(request, f"Fetch finished: {result}", messages.INFO)
+
+    @admin.action(description="Apply this channel's languages to its existing reels")
+    def apply_languages(self, request, queryset):
+        """Reels copy the source's language pair at ingest, so correcting a
+        source afterwards leaves everything already fetched pointing at the
+        wrong pair — and silently out of (or into) people's feeds."""
+        total = 0
+        for source in queryset:
+            total += source.reels.exclude(
+                target_language=source.target_language, base_language=source.base_language
+            ).update(
+                target_language=source.target_language, base_language=source.base_language
+            )
+        self.message_user(request, f"Updated {total} reels to match their channel.")
 
     @admin.action(description="Activate")
     def activate(self, request, queryset):
