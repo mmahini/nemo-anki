@@ -23,6 +23,7 @@ urlpatterns = [
     path("api/", include("apps.notifications.urls")),
     path("api/", include("apps.buddy.urls")),
     path("api/", include("apps.classroom.urls")),
+    path("api/", include("apps.reels.urls")),
 ]
 
 if settings.DEBUG:

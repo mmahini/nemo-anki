@@ -1226,3 +1226,65 @@ export function acceptClassroomInvite(id: number): Promise<ClassroomTeacher> {
 export function removeClassroomLink(id: number): Promise<void> {
   return jsonRequest<void>(`/api/classroom/${id}/`, { method: "DELETE" });
 }
+
+/* --- Reels ---------------------------------------------------------------
+ * A reel teaches a target language *in* a base language; the server only
+ * returns ones matching what this user is learning AND already reads. See
+ * lib/languages.ts and docs/plans/reels.md. */
+
+export type Reel = {
+  id: number;
+  key: string;
+  title: string;
+  caption: string;
+  hashtags: string[];
+  video_url: string | null;
+  poster_url: string | null;
+  duration_seconds: number | null;
+  source_username: string;
+  source_name: string;
+  source_avatar: string | null;
+  /** One of ours rather than a scraped Instagram reel. */
+  is_ours: boolean;
+  target_language: string;
+  base_language: string;
+  /** Pre-formatted "German (Deutsch) · English" for the card. */
+  teaches: string;
+  level: string;
+  /** The original post, kept for attribution even where it isn't reachable. */
+  url: string;
+  posted_at: string | null;
+  saved: boolean;
+};
+
+export type ReelFeed = {
+  /** The user has never been asked what they're learning — show the picker
+   *  instead of content rather than guessing a feed for them. */
+  needs_language_prefs: boolean;
+  results: Reel[];
+  next_offset?: number | null;
+  /** They've seen everything; the server replayed the library instead of
+   *  handing back an empty screen. */
+  caught_up?: boolean;
+  suggested_known_languages?: string[];
+};
+
+export function fetchReels(opts: { offset?: number; all?: boolean } = {}): Promise<ReelFeed> {
+  const params = new URLSearchParams();
+  if (opts.offset) params.set("offset", String(opts.offset));
+  if (opts.all) params.set("all", "1");
+  const qs = params.toString();
+  return jsonRequest<ReelFeed>(`/api/reels/${qs ? `?${qs}` : ""}`, { method: "GET" });
+}
+
+export function markReelSeen(id: number): Promise<{ ok: boolean }> {
+  return jsonRequest(`/api/reels/${id}/seen/`, { method: "POST", body: "{}" });
+}
+
+export function toggleReelSaved(id: number): Promise<{ saved: boolean }> {
+  return jsonRequest(`/api/reels/${id}/save/`, { method: "POST", body: "{}" });
+}
+
+export function fetchSavedReels(): Promise<{ results: Reel[] }> {
+  return jsonRequest<{ results: Reel[] }>("/api/reels/saved/", { method: "GET" });
+}

@@ -2139,3 +2139,62 @@ kbd {
   color: #fff;
   font-weight: 600;
 }
+
+/* --- Reels feed ---------------------------------------------------------- */
+.reels__list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 20px; }
+@media (min-width: 720px) {
+  .reels__list { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+}
+.reels__caughtup { margin-top: 4px; }
+.reels-gate { display: grid; gap: 14px; justify-items: start; }
+
+.reelcard {
+  border: 1px solid var(--border, #d5d8e0);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface, #fff);
+}
+.reelcard__media { position: relative; background: #000; }
+.reelcard__video {
+  display: block;
+  width: 100%;
+  /* Reels are shot 9:16. Reserving the box up front stops the list jumping as
+     each poster loads. */
+  aspect-ratio: 9 / 16;
+  max-height: 70vh;
+  object-fit: contain;
+  background: #000;
+}
+.reelcard__play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  /* A finger-sized target, centred, over a poster that may be any colour. */
+  display: grid;
+  place-items: center;
+}
+.reelcard__body { padding: 10px 12px 12px; display: grid; gap: 6px; }
+.reelcard__meta { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.reelcard__source { font-weight: 700; unicode-bidi: isolate; }
+.reelcard__teaches { font-size: 0.8rem; opacity: 0.65; }
+.reelcard__caption {
+  margin: 0;
+  font-size: 0.92rem;
+  /* Captions run long and are often a wall of hashtags; three lines is enough
+     to tell what the reel is about. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.reelcard__actions { display: flex; gap: 12px; align-items: center; margin-top: 2px; }
+.reelcard__origin { font-size: 0.8rem; opacity: 0.7; }
+.btn--on { background: var(--accent, #4c6ef5); color: #fff; }
