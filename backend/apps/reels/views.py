@@ -11,7 +11,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import matching
+from apps.subscriptions.quota import consume_ai_quota
+
+from . import cards, matching
 from .models import Reel, ReelView
 from .serializers import ReelSerializer
 
@@ -103,6 +105,50 @@ class ReelSaveView(APIView):
         view.saved = not view.saved
         view.save(update_fields=["saved"])
         return Response({"saved": view.saved})
+
+
+class ReelMakeCardsView(APIView):
+    """POST /api/reels/<pk>/make-cards/ — turn watching into a deck.
+
+    Three tiers, cheapest first:
+      1. The user already materialised this reel → return their deck. Free.
+      2. Staff linked a curated deck → plain deep copy. Free (no AI involved).
+      3. AI path: one unit of the user's daily quota is consumed **whether or
+         not the drafts are already cached** — the cache saves our Gemini
+         bill, not the user's quota; they receive the same value either way.
+         Generation itself runs once per reel and is cached on the row.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        reel = (
+            Reel.objects.filter(pk=pk, is_published=True)
+            .select_related("source", "linked_deck")
+            .first()
+        )
+        if reel is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if reel.linked_deck_id:
+            from apps.decks.sharing import copy_deck_tree
+
+            deck = copy_deck_tree(reel.linked_deck, request.user, wrapper_name=cards.WRAPPER_NAME)
+            return Response({"deck": deck.id}, status=status.HTTP_201_CREATED)
+
+        existing = cards.existing_deck_for(reel, request.user)
+        if existing is not None:
+            return Response({"deck": existing.id})
+
+        consume_ai_quota(request.user)  # raises 429 over the daily limit
+        drafts = cards.ensure_drafts(reel)
+        if not drafts:
+            return Response(
+                {"detail": "Couldn't build cards from this reel."},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+        deck = cards.materialize(reel, request.user, drafts)
+        return Response({"deck": deck.id}, status=status.HTTP_201_CREATED)
 
 
 class ReelUnseenCountView(APIView):

@@ -1255,6 +1255,9 @@ export type Reel = {
   url: string;
   posted_at: string | null;
   saved: boolean;
+  /** How "make cards from this reel" would run: "linked" = staff-curated
+   *  deck (free), "ai" = caption-derived (one quota unit), null = hidden. */
+  make_cards: "linked" | "ai" | null;
 };
 
 export type ReelFeed = {
@@ -1292,4 +1295,14 @@ export function fetchSavedReels(): Promise<{ results: Reel[] }> {
 /** The home card's badge — a bare count, never a feed serialisation. */
 export function fetchReelsUnseenCount(): Promise<{ count: number }> {
   return jsonRequest<{ count: number }>("/api/reels/unseen-count/", { method: "GET" });
+}
+
+/** Turn the reel into a deck of cards in the user's account. Costs one unit
+ * of the daily AI quota unless the reel carries a staff-curated deck (or the
+ * user already took these cards — repeats are free and idempotent). */
+export function makeCardsFromReel(id: number): Promise<{ deck: number }> {
+  return jsonRequest<{ deck: number }>(`/api/reels/${id}/make-cards/`, {
+    method: "POST",
+    body: "{}",
+  });
 }

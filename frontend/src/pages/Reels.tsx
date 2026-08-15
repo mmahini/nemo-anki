@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Link } from "react-router-dom";
+
 import {
   fetchReels,
   fetchSavedReels,
+  makeCardsFromReel,
   markReelSeen,
   toggleReelSaved,
   updateMe,
@@ -294,6 +297,25 @@ function ReelSlide({
   const [autoMuted, setAutoMuted] = useState(false);
   const effectiveMuted = muted || autoMuted;
 
+  /** "Make cards": idle → busy → the deck's id (button becomes an open-deck
+   * link) or an error message. */
+  const [cardsState, setCardsState] = useState<
+    { kind: "idle" } | { kind: "busy" } | { kind: "done"; deck: number } | { kind: "error"; message: string }
+  >({ kind: "idle" });
+
+  function onMakeCards() {
+    if (cardsState.kind === "busy" || cardsState.kind === "done") return;
+    setCardsState({ kind: "busy" });
+    makeCardsFromReel(reel.id)
+      .then((r) => setCardsState({ kind: "done", deck: r.deck }))
+      .catch((e) =>
+        setCardsState({
+          kind: "error",
+          message: e instanceof Error && e.message ? e.message : t("reels.makeCardsFailed"),
+        }),
+      );
+  }
+
   // Overlay chrome (caption, rail, tab bar). Visible while paused; once
   // playback starts it stays for a beat, then gets out of the way.
   const [chrome, setChrome] = useState(true);
@@ -483,6 +505,26 @@ function ReelSlide({
           </div>
           {(reel.title || reel.caption) && (
             <p className="reelview__caption">{reel.title || reel.caption}</p>
+          )}
+          {reel.make_cards && (
+            <div className="reelview__cards">
+              {cardsState.kind === "done" ? (
+                <Link className="reelview__cardsbtn reelview__cardsbtn--done" to={`/app/decks/${cardsState.deck}`}>
+                  {t("reels.openDeck")}
+                </Link>
+              ) : (
+                <button
+                  className="reelview__cardsbtn"
+                  disabled={cardsState.kind === "busy"}
+                  onClick={onMakeCards}
+                >
+                  {cardsState.kind === "busy" ? t("reels.makingCards") : t("reels.makeCards")}
+                </button>
+              )}
+              {cardsState.kind === "error" && (
+                <span className="reelview__cardserr">{cardsState.message}</span>
+              )}
+            </div>
           )}
           {/* Attribution stays even where the link isn't reachable — crediting
               the creator isn't conditional on our users being able to click. */}

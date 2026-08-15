@@ -2362,6 +2362,30 @@ body.reels-immersive .reels-tabs { opacity: 0; pointer-events: none; }
 .reelview__action--on { color: var(--accent, #4c6ef5); }
 .reelview__action svg { width: 28px; height: 28px; }
 
+/* "Make cards from this reel" — the watch-to-deck bridge. Lives in the meta
+   block (pointer-events: none there), so it opts back in like the origin link. */
+.reelview__cards { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.reelview__cardsbtn {
+  pointer-events: auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: var(--brand, #4c6ef5);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.reelview__cardsbtn:disabled { opacity: 0.7; cursor: default; }
+.reelview__cardsbtn--done { background: var(--good, #1f9d57); }
+.reelview__cardsbtn--done:hover { color: #fff; text-decoration: none; }
+.reelview__cardserr { font-size: 0.78rem; color: #ffb3be; }
+.reelview--immersive .reelview__cards { opacity: 0; pointer-events: none; }
+.reelview--immersive .reelview__cardsbtn { pointer-events: none; }
+
 /* Attribution link inside the meta block; the block itself ignores taps so
    the video underneath stays tappable, the link opts back in. */
 .reelview__origin {
