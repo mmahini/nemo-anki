@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   fetchReels,
+  fetchSavedReels,
   markReelSeen,
   toggleReelSaved,
   updateMe,
@@ -46,6 +47,10 @@ export default function Reels() {
 
   const seenRef = useRef<Set<number>>(new Set());
   const loadingMoreRef = useRef(false);
+
+  /** "For you" (the unseen feed) vs "Saved" — the promise behind the bookmark. */
+  const [tab, setTab] = useState<"feed" | "saved">("feed");
+  const [savedReels, setSavedReels] = useState<Reel[] | null>(null);
 
   // The language question, shown in place of the feed when we've never asked.
   const [learning, setLearning] = useState<string[]>(user?.learning_languages ?? []);
@@ -103,18 +108,35 @@ export default function Reels() {
     }
   }
 
+  function switchTab(next: "feed" | "saved") {
+    if (next === tab) return;
+    setTab(next);
+    setActiveId(null);
+    // Re-fetched on every entry: saves happen in the other tab, and a stale
+    // list here reads as a lost bookmark.
+    if (next === "saved") {
+      setSavedReels(null);
+      fetchSavedReels()
+        .then((d) => setSavedReels(d.results))
+        .catch(() => setSavedReels([]));
+    }
+  }
+
   async function onSave(reel: Reel) {
-    // Optimistic: the toggle should feel instant, and a failed save is
-    // recoverable by tapping again.
-    setReels((prev) =>
-      prev.map((r) => (r.id === reel.id ? { ...r, saved: !r.saved } : r)),
-    );
+    // Optimistic, in both lists: the toggle should feel instant, and a failed
+    // save is recoverable by tapping again. An unsaved reel stays in the Saved
+    // list until the next visit so a mis-tap is one tap to undo.
+    const flip = (list: Reel[]) =>
+      list.map((r) => (r.id === reel.id ? { ...r, saved: !r.saved } : r));
+    const revert = (list: Reel[]) =>
+      list.map((r) => (r.id === reel.id ? { ...r, saved: reel.saved } : r));
+    setReels(flip);
+    setSavedReels((prev) => (prev ? flip(prev) : prev));
     try {
       await toggleReelSaved(reel.id);
     } catch {
-      setReels((prev) =>
-        prev.map((r) => (r.id === reel.id ? { ...r, saved: reel.saved } : r)),
-      );
+      setReels(revert);
+      setSavedReels((prev) => (prev ? revert(prev) : prev));
     }
   }
 
@@ -162,26 +184,55 @@ export default function Reels() {
     );
   }
 
+  const shown = tab === "feed" ? reels : savedReels ?? [];
+
   return (
     <div className="reels-stage">
-      {caughtUp && <p className="reels-feed__pill">{t("reels.caughtUp")}</p>}
+      <div className="reels-tabs" role="tablist">
+        <button
+          className={`reels-tabs__tab${tab === "feed" ? " reels-tabs__tab--on" : ""}`}
+          role="tab"
+          aria-selected={tab === "feed"}
+          onClick={() => switchTab("feed")}
+        >
+          {t("reels.forYou")}
+        </button>
+        <button
+          className={`reels-tabs__tab${tab === "saved" ? " reels-tabs__tab--on" : ""}`}
+          role="tab"
+          aria-selected={tab === "saved"}
+          onClick={() => switchTab("saved")}
+        >
+          {t("reels.savedTab")}
+        </button>
+      </div>
+
+      {tab === "feed" && caughtUp && (
+        <p className="reels-feed__pill">{t("reels.caughtUp")}</p>
+      )}
       {error && <p className="reels-feed__pill reels-feed__pill--error">{error}</p>}
 
-      <div className="reels-feed">
-        {reels.map((reel) => (
-          <ReelSlide
-            key={reel.id}
-            reel={reel}
-            active={activeId === reel.id}
-            muted={muted}
-            onActive={() => onReelActive(reel)}
-            onSetMuted={setMuted}
-            onSave={() => void onSave(reel)}
-          />
-        ))}
+      {tab === "saved" && savedReels !== null && savedReels.length === 0 ? (
+        <p className="reels-stage__empty">{t("reels.savedEmpty")}</p>
+      ) : (
+        <div className="reels-feed">
+          {shown.map((reel) => (
+            <ReelSlide
+              // Tab-scoped keys: the same reel can appear in both lists, and
+              // reusing its mounted state across tabs would carry playback over.
+              key={`${tab}-${reel.id}`}
+              reel={reel}
+              active={activeId === reel.id}
+              muted={muted}
+              onActive={() => onReelActive(reel)}
+              onSetMuted={setMuted}
+              onSave={() => void onSave(reel)}
+            />
+          ))}
 
-        {nextOffset !== null && <EndSentinel onReach={onEndReached} />}
-      </div>
+          {tab === "feed" && nextOffset !== null && <EndSentinel onReach={onEndReached} />}
+        </div>
+      )}
     </div>
   );
 }

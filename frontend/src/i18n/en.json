@@ -41,6 +41,10 @@
     "goDecksBtn": "Go to decks",
     "booksTitle": "Books",
     "booksBody": "Upload a coursebook PDF and pull the vocabulary out of each lesson.",
+    "reelsTitle": "Reels",
+    "reelsNew": "{{count}} new",
+    "reelsBody": "Short videos from language-teaching creators, picked for your languages.",
+    "reelsBodyNew": "Fresh reels are waiting for you — tap to watch.",
     "importTitle": "Import",
     "importBody": "Paste a word list or bring an Anki deck — the cards get built for you."
   },
@@ -681,6 +685,9 @@
   "reels": {
     "empty": "No reels yet for the languages you picked. We add new channels regularly.",
     "caughtUp": "You've seen everything new — here's the library again.",
+    "forYou": "For you",
+    "savedTab": "Saved",
+    "savedEmpty": "Nothing saved yet — tap the bookmark on a reel to keep it here.",
     "play": "Play",
     "pause": "Pause",
     "mute": "Mute",

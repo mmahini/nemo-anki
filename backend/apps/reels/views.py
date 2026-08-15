@@ -105,6 +105,21 @@ class ReelSaveView(APIView):
         return Response({"saved": view.saved})
 
 
+class ReelUnseenCountView(APIView):
+    """GET /api/reels/unseen-count/ — how many matching reels this user hasn't
+    watched. Powers the home-page "new reels" card; a plain count so the home
+    screen never pays for a full feed serialisation it won't render."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if not matching.has_language_prefs(user):
+            # The card still renders as a doorway; there's just nothing to count.
+            return Response({"count": 0})
+        return Response({"count": matching.unseen_for(user).count()})
+
+
 class ReelSavedListView(APIView):
     permission_classes = [IsAuthenticated]
 

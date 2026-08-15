@@ -649,3 +649,41 @@ class SelfHealTests(TestCase):
             with self.captureOnCommitCallbacks(execute=True):
                 tasks.poll_reel_sources(force_source_ids=[source.pk], triggered_by="test")
         ingest_task.assert_not_called()
+
+
+class UnseenCountTests(TestCase):
+    """The home-page card's number. It must respect the same language match as
+    the feed and drop to zero as reels get watched — a stale badge that says
+    "3 new" over an empty feed erodes trust in every other number we show."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.source = make_source(username="deutsch", base_language="en")
+        self.user = User.objects.create_user("count@x.com")
+        self.user.learning_languages = ["de"]
+        self.user.known_languages = ["en"]
+        self.user.save()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse("reel-unseen-count")
+
+    def test_counts_only_matching_unseen_reels(self):
+        a = make_reel(self.source, key="A1", days_old=1, base_language="en")
+        make_reel(self.source, key="B2", days_old=2, base_language="en")
+        # Wrong base language — the user can't follow it, so it must not count.
+        make_reel(self.source, key="C3", days_old=3, base_language="fa")
+        # Watched — no longer "new".
+        ReelView.objects.create(user=self.user, reel=a)
+
+        self.assertEqual(self.client.get(self.url).data["count"], 1)
+
+    def test_zero_without_language_prefs(self):
+        make_reel(self.source, key="A1", days_old=1, base_language="en")
+        self.user.learning_languages = []
+        self.user.save()
+        self.assertEqual(self.client.get(self.url).data["count"], 0)
+
+    def test_unplayable_media_does_not_count(self):
+        make_reel(self.source, key="A1", days_old=1, base_language="en", media_status="pending")
+        self.assertEqual(self.client.get(self.url).data["count"], 0)

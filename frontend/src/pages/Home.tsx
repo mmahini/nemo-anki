@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { fetchDecks, type Deck } from "../auth/api";
+import { fetchDecks, fetchReelsUnseenCount, type Deck } from "../auth/api";
 import { useAuth } from "../auth/AuthContext";
 import DailyDashboard from "../components/DailyDashboard";
 import StudyBuddyCard from "../components/StudyBuddyCard";
@@ -15,11 +15,16 @@ export default function Home() {
   const { user } = useAuth();
   const [decks, setDecks] = useState<Deck[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [newReels, setNewReels] = useState(0);
 
   useEffect(() => {
     fetchDecks()
       .then(setDecks)
       .catch((err) => setError(err instanceof Error ? err.message : t("common.error")));
+    // Best-effort badge; the card is a doorway either way.
+    fetchReelsUnseenCount()
+      .then((r) => setNewReels(r.count))
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -50,6 +55,22 @@ export default function Home() {
       <StudyBuddyCard />
 
       <div className="home__grid">
+        <Link className="homecard" to="/app/reels">
+          <span className="homecard__icon" aria-hidden>🎬</span>
+          <span>
+            <span className="homecard__title">
+              {t("home.reelsTitle")}
+              {newReels > 0 && (
+                <span className="homecard__badge">
+                  {t("home.reelsNew", { count: Math.min(newReels, 99) })}
+                </span>
+              )}
+            </span>
+            <span className="homecard__body">
+              {newReels > 0 ? t("home.reelsBodyNew") : t("home.reelsBody")}
+            </span>
+          </span>
+        </Link>
         <Link className="homecard" to="/app/books">
           <span className="homecard__icon" aria-hidden>📖</span>
           <span>
