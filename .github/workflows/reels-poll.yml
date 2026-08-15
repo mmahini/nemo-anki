@@ -42,6 +42,10 @@ jobs:
       DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
       DJANGO_DEBUG: "0"
       DJANGO_ALLOWED_HOSTS: "*"
+      # There is no Celery broker on a runner, so .delay() has to run inline —
+      # otherwise the fetch succeeds, the ingest task is never queued, and we
+      # end up paying for reels whose video never gets downloaded.
+      CELERY_TASK_ALWAYS_EAGER: "True"
 
       APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
       APIFY_REEL_ACTOR: ${{ vars.APIFY_REEL_ACTOR || 'apify/instagram-reel-scraper' }}

@@ -613,3 +613,39 @@ class MediaUrlTests(TestCase):
 
         url = client.get(reverse("reel-feed")).data["results"][0]["video_url"]
         self.assertTrue(url.startswith("http"), url)
+
+
+class SelfHealTests(TestCase):
+    """A reel whose media never landed is dead weight: excluded from the feed,
+    but its row blocks a re-fetch because the row is what dedupes. The next
+    poll — already paid for — has to retry it."""
+
+    def test_a_reel_with_missing_media_is_re_ingested_on_the_next_poll(self):
+        source = make_source(username="deutsch")
+        stuck = make_reel(source, key="XYZ1", media_status="pending", video_bytes=0)
+        item = {
+            "shortCode": "XYZ1",
+            "ownerUsername": "deutsch",
+            "videoUrl": "https://cdn.example/fresh.mp4",
+            "displayUrl": "https://cdn.example/fresh.jpg",
+        }
+        with patch("apps.reels.apify.run_reel_scraper", return_value=([item], "r", 0.002)), \
+             patch("apps.reels.tasks.ingest_reel_media.delay") as ingest_task:
+            with self.captureOnCommitCallbacks(execute=True):
+                tasks.poll_reel_sources(force_source_ids=[source.pk], triggered_by="test")
+
+        ingest_task.assert_called_once_with(
+            stuck.pk, "https://cdn.example/fresh.mp4", "https://cdn.example/fresh.jpg"
+        )
+        # Still not counted as new — we already had the row, and paid for it.
+        self.assertEqual(ReelFetchRun.objects.get().items_new, 0)
+
+    def test_a_reel_already_stored_is_not_re_ingested(self):
+        source = make_source(username="deutsch")
+        make_reel(source, key="XYZ1", media_status=MEDIA_STORED)
+        item = {"shortCode": "XYZ1", "ownerUsername": "deutsch", "videoUrl": "https://x/v.mp4"}
+        with patch("apps.reels.apify.run_reel_scraper", return_value=([item], "r", 0.002)), \
+             patch("apps.reels.tasks.ingest_reel_media.delay") as ingest_task:
+            with self.captureOnCommitCallbacks(execute=True):
+                tasks.poll_reel_sources(force_source_ids=[source.pk], triggered_by="test")
+        ingest_task.assert_not_called()
