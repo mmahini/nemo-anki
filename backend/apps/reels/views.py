@@ -34,6 +34,12 @@ class ReelFeedView(APIView):
     `?offset=` pages through it. `?all=1` includes reels already seen, which is
     also what we fall back to once someone reaches the end: an empty screen
     reads like a broken feature, a re-run of older reels reads like a library.
+
+    `?lang=de` narrows the feed to one target language. Someone learning both
+    English and German gets a per-language feed the client can switch between
+    — mixing the two in one scroll reads as noise, not variety. Only languages
+    the user is actually learning are honoured; anything else is ignored
+    rather than 400'd (a stale client shouldn't break the feed).
     """
 
     permission_classes = [IsAuthenticated]
@@ -52,16 +58,23 @@ class ReelFeedView(APIView):
 
         offset = max(int(request.query_params.get("offset") or 0), 0)
         include_seen = request.query_params.get("all") == "1"
+        lang = (request.query_params.get("lang") or "").strip()
+        if lang not in user.learning_languages:
+            lang = ""
 
-        qs = matching.feed_for(user) if include_seen else matching.unseen_for(user)
+        def narrowed(qs):
+            return qs.filter(target_language=lang) if lang else qs
+
+        qs = narrowed(matching.feed_for(user) if include_seen else matching.unseen_for(user))
         page = list(qs[offset : offset + PAGE_SIZE])
 
         # Caught up: rather than an empty feed, replay the library oldest-seen
-        # first so there's always something to watch.
+        # first so there's always something to watch. Still per-language — the
+        # replay answers "show me more German", not "show me anything".
         exhausted = False
         if not page and not include_seen and offset == 0:
             exhausted = True
-            page = list(matching.feed_for(user)[:PAGE_SIZE])
+            page = list(narrowed(matching.feed_for(user))[:PAGE_SIZE])
 
         data = ReelSerializer(
             page,

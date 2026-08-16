@@ -802,3 +802,43 @@ class MakeCardsTests(TestCase):
         self.assertEqual(ReelSerializer(self.reel).data["make_cards"], "ai")
         bare = make_reel(self.source, key="MC2", days_old=1, caption="", title="")
         self.assertIsNone(ReelSerializer(bare).data["make_cards"])
+
+
+class FeedLanguageFilterTests(TestCase):
+    """?lang= narrows the feed to one target language — a user learning both
+    English and German switches between per-language feeds instead of getting
+    the two shuffled together."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        de = make_source(username="deutsch", target_language="de")
+        en = make_source(username="english", target_language="en")
+        make_reel(de, key="DE1", days_old=1, target_language="de")
+        make_reel(en, key="EN1", days_old=2, target_language="en")
+
+        self.user = User.objects.create_user("multi@x.com")
+        self.user.learning_languages = ["de", "en"]
+        self.user.known_languages = ["fa"]
+        self.user.save()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse("reel-feed")
+
+    def _keys(self, res):
+        return {r["key"] for r in res.data["results"]}
+
+    def test_lang_filters_the_feed(self):
+        self.assertEqual(self._keys(self.client.get(self.url, {"lang": "de"})), {"DE1"})
+        self.assertEqual(self._keys(self.client.get(self.url, {"lang": "en"})), {"EN1"})
+        self.assertEqual(self._keys(self.client.get(self.url)), {"DE1", "EN1"})
+
+    def test_a_language_the_user_is_not_learning_is_ignored(self):
+        # Ignored, not 400: a stale client must not break the feed.
+        self.assertEqual(self._keys(self.client.get(self.url, {"lang": "fr"})), {"DE1", "EN1"})
+
+    def test_caught_up_replay_stays_per_language(self):
+        ReelView.objects.create(user=self.user, reel=Reel.objects.get(key="DE1"))
+        res = self.client.get(self.url, {"lang": "de"})
+        self.assertTrue(res.data["caught_up"])
+        self.assertEqual(self._keys(res), {"DE1"})  # replays German, not English
