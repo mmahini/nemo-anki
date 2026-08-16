@@ -505,6 +505,32 @@ kbd {
 .decks__shared h2 { margin: 0 0 4px; font-size: 0.95rem; }
 .decklist__sharedby, .decklist__cardcount { color: var(--ink-faint); font-size: 0.82rem; font-weight: 500; }
 
+/* Root-deck cards (the decks page shows only top-level decks; their sub-decks
+   live inside the deck's own page). The accent strip is the deck's colour. */
+.deckgrid { list-style: none; margin: 18px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.deckcard {
+  --deck-accent: var(--brand);
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow-sm);
+  border-top: 4px solid var(--deck-accent);
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.deckcard:hover { border-color: var(--deck-accent); box-shadow: var(--shadow-md); }
+.deckcard__main { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 10px; color: inherit; text-decoration: none; flex: 1; }
+.deckcard__main:hover { text-decoration: none; }
+.deckcard__toprow { display: flex; align-items: center; gap: 8px; }
+.deckcard__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--deck-accent); opacity: 0.65; }
+.deckcard__meta { color: var(--ink-faint); font-size: 0.78rem; font-weight: 600; }
+.deckcard__name { margin: 0; font-size: 1.05rem; font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+.deckcard__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px 12px; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
+
+/* Sub-decks block on a deck's own page. */
+.subdecks { margin: 6px 0 18px; }
+.subdecks__title { margin: 0; font-size: 0.95rem; color: var(--ink-soft); }
+.subdecks .decklist { margin: 8px 0 0; }
+
 /* ============================================================
    Activity strip (deck list) + heatmap (performance page)
    ============================================================ */

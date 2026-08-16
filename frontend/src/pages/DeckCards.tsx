@@ -20,6 +20,7 @@ import {
 
 import CardEditor from "../components/CardEditor";
 import CardImages from "../components/CardImages";
+import DeckTree from "../components/DeckTree";
 import GermanText from "../components/GermanText";
 import { articleClass } from "../lib/article";
 import { CARD_TYPES } from "../lib/cardTypes";
@@ -62,6 +63,7 @@ export default function DeckCards() {
   const { t } = useTranslation();
   const id = Number(deckId);
   const [deck, setDeck] = useState<Deck | null>(null);
+  const [allDecks, setAllDecks] = useState<Deck[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
   const [count, setCount] = useState(0);
   const [numPages, setNumPages] = useState(1);
@@ -100,6 +102,7 @@ export default function DeckCards() {
       fetchCards(id, { page, pageSize: PAGE_SIZE, q: search || undefined }),
     ]);
     setDeck(decks.find((d) => d.id === id) ?? null);
+    setAllDecks(decks);
     if (res.results.length === 0 && res.count > 0 && page > 1) {
       setPage((p) => Math.max(1, Math.min(p - 1, res.num_pages)));
       return;
@@ -248,6 +251,13 @@ export default function DeckCards() {
           </button>
         </div>
       </div>
+
+      {allDecks.some((d) => d.parent === id) && (
+        <div className="subdecks">
+          <h2 className="subdecks__title">{t("deckCards.subdecks")}</h2>
+          <DeckTree decks={allDecks} rootId={id} onChanged={load} />
+        </div>
+      )}
 
       {(count > 0 || search) && (
         <div className="browse__search">

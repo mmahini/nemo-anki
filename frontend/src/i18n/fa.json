@@ -174,7 +174,9 @@
     "removeBtn": "حذف",
     "sharedWithMe": "به اشتراک گذاشته‌شده با من ({{count}})",
     "sharedBy": "· به اشتراک گذاشته‌شده توسط {{email}}",
-    "cardCount": "{{count}} کارت"
+    "cardCount": "{{count}} کارت",
+    "subdeckCount_one": "{{count}} زیردسته",
+    "subdeckCount_other": "{{count}} زیردسته"
   },
   "import": {
     "title": "وارد کردن",
@@ -296,6 +298,7 @@
   "deckCards": {
     "loading": "در حال بارگذاری…",
     "cardCount": "{{count}} کارت",
+    "subdecks": "زیردسته‌ها",
     "cardTypes": "نوع کارت‌ها",
     "colouringBtn": "🎨 رنگ‌آمیزی آلمانی",
     "colouring": "🎨 در حال رنگ‌آمیزی…",

@@ -15,9 +15,14 @@ import {
 } from "../auth/api";
 import Modal from "../components/Modal";
 
-/** Indentation depth from the `::` chain in full_name. */
-function depth(d: Deck): number {
-  return (d.full_name.match(/::/g) || []).length;
+/* Root cards get a stable accent colour: the deck's own colour when set,
+ * otherwise picked from the palette by name so it survives reloads. */
+const ACCENTS = ["#4c6ef5", "#12b886", "#e8590c", "#7048e8", "#1098ad", "#e64980", "#f59f00", "#37b24d"];
+function accentFor(d: Deck): string {
+  if (d.color) return d.color;
+  let h = 0;
+  for (const ch of d.name) h = (h * 31 + ch.charCodeAt(0)) % 997;
+  return ACCENTS[h % ACCENTS.length];
 }
 
 export default function Decks() {
@@ -32,7 +37,6 @@ export default function Decks() {
   const [adding, setAdding] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [movingDeck, setMovingDeck] = useState<number | null>(null);
   const [langDeck, setLangDeck] = useState<number | null>(null);
   const [renamingDeck, setRenamingDeck] = useState<number | null>(null);
@@ -63,7 +67,7 @@ export default function Decks() {
     load();
   }, []);
 
-  /** Open the add-deck sheet, optionally pre-filling the parent (from a row's
+  /** Open the add-deck sheet, optionally pre-filling the parent (from a card's
    * "add sub-deck" action) so nesting doesn't need re-picking. */
   function openAdd(parent: number | "" = "") {
     setNewName("");
@@ -180,26 +184,10 @@ export default function Decks() {
     }
   }
 
-  function toggle(id: number) {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  const collapsedNames = new Set(
-    decks.filter((d) => collapsed.has(d.id)).map((d) => d.full_name),
-  );
-  function hidden(d: Deck): boolean {
-    for (const cn of collapsedNames) {
-      if (d.full_name !== cn && d.full_name.startsWith(cn + "::")) return true;
-    }
-    return false;
-  }
-
   if (loading) return <div className="panel">{t("decks.loading")}</div>;
   if (error) return <div className="panel panel--error">{error}</div>;
+
+  const roots = decks.filter((d) => d.parent === null);
 
   return (
     <div className="decks">
@@ -249,31 +237,30 @@ export default function Decks() {
         </div>
       )}
 
-      <ul className="decklist">
-        {decks.filter((d) => !hidden(d)).map((d) => {
-          const hasChildren = decks.some((c) => c.parent === d.id);
-          const isLeaf = !hasChildren;
+      <ul className="deckgrid">
+        {roots.map((d) => {
+          const subCount = decks.filter((x) => x.full_name.startsWith(d.full_name + "::")).length;
           const studyable = d.counts.new + d.counts.learning + d.counts.due;
           return (
-            <li
-              key={d.id}
-              className="decklist__row"
-              style={{ paddingInlineStart: `${depth(d) * 18 + 12}px` }}
-            >
-              <div className="decklist__name">
-                {hasChildren ? (
-                  <button className="twisty" onClick={() => toggle(d.id)}>
-                    {collapsed.has(d.id) ? "▸" : "▾"}
-                  </button>
-                ) : (
-                  <span className="twisty twisty--leaf" />
-                )}
-                {d.language && <span className={`flag flag--${d.language}`}>{d.language}</span>}
+            <li key={d.id} className="deckcard" style={{ "--deck-accent": accentFor(d) } as React.CSSProperties}>
+              <Link to={`/app/decks/${d.id}`} className="deckcard__main">
+                <div className="deckcard__toprow">
+                  {d.language ? (
+                    <span className={`flag flag--${d.language}`}>{d.language}</span>
+                  ) : (
+                    <span className="deckcard__dot" />
+                  )}
+                  <span className="deckcard__meta">
+                    {t("decks.cardCount", { count: d.card_count })}
+                    {subCount > 0 && <> · {t("decks.subdeckCount", { count: subCount })}</>}
+                  </span>
+                </div>
                 {renamingDeck === d.id ? (
                   <input
                     className="input input--sm decklist__rename"
                     autoFocus
                     value={renameVal}
+                    onClick={(e) => e.preventDefault()}
                     onChange={(e) => setRenameVal(e.target.value)}
                     onBlur={() => onRename(d)}
                     onKeyDown={(e) => {
@@ -282,17 +269,10 @@ export default function Decks() {
                     }}
                   />
                 ) : (
-                  <Link to={`/app/decks/${d.id}`} className="decklist__link">
-                    {d.name}
-                  </Link>
+                  <h2 className="deckcard__name">{d.name}</h2>
                 )}
-              </div>
-              <div className="decklist__counts">
-                <span className="count count--new">{d.counts.new}</span>
-                <span className="count count--learn">{d.counts.learning}</span>
-                <span className="count count--due">{d.counts.due}</span>
-              </div>
-              <div className="decklist__actions">
+              </Link>
+              <div className="deckcard__foot">
                 {langDeck === d.id ? (
                   <select
                     className="input input--sm"
@@ -320,40 +300,47 @@ export default function Decks() {
                   </select>
                 ) : (
                   <>
-                    <button
-                      className="btn btn--primary btn--sm"
-                      disabled={studyable === 0}
-                      onClick={() => navigate(`/app/study/${d.id}`)}
-                    >
-                      {t("decks.studyBtn")}
-                    </button>
-                    <div className="deckmenu-wrap">
+                    <div className="decklist__counts">
+                      <span className="count count--new">{d.counts.new}</span>
+                      <span className="count count--learn">{d.counts.learning}</span>
+                      <span className="count count--due">{d.counts.due}</span>
+                    </div>
+                    <div className="decklist__actions">
                       <button
-                        className="btn btn--ghost btn--sm deckmenu-btn"
-                        aria-label={t("decks.moreActions")}
-                        onClick={(e) => {
-                          if (openMenu === d.id) return setOpenMenu(null);
-                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          setMenuPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
-                          setOpenMenu(d.id);
-                        }}
+                        className="btn btn--primary btn--sm"
+                        disabled={studyable === 0}
+                        onClick={() => navigate(`/app/study/${d.id}`)}
                       >
-                        ⋯
+                        {t("decks.studyBtn")}
                       </button>
-                      {openMenu === d.id && menuPos && (
-                        <>
-                          <div className="menu-overlay" onClick={() => setOpenMenu(null)} />
-                          <div className="deckmenu" style={{ top: menuPos.top, right: menuPos.right }}>
-                            <button onClick={() => { setOpenMenu(null); setRenameVal(d.name); setRenamingDeck(d.id); }}>{t("decks.rename")}</button>
-                            <button onClick={() => { setOpenMenu(null); setLangDeck(d.id); }}>{t("decks.language")}{d.language ? ` (${d.language.toUpperCase()})` : ""}</button>
-                            <button onClick={() => { setOpenMenu(null); setMovingDeck(d.id); }}>{t("decks.move")}</button>
-                            <button onClick={() => { setOpenMenu(null); openAdd(d.id); }}>{t("decks.addSubdeck")}</button>
-                            {isLeaf && <button onClick={() => { setOpenMenu(null); navigate(`/app/decks/${d.id}/add`); }}>{t("decks.addCard")}</button>}
-                            <button onClick={() => { setOpenMenu(null); openShare(d.id); }}>{t("decks.shareBtn")}</button>
-                            <button className="deckmenu__danger" onClick={() => { setOpenMenu(null); onDelete(d); }}>{t("decks.delete")}</button>
-                          </div>
-                        </>
-                      )}
+                      <div className="deckmenu-wrap">
+                        <button
+                          className="btn btn--ghost btn--sm deckmenu-btn"
+                          aria-label={t("decks.moreActions")}
+                          onClick={(e) => {
+                            if (openMenu === d.id) return setOpenMenu(null);
+                            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                            setMenuPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+                            setOpenMenu(d.id);
+                          }}
+                        >
+                          ⋯
+                        </button>
+                        {openMenu === d.id && menuPos && (
+                          <>
+                            <div className="menu-overlay" onClick={() => setOpenMenu(null)} />
+                            <div className="deckmenu" style={{ top: menuPos.top, right: menuPos.right }}>
+                              <button onClick={() => { setOpenMenu(null); setRenameVal(d.name); setRenamingDeck(d.id); }}>{t("decks.rename")}</button>
+                              <button onClick={() => { setOpenMenu(null); setLangDeck(d.id); }}>{t("decks.language")}{d.language ? ` (${d.language.toUpperCase()})` : ""}</button>
+                              <button onClick={() => { setOpenMenu(null); setMovingDeck(d.id); }}>{t("decks.move")}</button>
+                              <button onClick={() => { setOpenMenu(null); openAdd(d.id); }}>{t("decks.addSubdeck")}</button>
+                              {subCount === 0 && <button onClick={() => { setOpenMenu(null); navigate(`/app/decks/${d.id}/add`); }}>{t("decks.addCard")}</button>}
+                              <button onClick={() => { setOpenMenu(null); openShare(d.id); }}>{t("decks.shareBtn")}</button>
+                              <button className="deckmenu__danger" onClick={() => { setOpenMenu(null); onDelete(d); }}>{t("decks.delete")}</button>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}
