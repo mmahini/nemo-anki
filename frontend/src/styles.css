@@ -531,6 +531,16 @@ kbd {
 .subdecks__title { margin: 0; font-size: 0.95rem; color: var(--ink-soft); }
 .subdecks .decklist { margin: 8px 0 0; }
 
+/* Deck library — the browse pages plus the teaser under the decks page. */
+.library h1 { margin: 0 0 4px; }
+.library__hint { margin: 0 0 8px; color: var(--ink-soft); font-size: 0.9rem; }
+.librarypeek { margin-top: 30px; padding-top: 14px; border-top: 1px solid var(--line); }
+.librarypeek__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.librarypeek__head h2 { margin: 0; font-size: 1.05rem; }
+.librarypeek__more { font-weight: 700; font-size: 0.88rem; white-space: nowrap; }
+.bookblock__published { background: rgba(31, 157, 87, 0.12); border: 1px solid transparent; color: var(--good); }
+.bookblock__published:hover:not(:disabled) { background: rgba(31, 157, 87, 0.2); }
+
 /* ============================================================
    Activity strip (deck list) + heatmap (performance page)
    ============================================================ */

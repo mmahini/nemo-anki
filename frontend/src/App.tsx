@@ -18,6 +18,8 @@ import AddCard from "./pages/AddCard";
 import ImportPage from "./pages/Import";
 import Books from "./pages/Books";
 import BookPage from "./pages/BookPage";
+import Library from "./pages/Library";
+import LibraryBook from "./pages/LibraryBook";
 import Study from "./pages/Study";
 import StudyCard from "./pages/StudyCard";
 import PlacementTest from "./pages/PlacementTest";
@@ -81,6 +83,8 @@ export default function App() {
               <Route path="/app/decks/:deckId/add" element={<AddCard />} />
               <Route path="/app/books" element={<Books />} />
               <Route path="/app/books/:bookId" element={<BookPage />} />
+              <Route path="/app/library" element={<Library />} />
+              <Route path="/app/library/:bookId" element={<LibraryBook />} />
               <Route path="/app/import" element={<ImportPage />} />
               <Route path="/app/practice" element={<Practice />} />
               <Route path="/app/practice/:tab" element={<Practice />} />

@@ -52,6 +52,11 @@ class BookLesson(models.Model):
     page_end = models.PositiveIntegerField(null=True, blank=True)
     # Vocab is extracted per lesson, on demand (the lesson's Process button).
     processed = models.BooleanField(default=False)
+    # Published units appear in the public deck library (under the book's
+    # deck), where any user can copy them into their own decks. Books are
+    # shared privately with trusted people; decks are shared with everyone
+    # through the library — publishing a unit is how a deck gets there.
+    published = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["position", "id"]

@@ -15,9 +15,17 @@ from apps.accounts.permissions import RequiresFlag
 from apps.cards.models import Card, add_reverse_cards
 from apps.decks.models import Deck, DeckConfig
 
+from core import cdp
+
 from . import processing
 from .models import BANNER_COLORS, Book, BookCard, BookLesson, BookShare
-from .serializers import BookLessonDetailSerializer, BookLessonSerializer, BookSerializer
+from .serializers import (
+    BookLessonDetailSerializer,
+    BookLessonSerializer,
+    BookSerializer,
+    LibraryBookDetailSerializer,
+    LibraryBookSerializer,
+)
 
 
 def _color_for(title: str) -> str:
@@ -396,6 +404,38 @@ CONTENT_FIELDS = [
 ]
 
 
+def _import_lesson(user, book, lesson, parent=None):
+    """Copy one lesson's vocab into `user`'s decks: a deck for the book (under
+    `parent`), a sub-deck for the lesson, and the cards. Idempotent on the
+    cards: a lesson deck that already holds cards is reused as-is rather than
+    doubled. Returns (book_deck, lesson_deck, created_card_count)."""
+    cfg = _default_config(user)
+    book_deck, _ = Deck.objects.get_or_create(
+        user=user, parent=parent, name=book.title,
+        defaults={"config": cfg, "language": book.source_language},
+    )
+    lesson_deck, _ = Deck.objects.get_or_create(
+        user=user, parent=book_deck, name=lesson.title,
+        defaults={"config": cfg, "language": book.source_language},
+    )
+
+    if Card.objects.filter(deck=lesson_deck).exists():
+        return book_deck, lesson_deck, 0
+
+    cards = [
+        Card(
+            deck=lesson_deck,
+            language=book.source_language,
+            position=i,
+            **{f: getattr(bc, f) for f in CONTENT_FIELDS},
+        )
+        for i, bc in enumerate(lesson.cards.all())
+    ]
+    Card.objects.bulk_create(cards)
+    add_reverse_cards(cards)  # vocab cards get their reverse direction too
+    return book_deck, lesson_deck, len(cards)
+
+
 class BookLessonImportView(APIView):
     """Import one lesson into the user's decks. Creates (or reuses) a deck for
     the book under `parent_deck`, then a sub-deck for the lesson, and copies the
@@ -417,29 +457,100 @@ class BookLessonImportView(APIView):
             if not parent:
                 return Response({"detail": "Invalid parent deck."}, status=status.HTTP_400_BAD_REQUEST)
 
-        cfg = _default_config(request.user)
-        book_deck, _ = Deck.objects.get_or_create(
-            user=request.user, parent=parent, name=book.title,
-            defaults={"config": cfg, "language": book.source_language},
-        )
-        lesson_deck, _ = Deck.objects.get_or_create(
-            user=request.user, parent=book_deck, name=lesson.title,
-            defaults={"config": cfg, "language": book.source_language},
+        book_deck, lesson_deck, created = _import_lesson(request.user, book, lesson, parent)
+        return Response(
+            {"book_deck": book_deck.id, "lesson_deck": lesson_deck.id, "cards": created},
+            status=status.HTTP_201_CREATED,
         )
 
-        pos = _next_position(lesson_deck)
-        cards = [
-            Card(
-                deck=lesson_deck,
-                language=book.source_language,
-                position=pos + i,
-                **{f: getattr(bc, f) for f in CONTENT_FIELDS},
+
+class BookLessonPublishView(APIView):
+    """Publish (or unpublish) one processed unit to the public deck library.
+    Anyone with access to the book — owner or shared — can publish; books are
+    only ever shared with trusted people, and the library is how their decks
+    reach everyone else."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk, lid):
+        book = _book_for(request, pk)  # owner or shared
+        lesson = BookLesson.objects.filter(id=lid, book=book).first() if book else None
+        if not lesson:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        publish = bool(request.data.get("published", True))
+        if publish and (not lesson.processed or not lesson.cards.exists()):
+            return Response(
+                {"detail": "Process the unit first — only units with extracted vocab can be published."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            for i, bc in enumerate(lesson.cards.all())
-        ]
-        Card.objects.bulk_create(cards)
-        add_reverse_cards(cards)  # vocab cards get their reverse direction too
+        if lesson.published != publish:
+            lesson.published = publish
+            lesson.save(update_fields=["published"])
+            if publish:
+                cdp.track(request.user, "feature_used", {"feature": "library_publish"})
+        return Response(BookLessonSerializer(lesson).data)
+
+
+class LibraryListView(APIView):
+    """The public deck library: every book with at least one published unit,
+    shown to all signed-in users as a browsable root deck."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        books = (
+            Book.objects.filter(lessons__published=True)
+            .distinct()
+            .order_by("-created_at")
+            .prefetch_related("lessons")
+        )
+        return Response(LibraryBookSerializer(books, many=True).data)
+
+
+class LibraryBookView(APIView):
+    """One library book's published units — the sub-decks a user can add."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        book = Book.objects.filter(id=pk, lessons__published=True).distinct().first()
+        if not book:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(LibraryBookDetailSerializer(book).data)
+
+
+class LibraryAddView(APIView):
+    """Copy library deck(s) into the requesting user's own decks — free, no AI
+    involved (the vocab was extracted when the unit was processed). Body may
+    name one published unit (`{"lesson": id}`); with no body every published
+    unit of the book is added."""
+
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, pk):
+        book = Book.objects.filter(id=pk, lessons__published=True).distinct().first()
+        if not book:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        lessons = book.lessons.filter(published=True)
+        lesson_id = request.data.get("lesson")
+        if lesson_id:
+            lessons = lessons.filter(id=lesson_id)
+            if not lessons.exists():
+                return Response(status=status.HTTP_404_NOT_FOUND)
+
+        book_deck = None
+        lesson_deck = None
+        created = 0
+        for lesson in lessons:
+            book_deck, lesson_deck, n = _import_lesson(request.user, book, lesson)
+            created += n
+        cdp.track(request.user, "feature_used", {"feature": "library_add"})
         return Response(
-            {"book_deck": book_deck.id, "lesson_deck": lesson_deck.id, "cards": len(cards)},
+            {
+                "book_deck": book_deck.id,
+                "lesson_deck": lesson_deck.id if lesson_id else None,
+                "cards": created,
+            },
             status=status.HTTP_201_CREATED,
         )

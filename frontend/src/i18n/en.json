@@ -178,6 +178,18 @@
     "subdeckCount_one": "{{count}} sub-deck",
     "subdeckCount_other": "{{count}} sub-decks"
   },
+  "library": {
+    "title": "Deck library",
+    "hint": "Ready-made decks from processed books — add any of them to your own decks for free.",
+    "empty": "Nothing published yet — check back soon.",
+    "browseAll": "Browse the library →",
+    "openBtn": "Open",
+    "backBtn": "← Library",
+    "addBtn": "＋ Add to my decks",
+    "addAllBtn": "＋ Add all",
+    "adding": "Adding…",
+    "addedBtn": "Added ✓"
+  },
   "import": {
     "title": "Import",
     "tabs": {
@@ -395,6 +407,11 @@
     "splitting": "Splitting…",
     "reSplit": "Re-split",
     "viewBtn": "View",
+    "publishBtn": "Publish",
+    "publishedBtn": "In library ✓",
+    "publishTitle": "Publish this unit's deck to the public library",
+    "unpublishTitle": "Remove this unit's deck from the public library",
+    "confirmUnpublish": "Remove \"{{title}}\" from the deck library? Users who already added it keep their copy.",
     "shareTitle": "Share this book",
     "shareHint": "Anyone you share with can view the lessons and review them in their own decks.",
     "shareEmailPlaceholder": "person@example.com",
