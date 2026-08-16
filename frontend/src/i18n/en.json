@@ -79,6 +79,9 @@
     "removeBtn": "Remove",
     "revokeBtn": "Revoke"
   },
+  "backendStatus": {
+    "connectionTrouble": "We can't reach the server — this is usually a connection issue. Try switching your internet connection or changing your VPN; we'll keep retrying meanwhile."
+  },
   "pwa": {
     "updateReady": "A new version is ready",
     "updateBtn": "Update",
