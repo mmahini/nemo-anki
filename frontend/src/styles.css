@@ -2264,6 +2264,96 @@ body.reels-immersive .reels-tabs { opacity: 0; pointer-events: none; }
 .sheet__done { margin: 4px 0 8px; font-size: 0.95rem; }
 .sheet__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
+/* ── Add-to-Home-Screen install sheet ──────────────────────────────────────
+   Styled like a real OS install dialog: app icon front and centre, numbered
+   steps with the actual glyphs the user must find, one confident CTA. */
+.sheet__handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line, #d5d8e0);
+  margin: -6px auto 2px;
+}
+.install { text-align: center; }
+.install__appicon {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  margin: 6px auto 0;
+  display: block;
+  box-shadow: 0 10px 26px rgba(20, 28, 46, 0.18), 0 2px 6px rgba(20, 28, 46, 0.1);
+}
+.install__title {
+  margin: 6px 0 0;
+  font-size: 1.22rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.install__lede {
+  margin: 0 auto;
+  max-width: 34ch;
+  color: var(--ink-soft, #5a6072);
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+.install__steps {
+  list-style: none;
+  margin: 10px 0 2px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  text-align: start;
+  background: var(--line-soft, #f0f2f8);
+  border-radius: 16px;
+}
+.install__step { display: flex; gap: 12px; align-items: flex-start; }
+.install__stepnum {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--brand, #4c6ef5);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+}
+.install__steptext { font-size: 0.9rem; line-height: 1.65; }
+.install__glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #d5d8e0);
+  color: var(--brand, #4c6ef5);
+  vertical-align: -8px;
+  margin-inline-start: 6px;
+}
+.install__glyph svg { width: 16px; height: 16px; }
+.install__actions { display: grid; gap: 8px; margin-top: 10px; }
+.install__cta {
+  width: 100%;
+  padding: 13px 16px;
+  font-size: 1rem;
+  border-radius: 14px;
+  text-align: center;
+  justify-content: center;
+}
+.install__later {
+  border: 0;
+  background: none;
+  color: var(--ink-faint, #8a90a3);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 8px;
+  cursor: pointer;
+}
+
 /* Language switch for multi-language learners — chips under the tabs; a
    sideways swipe on the feed does the same thing. */
 .reels-langs {

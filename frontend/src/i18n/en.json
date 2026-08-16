@@ -713,5 +713,17 @@
     "saved": "Saved",
     "ours": "Nemo",
     "original": "Original on Instagram"
+  },
+  "install": {
+    "title": "Install the Nemo Anki app",
+    "lede": "Full screen, on your home screen, one tap away — no app store needed.",
+    "installBtn": "Install the app",
+    "later": "Later",
+    "gotIt": "Got it",
+    "iosStep1": "Tap the Share button in Safari's toolbar (the square with an arrow pointing up).",
+    "iosStep2": "Scroll down and tap “Add to Home Screen”.",
+    "iosStep3": "Tap “Add” at the top — the app appears on your home screen.",
+    "androidStep1": "Open the browser menu (⋮ at the top).",
+    "androidStep2": "Tap “Add to Home screen”, then confirm."
   }
 }

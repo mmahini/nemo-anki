@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import InstallPrompt from "../components/InstallPrompt";
 import InviteButton from "../components/InviteButton";
 import SubscriptionBanner from "../components/SubscriptionBanner";
 import UserMenu from "../components/UserMenu";
@@ -119,6 +120,8 @@ export default function AppShell() {
         </header>
 
         <SubscriptionBanner />
+        {/* Mobile-browser visitors get a one-time Add-to-Home-Screen nudge. */}
+        <InstallPrompt />
 
         <main className="shell__main">
           <Outlet />
