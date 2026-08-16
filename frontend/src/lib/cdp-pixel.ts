@@ -25,13 +25,31 @@
 const WRITE_KEY = (import.meta as any).env?.VITE_CDP_WRITE_KEY ?? "";
 const INGEST_URL = (import.meta as any).env?.VITE_CDP_INGEST_URL ?? "";
 const ANON_KEY = "wcdp_anon";
+const IDENT_KEY = "wcdp_ident";
 const SESSION_KEY = "wcdp_session";
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // matches the backend SessionConfig default (1800s)
 const MIN_LEAVE_MS = 1000; // don't beacon a sub-second tab-flick (debounce + load guard)
 
 type EventType = "page" | "identify" | "track" | "page_leave";
 type Identifiers = { external_id?: string; email?: string };
-let identifiers: Identifiers = {};
+
+/** Identity is persisted next to the anonymousId and hydrated at module load.
+ * Kept in memory only, a returning signed-in user's first events (the initial
+ * pageview, a bounce's page_leave, anything before fetchMe resolves and
+ * identify re-runs) all went out anonymous — CDP showed a ghost profile for
+ * someone we knew perfectly well. The email already lives in localStorage as
+ * part of the stored auth payload, so this adds no new exposure; sign-out
+ * clears it (cdpReset). */
+function loadIdentifiers(): Identifiers {
+  try {
+    const raw = localStorage.getItem(IDENT_KEY);
+    return raw ? (JSON.parse(raw) as Identifiers) : {};
+  } catch {
+    return {};
+  }
+}
+
+let identifiers: Identifiers = loadIdentifiers();
 
 function anonymousId(): string {
   try {
@@ -184,10 +202,17 @@ function sendLeave(): void {
   post(buildEvent("page_leave", {}, ctx));
 }
 
-/** Attach the signed-in user to subsequent events + post an identify. */
+/** Attach the signed-in user to subsequent events + post an identify. The
+ * identity is also persisted so the NEXT page load's very first events carry
+ * it too (see loadIdentifiers). */
 export function cdpIdentify(traits: { external_id?: string; email?: string; name?: string }): void {
   if (traits.external_id) identifiers.external_id = traits.external_id;
   if (traits.email) identifiers.email = traits.email;
+  try {
+    localStorage.setItem(IDENT_KEY, JSON.stringify(identifiers));
+  } catch {
+    // storage full/blocked — in-memory identity still covers this load
+  }
   send("identify", { traits: { ...traits } });
 }
 
@@ -204,4 +229,9 @@ export function cdpTrack(event: string, properties: Record<string, unknown> = {}
 /** Clear identity on sign-out (keeps the anonymousId for the device). */
 export function cdpReset(): void {
   identifiers = {};
+  try {
+    localStorage.removeItem(IDENT_KEY);
+  } catch {
+    // best effort
+  }
 }
