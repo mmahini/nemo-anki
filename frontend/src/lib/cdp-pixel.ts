@@ -226,11 +226,31 @@ export function cdpTrack(event: string, properties: Record<string, unknown> = {}
   send("track", { event, properties });
 }
 
-/** Clear identity on sign-out (keeps the anonymousId for the device). */
+/** Sign-out: close this identity's world completely.
+ *
+ * Three things must not leak into whoever uses this device next:
+ *  - the identifiers themselves (obvious),
+ *  - the SESSION — sign-out ends it, so a re-login (even seconds later, same
+ *    tab) starts a fresh one instead of stitching two identities into one
+ *    session's analytics,
+ *  - the anonymousId — Wiser CDP folds profiles through it, so keeping it
+ *    would merge two different users who share a device into one profile.
+ *
+ * A terminal `logout` event goes out first (only when someone was actually
+ * identified), attributed to the old identity and closing its session. */
 export function cdpReset(): void {
+  if (identifiers.external_id || identifiers.email) {
+    send("track", { event: "logout" });
+  }
   identifiers = {};
   try {
     localStorage.removeItem(IDENT_KEY);
+    localStorage.removeItem(ANON_KEY); // next event mints a fresh anonymousId
+  } catch {
+    // best effort
+  }
+  try {
+    sessionStorage.removeItem(SESSION_KEY); // next event starts a new session
   } catch {
     // best effort
   }

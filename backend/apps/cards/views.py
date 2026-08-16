@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 
 from apps.decks.models import Deck
 from apps.subscriptions.quota import AiQuotaMixin, consume_ai_quota
+from core import cdp
 
 from . import scheduler
 from .activity import current_streak
@@ -108,6 +109,7 @@ class CardListView(APIView):
         extra["position"] = _next_position(deck)
         card = serializer.save(**extra)
         add_reverse_cards([card])  # vocab → also create the reverse direction
+        cdp.track(request.user, "feature_used", {"feature": "card_create"})
         return Response(CardSerializer(card).data, status=status.HTTP_201_CREATED)
 
 
@@ -166,6 +168,7 @@ class BulkCardView(APIView):
             created.append(Card(deck=deck, position=pos + i, **item))
         Card.objects.bulk_create(created)
         add_reverse_cards(created)  # vocab cards get their reverse direction
+        cdp.track(request.user, "feature_used", {"feature": "import", "count": len(created)})
         return Response(
             {"created": len(created), "deck": deck.id},
             status=status.HTTP_201_CREATED,

@@ -4,7 +4,6 @@
  * on 401. AuthContext is the only writer via `configureAuth(...)`.
  */
 
-import { cdpTrack } from "../lib/cdp-pixel";
 
 export type AuthTokens = { access: string; refresh: string };
 
@@ -423,19 +422,16 @@ export function fetchSubscription(): Promise<SubscriptionSummary> {
 
 /** "I've transferred" — records a pending claim (with the user's source wallet
  * or transaction hash) for admin verification (Phase 1). */
-export async function submitSubscriptionClaim(
+export function submitSubscriptionClaim(
   plan: string,
   txReference: string,
 ): Promise<{ ok: boolean; status: string }> {
-  const res = await jsonRequest<{ ok: boolean; status: string }>("/api/subscription/claim", {
+  // Tracked SERVER-side as `subscription_requested` (apps.subscriptions.views)
+  // — every event the backend can see happen is emitted there.
+  return jsonRequest<{ ok: boolean; status: string }>("/api/subscription/claim", {
     method: "POST",
     body: JSON.stringify({ plan, tx_reference: txReference }),
   });
-  // Client-side twin of the server's `subscription_requested`: this one adds
-  // session + PWA context; the server one survives ad-blockers. Both named
-  // apart on purpose so neither double-counts the other.
-  cdpTrack("subscription_claimed", { plan });
-  return res;
 }
 
 // ====== Decks ======
@@ -453,7 +449,6 @@ export function createDeck(payload: {
     method: "POST",
     body: JSON.stringify(payload),
   }).then((deck) => {
-    cdpTrack("feature_used", { feature: "deck_create" });
     return deck;
   });
 }
@@ -545,7 +540,6 @@ export function createCard(payload: Partial<Card> & { deck: number; front: strin
     method: "POST",
     body: JSON.stringify(payload),
   }).then((card) => {
-    cdpTrack("feature_used", { feature: "card_create" });
     return card;
   });
 }
@@ -597,7 +591,6 @@ export function bulkCreateCards(deck: number, cards: DraftCard[]): Promise<{ cre
     method: "POST",
     body: JSON.stringify({ deck, cards }),
   }).then((res) => {
-    cdpTrack("feature_used", { feature: "import", count: res.created });
     return res;
   });
 }

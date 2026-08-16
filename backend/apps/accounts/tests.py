@@ -215,7 +215,7 @@ class SignupCdpTests(TestCase):
         otp_id, code = res.data["otp_id"], res.data["dev_code"]
         return client.post(reverse("auth-verify-otp"), {"otp_id": otp_id, "code": code})
 
-    def test_first_verification_tracks_signup_once(self):
+    def test_signup_once_login_every_time(self):
         from unittest.mock import patch
 
         with patch("apps.accounts.views.cdp.track") as track:
@@ -224,5 +224,6 @@ class SignupCdpTests(TestCase):
             again = self._verify("brand.new@x.com")
             self.assertFalse(again.data["is_new_user"])
 
-        track.assert_called_once()
-        self.assertEqual(track.call_args.args[1], "signup")
+        events = [c.args[1] for c in track.call_args_list]
+        # First verification: the account is born and signed in. Second: just a login.
+        self.assertEqual(events, ["signup", "login", "login"])
