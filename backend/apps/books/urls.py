@@ -6,10 +6,14 @@ from .views import (
     BookLessonDetailView,
     BookLessonImportView,
     BookLessonProcessView,
+    BookLessonPublishView,
     BookListView,
     BookRegenerateView,
     BookSharesView,
     BooksSharedView,
+    LibraryAddView,
+    LibraryBookView,
+    LibraryListView,
 )
 
 urlpatterns = [
@@ -22,4 +26,8 @@ urlpatterns = [
     path("books/<int:pk>/lessons/<int:lid>/", BookLessonDetailView.as_view(), name="book-lesson-detail"),
     path("books/<int:pk>/lessons/<int:lid>/process/", BookLessonProcessView.as_view(), name="book-lesson-process"),
     path("books/<int:pk>/lessons/<int:lid>/import/", BookLessonImportView.as_view(), name="book-lesson-import"),
+    path("books/<int:pk>/lessons/<int:lid>/publish/", BookLessonPublishView.as_view(), name="book-lesson-publish"),
+    path("library/", LibraryListView.as_view(), name="library-list"),
+    path("library/<int:pk>/", LibraryBookView.as_view(), name="library-book"),
+    path("library/<int:pk>/add/", LibraryAddView.as_view(), name="library-add"),
 ]

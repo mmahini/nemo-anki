@@ -6,12 +6,14 @@ import {
   createDeck,
   deleteDeck,
   fetchDecks,
+  fetchLibrary,
   fetchSharedDecks,
   importDeck,
   shareDeck,
   unshareDeck,
   updateDeck,
   type Deck,
+  type LibraryBook,
 } from "../auth/api";
 import Modal from "../components/Modal";
 
@@ -44,6 +46,7 @@ export default function Decks() {
   const [openMenu, setOpenMenu] = useState<number | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [sharedDecks, setSharedDecks] = useState<Deck[]>([]);
+  const [libraryBooks, setLibraryBooks] = useState<LibraryBook[]>([]);
   const [importingId, setImportingId] = useState<number | null>(null);
   const [sharingDeck, setSharingDeck] = useState<number | null>(null);
   const [shareEmail, setShareEmail] = useState("");
@@ -53,9 +56,15 @@ export default function Decks() {
   async function load() {
     setLoading(true);
     try {
-      const [mine, shared] = await Promise.all([fetchDecks(), fetchSharedDecks()]);
+      const [mine, shared, library] = await Promise.all([
+        fetchDecks(),
+        fetchSharedDecks(),
+        // The library teaser is decoration — never let it break the page.
+        fetchLibrary().catch(() => [] as LibraryBook[]),
+      ]);
       setDecks(mine);
       setSharedDecks(shared);
+      setLibraryBooks(library);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
@@ -349,6 +358,41 @@ export default function Decks() {
           );
         })}
       </ul>
+
+      {libraryBooks.length > 0 && (
+        <div className="librarypeek">
+          <div className="librarypeek__head">
+            <h2>{t("library.title")}</h2>
+            <Link to="/app/library" className="librarypeek__more">{t("library.browseAll")}</Link>
+          </div>
+          <p className="library__hint">{t("library.hint")}</p>
+          <ul className="deckgrid">
+            {libraryBooks.slice(0, 3).map((b) => (
+              <li key={b.id} className="deckcard" style={{ "--deck-accent": b.color } as React.CSSProperties}>
+                <Link to={`/app/library/${b.id}`} className="deckcard__main">
+                  <div className="deckcard__toprow">
+                    {b.source_language ? (
+                      <span className={`flag flag--${b.source_language}`}>{b.source_language}</span>
+                    ) : (
+                      <span className="deckcard__dot" />
+                    )}
+                    <span className="deckcard__meta">
+                      {t("decks.subdeckCount", { count: b.deck_count })} · {t("decks.cardCount", { count: b.card_count })}
+                    </span>
+                  </div>
+                  <h2 className="deckcard__name">{b.title}</h2>
+                </Link>
+                <div className="deckcard__foot">
+                  <span className="deckcard__meta">→ {b.translation_language}</span>
+                  <Link to={`/app/library/${b.id}`} className="btn btn--primary btn--sm">
+                    {t("library.openBtn")}
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {decks.length === 0 && (
         <div className="panel decks__empty">

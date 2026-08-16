@@ -18,7 +18,10 @@ class BookLessonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BookLesson
-        fields = ["id", "title", "position", "card_count", "processed", "page_start", "page_end", "pdf_url"]
+        fields = [
+            "id", "title", "position", "card_count", "processed", "published",
+            "page_start", "page_end", "pdf_url",
+        ]
 
     def get_card_count(self, obj) -> int:
         return obj.cards.count()
@@ -74,3 +77,49 @@ class BookSerializer(serializers.ModelSerializer):
 
     def get_card_count(self, obj) -> int:
         return BookCard.objects.filter(lesson__book=obj).count()
+
+
+class LibraryLessonSerializer(serializers.ModelSerializer):
+    """A published unit as seen in the public library — no raw text, no PDF,
+    no processing state: just what's needed to pick a deck."""
+
+    card_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookLesson
+        fields = ["id", "title", "position", "card_count"]
+
+    def get_card_count(self, obj) -> int:
+        return obj.cards.count()
+
+
+class LibraryBookSerializer(serializers.ModelSerializer):
+    """A book's public face in the library: the root deck users browse.
+    Counts cover only the published units."""
+
+    deck_count = serializers.SerializerMethodField()
+    card_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Book
+        fields = [
+            "id", "title", "source_language", "translation_language",
+            "color", "deck_count", "card_count",
+        ]
+
+    def get_deck_count(self, obj) -> int:
+        return obj.lessons.filter(published=True).count()
+
+    def get_card_count(self, obj) -> int:
+        return BookCard.objects.filter(lesson__book=obj, lesson__published=True).count()
+
+
+class LibraryBookDetailSerializer(LibraryBookSerializer):
+    lessons = serializers.SerializerMethodField()
+
+    class Meta(LibraryBookSerializer.Meta):
+        fields = LibraryBookSerializer.Meta.fields + ["lessons"]
+
+    def get_lessons(self, obj) -> list:
+        qs = obj.lessons.filter(published=True)
+        return LibraryLessonSerializer(qs, many=True).data

@@ -8,6 +8,7 @@ import {
   fetchBookLesson,
   importBookLesson,
   processBookLesson,
+  publishBookLesson,
   regenerateBook,
   shareBook,
   unshareBook,
@@ -94,6 +95,26 @@ export default function BookPage() {
 
   async function processAll() {
     for (const l of book!.lessons.filter((x) => !x.processed)) await process(l);
+  }
+
+  async function togglePublish(lesson: BookLesson) {
+    if (lesson.published && !window.confirm(t("bookPage.confirmUnpublish", { title: lesson.title }))) {
+      return;
+    }
+    setWorking((w) => new Set(w).add(lesson.id));
+    setError(null);
+    try {
+      const updated = await publishBookLesson(book!.id, lesson.id, !lesson.published);
+      setBook((b) => b && { ...b, lessons: b.lessons.map((x) => (x.id === updated.id ? updated : x)) });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("common.error"));
+    } finally {
+      setWorking((w) => {
+        const n = new Set(w);
+        n.delete(lesson.id);
+        return n;
+      });
+    }
   }
 
   async function doSplit(e: FormEvent) {
@@ -336,6 +357,16 @@ export default function BookPage() {
                 {l.processed && (
                   <button className="bookblock__count bookblock__count--link" disabled={loadingLesson === l.id} onClick={() => openLesson(l)} title={t("bookPage.openLessonTitle")}>
                     {loadingLesson === l.id ? "…" : `${l.card_count} vocab ›`}
+                  </button>
+                )}
+                {l.processed && l.card_count > 0 && (
+                  <button
+                    className={`btn btn--sm ${l.published ? "bookblock__published" : "btn--ghost"}`}
+                    disabled={working.has(l.id)}
+                    onClick={() => togglePublish(l)}
+                    title={l.published ? t("bookPage.unpublishTitle") : t("bookPage.publishTitle")}
+                  >
+                    {l.published ? t("bookPage.publishedBtn") : t("bookPage.publishBtn")}
                   </button>
                 )}
                 {owner && book.has_pdf && (

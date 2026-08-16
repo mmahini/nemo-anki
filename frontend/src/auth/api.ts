@@ -789,6 +789,7 @@ export type BookLesson = {
   position: number;
   card_count: number;
   processed: boolean;
+  published: boolean;
   page_start: number | null;
   page_end: number | null;
   pdf_url: string | null;
@@ -938,6 +939,54 @@ export function importBookLesson(
   return jsonRequest(`/api/books/${bookId}/lessons/${lessonId}/import/`, {
     method: "POST",
     body: JSON.stringify({ parent_deck: parentDeck }),
+  });
+}
+
+/** Publish/unpublish one processed unit to the public deck library. */
+export function publishBookLesson(
+  bookId: number,
+  lessonId: number,
+  published: boolean,
+): Promise<BookLesson> {
+  return jsonRequest<BookLesson>(`/api/books/${bookId}/lessons/${lessonId}/publish/`, {
+    method: "POST",
+    body: JSON.stringify({ published }),
+  });
+}
+
+/* ---- Deck library — published book units anyone can copy into their decks. */
+
+export type LibraryBook = {
+  id: number;
+  title: string;
+  source_language: "de" | "en" | "";
+  translation_language: string;
+  color: string;
+  deck_count: number;
+  card_count: number;
+};
+
+export type LibraryLesson = { id: number; title: string; position: number; card_count: number };
+
+export type LibraryBookDetail = LibraryBook & { lessons: LibraryLesson[] };
+
+export function fetchLibrary(): Promise<LibraryBook[]> {
+  return jsonRequest<LibraryBook[]>("/api/library/", { method: "GET" });
+}
+
+export function fetchLibraryBook(bookId: number): Promise<LibraryBookDetail> {
+  return jsonRequest<LibraryBookDetail>(`/api/library/${bookId}/`, { method: "GET" });
+}
+
+/** Copy one published unit (or, with no lesson, the whole book) into the
+ * caller's own decks. Free — no AI quota involved. */
+export function addLibraryDeck(
+  bookId: number,
+  lessonId?: number,
+): Promise<{ book_deck: number; lesson_deck: number | null; cards: number }> {
+  return jsonRequest(`/api/library/${bookId}/add/`, {
+    method: "POST",
+    body: JSON.stringify(lessonId ? { lesson: lessonId } : {}),
   });
 }
 
