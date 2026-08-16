@@ -11,10 +11,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+import re
+
+from apps.accounts.languages import LANGUAGES
 from apps.subscriptions.quota import consume_ai_quota
 
 from . import cards, matching
-from .models import Reel, ReelView
+from .models import Reel, ReelSource, ReelSourceSuggestion, ReelView
 from .serializers import ReelSerializer
 
 PAGE_SIZE = 12
@@ -177,6 +180,66 @@ class ReelUnseenCountView(APIView):
             # The card still renders as a doorway; there's just nothing to count.
             return Response({"count": 0})
         return Response({"count": matching.unseen_for(user).count()})
+
+
+_IG_USERNAME = re.compile(r"^[a-z0-9._]{1,30}$")
+
+
+class ReelSuggestSourceView(APIView):
+    """POST /api/reels/suggest-source/ — "please add this Instagram account".
+
+    Lands as a ReelSourceSuggestion for staff review; an admin action turns it
+    into a real ReelSource. Suggesting an account we already watch, or one the
+    user already suggested, answers honestly instead of stacking duplicates.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    DAILY_CAP = 5  # a hand-typed form doesn't need more; a script shouldn't get more
+
+    def post(self, request):
+        username = (request.data.get("username") or "").strip().lstrip("@").lower()
+        # Instagram usernames: letters, digits, dots, underscores.
+        if not _IG_USERNAME.match(username):
+            return Response(
+                {"detail": "That doesn't look like an Instagram username."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target = request.data.get("target_language") or ""
+        base = request.data.get("base_language") or ""
+        if target not in LANGUAGES or (base and base not in LANGUAGES):
+            return Response(
+                {"detail": "Unknown language."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if ReelSource.objects.filter(username=username).exists():
+            return Response({"status": "exists"})
+        if ReelSourceSuggestion.objects.filter(
+            user=request.user, username=username, status="pending"
+        ).exists():
+            return Response({"status": "pending"})
+
+        from django.utils import timezone
+
+        today = timezone.now().date()
+        if (
+            ReelSourceSuggestion.objects.filter(
+                user=request.user, created_at__date=today
+            ).count()
+            >= self.DAILY_CAP
+        ):
+            return Response(
+                {"detail": "That's plenty of suggestions for one day — thank you!"},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        ReelSourceSuggestion.objects.create(
+            user=request.user,
+            username=username,
+            target_language=target,
+            base_language=base,
+        )
+        return Response({"status": "ok"}, status=status.HTTP_201_CREATED)
 
 
 class ReelSavedListView(APIView):

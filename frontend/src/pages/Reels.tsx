@@ -8,6 +8,7 @@ import {
   fetchSavedReels,
   makeCardsFromReel,
   markReelSeen,
+  suggestReelSource,
   toggleReelSaved,
   updateMe,
   type Reel,
@@ -62,6 +63,9 @@ export default function Reels() {
   /** "For you" (the unseen feed) vs "Saved" — the promise behind the bookmark. */
   const [tab, setTab] = useState<"feed" | "saved">("feed");
   const [savedReels, setSavedReels] = useState<Reel[] | null>(null);
+
+  /** The "suggest an Instagram account" bottom sheet. */
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   // Per-language feed. Mixing German and English in one scroll reads as
   // noise, so a multi-language learner watches one language at a time and
@@ -287,7 +291,17 @@ export default function Reels() {
         >
           {t("reels.savedTab")}
         </button>
+        <button
+          className="reels-tabs__tab reels-tabs__tab--plus"
+          aria-label={t("reels.suggestTitle")}
+          title={t("reels.suggestTitle")}
+          onClick={() => setSuggestOpen(true)}
+        >
+          +
+        </button>
       </div>
+
+      {suggestOpen && <SuggestSheet onClose={() => setSuggestOpen(false)} />}
 
       {multiLang && tab === "feed" && (
         <div className="reels-langs" role="tablist" aria-label={t("reels.language")}>
@@ -367,6 +381,120 @@ function EndSentinel({ onReach }: { onReach: () => void }) {
   // Invisible: snap scrolling means the user never actually sees the tail,
   // the early rootMargin fetch keeps the next page ready before they arrive.
   return <div ref={ref} className="reels-feed__more" aria-hidden />;
+}
+
+/** Bottom sheet: "suggest an Instagram account". The suggester picks the
+ * languages — they know what the channel teaches better than a reviewer
+ * guessing later — and staff approve it into a real source in the admin. */
+function SuggestSheet({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
+  const [username, setUsername] = useState("");
+  const [target, setTarget] = useState("de");
+  const [base, setBase] = useState("");
+  const [state, setState] = useState<
+    | { kind: "idle" }
+    | { kind: "busy" }
+    | { kind: "done"; status: "ok" | "exists" | "pending" }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
+
+  function submit() {
+    const handle = username.trim().replace(/^@/, "");
+    if (!handle || state.kind === "busy") return;
+    setState({ kind: "busy" });
+    suggestReelSource({ username: handle, target_language: target, base_language: base })
+      .then((r) => setState({ kind: "done", status: r.status }))
+      .catch((e) =>
+        setState({
+          kind: "error",
+          message: e instanceof Error && e.message ? e.message : t("common.error"),
+        }),
+      );
+  }
+
+  const doneMessage =
+    state.kind === "done"
+      ? {
+          ok: t("reels.suggestThanks"),
+          exists: t("reels.suggestExists"),
+          pending: t("reels.suggestPending"),
+        }[state.status]
+      : null;
+
+  return (
+    <div className="sheet" role="dialog" aria-modal="true" aria-label={t("reels.suggestTitle")}>
+      <button className="sheet__backdrop" aria-label={t("common.close")} onClick={onClose} />
+      <div className="sheet__panel">
+        <h2 className="sheet__title">{t("reels.suggestTitle")}</h2>
+
+        {doneMessage ? (
+          <>
+            <p className="sheet__done">{doneMessage}</p>
+            <button className="btn btn--primary" onClick={onClose}>
+              {t("common.close")}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="muted sheet__lede">{t("reels.suggestLede")}</p>
+            <label className="sheet__label">
+              {t("reels.suggestUsername")}
+              <input
+                className="sheet__input"
+                dir="ltr"
+                placeholder="@username"
+                value={username}
+                autoFocus
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </label>
+            <label className="sheet__label">
+              {t("reels.suggestTeaches")}
+              <select
+                className="sheet__input"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.endonym}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="sheet__label">
+              {t("reels.suggestBase")}
+              <select
+                className="sheet__input"
+                value={base}
+                onChange={(e) => setBase(e.target.value)}
+              >
+                <option value="">{t("reels.suggestImmersive")}</option>
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.endonym}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {state.kind === "error" && <p className="error">{state.message}</p>}
+            <div className="sheet__actions">
+              <button className="btn" onClick={onClose}>
+                {t("common.cancel")}
+              </button>
+              <button
+                className="btn btn--primary"
+                disabled={!username.trim() || state.kind === "busy"}
+                onClick={submit}
+              >
+                {state.kind === "busy" ? t("common.saving") : t("reels.suggestSubmit")}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ReelSlide({

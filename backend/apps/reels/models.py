@@ -181,6 +181,44 @@ class Reel(models.Model):
         return self.media_status == MEDIA_STORED and bool(self.video)
 
 
+SUGGESTION_PENDING = "pending"
+SUGGESTION_APPROVED = "approved"
+SUGGESTION_REJECTED = "rejected"
+SUGGESTION_STATUS = [
+    (SUGGESTION_PENDING, "Pending"),
+    (SUGGESTION_APPROVED, "Approved"),
+    (SUGGESTION_REJECTED, "Rejected"),
+]
+
+
+class ReelSourceSuggestion(models.Model):
+    """A user's "please add this Instagram account" — reviewed by staff in the
+    admin, where an action turns an approved suggestion into a real
+    ReelSource. Suggesters pick the languages themselves (they know what the
+    channel teaches better than we do at review time); staff can still edit
+    the created source afterwards."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="reel_source_suggestions",
+    )
+    username = models.CharField(max_length=80)  # no leading @
+    target_language = models.CharField(max_length=4, default="de")
+    base_language = models.CharField(max_length=4, blank=True, default="")
+    status = models.CharField(max_length=10, choices=SUGGESTION_STATUS, default=SUGGESTION_PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    handled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["status", "-created_at"]
+        indexes = [models.Index(fields=["status"])]
+
+    def __str__(self) -> str:
+        return f"@{self.username} ({self.status})"
+
+
 class ReelView(models.Model):
     """One user's relationship to one reel — seen, and optionally saved.
     Saved reels are exempt from the retention purge."""
