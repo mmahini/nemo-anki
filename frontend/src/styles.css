@@ -2219,6 +2219,37 @@ kbd {
 .reels-tabs__tab--on { background: rgba(255, 255, 255, 0.92); color: #111; }
 body.reels-immersive .reels-tabs { opacity: 0; pointer-events: none; }
 
+/* Language switch for multi-language learners — chips under the tabs; a
+   sideways swipe on the feed does the same thing. */
+.reels-langs {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  gap: 6px;
+  transition: opacity 0.25s ease;
+}
+.reels-langs__chip {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 4px 13px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.reels-langs__chip--on {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: transparent;
+  color: #111;
+}
+body.reels-immersive .reels-langs { opacity: 0; pointer-events: none; }
+
 .reels-stage__empty {
   margin: auto;
   padding: 24px;
@@ -2226,10 +2257,12 @@ body.reels-immersive .reels-tabs { opacity: 0; pointer-events: none; }
   text-align: center;
 }
 
+.reels-feed__pill--hint { background: rgba(76, 110, 245, 0.9); }
+
 .reels-feed__pill {
   position: absolute;
-  /* Below the For-you/Saved switch. */
-  top: 58px;
+  /* Below the For-you/Saved switch and the language chips. */
+  top: 96px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 3;

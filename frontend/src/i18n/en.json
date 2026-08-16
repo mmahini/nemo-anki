@@ -684,6 +684,9 @@
   },
   "reels": {
     "empty": "No reels yet for the languages you picked. We add new channels regularly.",
+    "language": "Feed language",
+    "swipeHint": "Swipe left or right to switch language ↔",
+    "emptyLang": "No reels in this language yet — try the other one.",
     "caughtUp": "You've seen everything new — here's the library again.",
     "forYou": "For you",
     "savedTab": "Saved",

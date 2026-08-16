@@ -14,6 +14,14 @@ import {
 } from "../auth/api";
 import { useAuth } from "../auth/AuthContext";
 import LanguagePicker from "../components/LanguagePicker";
+import { LANGUAGES } from "../lib/languages";
+
+const LANG_KEY = "nemo-anki.reels-lang";
+const LANG_HINT_KEY = "nemo-anki.reels-lang-hint";
+
+function languageEndonym(code: string): string {
+  return LANGUAGES.find((l) => l.code === code)?.endonym ?? code;
+}
 
 /** Short videos from language-teaching accounts, plus our own — presented the
  * way people already know from Instagram: a full-screen vertical feed, one
@@ -55,14 +63,33 @@ export default function Reels() {
   const [tab, setTab] = useState<"feed" | "saved">("feed");
   const [savedReels, setSavedReels] = useState<Reel[] | null>(null);
 
+  // Per-language feed. Mixing German and English in one scroll reads as
+  // noise, so a multi-language learner watches one language at a time and
+  // switches — by chip, or by swiping sideways (the vertical axis is taken).
+  const feedLangs = user?.learning_languages ?? [];
+  const multiLang = feedLangs.length > 1;
+  const [lang, setLang] = useState<string>(() => {
+    const stored = localStorage.getItem(LANG_KEY);
+    if (stored && feedLangs.includes(stored)) return stored;
+    return feedLangs[0] ?? "";
+  });
+  const [langHint, setLangHint] = useState(
+    () => multiLang && !localStorage.getItem(LANG_HINT_KEY),
+  );
+
   // The language question, shown in place of the feed when we've never asked.
   const [learning, setLearning] = useState<string[]>(user?.learning_languages ?? []);
   const [known, setKnown] = useState<string[]>(user?.known_languages ?? []);
   const [savingPrefs, setSavingPrefs] = useState(false);
 
-  const load = useCallback(async (offset = 0) => {
+  const load = useCallback(async (offset = 0, langOverride?: string) => {
     try {
-      const data = await fetchReels({ offset });
+      const wanted = langOverride ?? lang;
+      const data = await fetchReels({
+        offset,
+        // Only narrow when there's actually a choice to make.
+        lang: multiLang && wanted ? wanted : undefined,
+      });
       setNeedsPrefs(data.needs_language_prefs);
       setCaughtUp(!!data.caught_up);
       setNextOffset(data.next_offset ?? null);
@@ -77,11 +104,51 @@ export default function Reels() {
       setLoading(false);
       loadingMoreRef.current = false;
     }
-  }, [t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, multiLang, lang]);
 
   useEffect(() => {
     void load(0);
-  }, [load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function switchLang(next: string) {
+    if (next === lang || !feedLangs.includes(next)) return;
+    setLang(next);
+    localStorage.setItem(LANG_KEY, next);
+    if (langHint) {
+      // They've switched once — the hint has done its job.
+      setLangHint(false);
+      localStorage.setItem(LANG_HINT_KEY, "1");
+    }
+    setActiveId(null);
+    setReels([]);
+    setLoading(true);
+    void load(0, next);
+  }
+
+  /** Sideways swipe on the feed cycles languages; vertical stays with snap
+   * scrolling. Direction-agnostic on purpose — with two languages either way
+   * toggles, and in an RTL UI "next" has no obvious side. */
+  const touchRef = useRef<{ x: number; y: number } | null>(null);
+  function onFeedTouchStart(e: React.TouchEvent) {
+    const t0 = e.touches[0];
+    touchRef.current = { x: t0.clientX, y: t0.clientY };
+  }
+  function onFeedTouchEnd(e: React.TouchEvent) {
+    const start = touchRef.current;
+    touchRef.current = null;
+    if (!start || !multiLang || tab !== "feed") return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < 1.5 * Math.abs(dy)) return;
+    const i = feedLangs.indexOf(lang);
+    const next =
+      dx < 0
+        ? feedLangs[(i + 1) % feedLangs.length]
+        : feedLangs[(i - 1 + feedLangs.length) % feedLangs.length];
+    switchLang(next);
+  }
 
   function onReelActive(reel: Reel) {
     setActiveId(reel.id);
@@ -103,7 +170,11 @@ export default function Reels() {
       await updateMe({ learning_languages: learning, known_languages: known });
       await refreshUser();
       setLoading(true);
-      await load(0);
+      // Land on a definite language so the chips and the feed agree from the
+      // first frame, even when they just picked several.
+      const first = learning[0] ?? "";
+      setLang(first);
+      await load(0, first);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.error"));
     } finally {
@@ -178,7 +249,10 @@ export default function Reels() {
     );
   }
 
-  if (!reels.length) {
+  // Single-language users get the plain empty page; multi-language users keep
+  // the stage — the language chips must stay reachable when one feed is empty,
+  // or an empty language becomes a dead end.
+  if (!reels.length && !multiLang) {
     return (
       <div className="reels-plain">
         {error && <p className="error">{error}</p>}
@@ -210,15 +284,40 @@ export default function Reels() {
         </button>
       </div>
 
-      {tab === "feed" && caughtUp && (
+      {multiLang && tab === "feed" && (
+        <div className="reels-langs" role="tablist" aria-label={t("reels.language")}>
+          {feedLangs.map((code) => (
+            <button
+              key={code}
+              className={`reels-langs__chip${code === lang ? " reels-langs__chip--on" : ""}`}
+              role="tab"
+              aria-selected={code === lang}
+              onClick={() => switchLang(code)}
+            >
+              {languageEndonym(code)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {langHint && tab === "feed" && (
+        <p className="reels-feed__pill reels-feed__pill--hint">{t("reels.swipeHint")}</p>
+      )}
+      {tab === "feed" && caughtUp && !langHint && (
         <p className="reels-feed__pill">{t("reels.caughtUp")}</p>
       )}
       {error && <p className="reels-feed__pill reels-feed__pill--error">{error}</p>}
 
       {tab === "saved" && savedReels !== null && savedReels.length === 0 ? (
         <p className="reels-stage__empty">{t("reels.savedEmpty")}</p>
+      ) : tab === "feed" && !shown.length ? (
+        <p className="reels-stage__empty">{t("reels.emptyLang")}</p>
       ) : (
-        <div className="reels-feed">
+        <div
+          className="reels-feed"
+          onTouchStart={onFeedTouchStart}
+          onTouchEnd={onFeedTouchEnd}
+        >
           {shown.map((reel) => (
             <ReelSlide
               // Tab-scoped keys: the same reel can appear in both lists, and

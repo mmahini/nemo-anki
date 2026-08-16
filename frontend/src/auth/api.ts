@@ -1272,10 +1272,15 @@ export type ReelFeed = {
   suggested_known_languages?: string[];
 };
 
-export function fetchReels(opts: { offset?: number; all?: boolean } = {}): Promise<ReelFeed> {
+export function fetchReels(
+  opts: { offset?: number; all?: boolean; lang?: string } = {},
+): Promise<ReelFeed> {
   const params = new URLSearchParams();
   if (opts.offset) params.set("offset", String(opts.offset));
   if (opts.all) params.set("all", "1");
+  // Per-language feed for multi-language learners; the server ignores
+  // languages the user isn't actually learning.
+  if (opts.lang) params.set("lang", opts.lang);
   const qs = params.toString();
   return jsonRequest<ReelFeed>(`/api/reels/${qs ? `?${qs}` : ""}`, { method: "GET" });
 }
