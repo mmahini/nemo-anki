@@ -2392,6 +2392,33 @@ body.reels-immersive .reels-langs { opacity: 0; pointer-events: none; }
   text-align: center;
 }
 
+/* Out-of-quota panel: the feed's seat is taken by the upgrade pitch. The
+   Saved tab (replays are free server-side) stays reachable above it. */
+.reels-quota {
+  margin: auto;
+  padding: 32px 28px;
+  max-width: 340px;
+  text-align: center;
+  color: #fff;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+.reels-quota__icon { font-size: 2.4rem; }
+.reels-quota__title { margin: 0; font-size: 1.25rem; font-weight: 800; }
+.reels-quota__body { margin: 0; font-size: 0.95rem; line-height: 1.7; color: rgba(255, 255, 255, 0.85); }
+.reels-quota__cta {
+  margin-top: 8px;
+  width: 100%;
+  padding: 13px 16px;
+  font-size: 1rem;
+  border-radius: 14px;
+  text-align: center;
+  justify-content: center;
+}
+.reels-quota__cta:hover { color: #fff; text-decoration: none; }
+.reels-quota__note { margin: 2px 0 0; font-size: 0.8rem; color: rgba(255, 255, 255, 0.55); }
+
 .reels-feed__pill--hint { background: rgba(76, 110, 245, 0.9); }
 
 .reels-feed__pill {

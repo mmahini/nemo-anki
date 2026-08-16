@@ -890,6 +890,14 @@ scrolling *to* a reel is the user asking for it, scrolling past fetches nothing.
 
 Mark-as-seen fires the first time a reel's slide becomes the active one.
 
+**Metering (Aug 2026):** watching a reel costs `REELS_VIEW_QUOTA_UNITS`
+(default 5, env-tunable) of the same daily AI quota the AI features draw from
+— trial 40/day ⇒ 8 reels, Basic 80 ⇒ 16, Pro 500 ⇒ 100. Only the FIRST view
+of a reel charges; the charge guards ReelView row creation, so a refused view
+leaves no row and the caught-up replay + Saved tab stay free. Out of quota,
+the feed tab gives way to an upgrade panel (CTA → /app/subscribe); Saved
+stays reachable.
+
 Dev gotcha: the Vite proxy must NOT set `changeOrigin` — `ReelSerializer`
 absolutises media URLs from the `Host` header, and a rewritten Host makes dev
 emit unreachable `http://backend:8000/…` URLs (vite.config.ts has the comment).

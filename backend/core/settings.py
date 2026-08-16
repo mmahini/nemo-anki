@@ -203,6 +203,11 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 # VITE_-prefixed pair on Vercel. Unset (dev/CI/tests) means: emit nothing.
 CDP_INGEST_URL = os.getenv("CDP_INGEST_URL", "")
 CDP_WRITE_KEY = os.getenv("CDP_WRITE_KEY", "")
+
+# Watching a reel spends daily AI quota (first view of each reel only; replays
+# are free). At 5, a Basic day (80) buys 16 reels. Env-tunable so pricing can
+# move without a deploy.
+REELS_VIEW_QUOTA_UNITS = int(os.getenv("REELS_VIEW_QUOTA_UNITS", "5"))
 GEMINI_VERIFY_SSL = os.getenv("GEMINI_VERIFY_SSL", "1") != "0"
 
 # Auto image lookup (Gemini picks a search phrase, Openverse supplies the

@@ -912,3 +912,76 @@ class SuggestSourceTests(TestCase):
         s = ReelSourceSuggestion.objects.get()
         self.assertEqual(s.status, "approved")
         self.assertIsNotNone(s.handled_at)
+
+
+class ReelViewQuotaTests(TestCase):
+    """Watching reels spends daily AI quota: 5 units per FIRST view, so
+    Basic's 80/day buys exactly 16 reels. Replays are free — the charge
+    guards row creation, so a refused view leaves no row behind."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.source = make_source(username="deutsch", base_language="en")
+        self.user = User.objects.create_user("watcher@x.com")
+        self.user.learning_languages, self.user.known_languages = ["de"], ["en"]
+        self.user.save()
+        # A fresh account is on trial (40/day); this class reasons in Basic
+        # numbers (80/day → 16 reels), so pin the tier explicitly.
+        from apps.subscriptions.models import Subscription
+
+        Subscription.for_user(self.user).activate("basic_monthly")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def _usage(self) -> int:
+        from apps.subscriptions.models import AiUsage
+
+        return (
+            AiUsage.objects.filter(user=self.user, day=timezone.now().date())
+            .values_list("count", flat=True)
+            .first()
+            or 0
+        )
+
+    def _seen(self, reel):
+        return self.client.post(reverse("reel-seen", args=[reel.pk]))
+
+    def test_first_view_charges_five_replay_is_free(self):
+        reel = make_reel(self.source, key="Q1", days_old=1)
+        self.assertEqual(self._seen(reel).status_code, 200)
+        self.assertEqual(self._usage(), 5)
+        self.assertEqual(self._seen(reel).status_code, 200)  # replay
+        self.assertEqual(self._usage(), 5)  # ...still 5
+
+    def test_a_refused_view_leaves_no_row(self):
+        """No row on 429 — otherwise tomorrow's replay of this reel would be
+        free despite never having been paid for."""
+        from apps.subscriptions.models import AiUsage
+
+        AiUsage.objects.create(user=self.user, day=timezone.now().date(), count=78)
+        reel = make_reel(self.source, key="Q2", days_old=1)
+        res = self._seen(reel)
+        self.assertEqual(res.status_code, 429)
+        self.assertFalse(ReelView.objects.filter(user=self.user, reel=reel).exists())
+        self.assertEqual(self._usage(), 78)  # nothing charged
+
+    def test_basic_buys_exactly_sixteen_reels(self):
+        for i in range(16):
+            reel = make_reel(self.source, key=f"R{i}", days_old=1)
+            self.assertEqual(self._seen(reel).status_code, 200)
+        self.assertEqual(self._usage(), 80)
+        seventeenth = make_reel(self.source, key="R16", days_old=1)
+        self.assertEqual(self._seen(seventeenth).status_code, 429)
+
+    def test_single_unit_actions_still_fit_at_79(self):
+        """The weighted check must not break the old exact-limit behaviour."""
+        from apps.subscriptions.models import AiUsage
+        from apps.subscriptions.quota import consume_ai_quota
+        from rest_framework.exceptions import Throttled
+
+        AiUsage.objects.create(user=self.user, day=timezone.now().date(), count=79)
+        consume_ai_quota(self.user)  # 79 → 80: allowed, as before
+        self.assertEqual(self._usage(), 80)
+        with self.assertRaises(Throttled):
+            consume_ai_quota(self.user)

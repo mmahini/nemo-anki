@@ -41,20 +41,25 @@ class AiQuotaMixin:
         consume_ai_quota(request.user)
 
 
-def consume_ai_quota(user) -> None:
-    """Count one AI action against today's window; raise 429 when over a finite
-    limit. Usage is always counted (so it can be shown), including for staff who
-    have no limit (None) and are never blocked."""
+def consume_ai_quota(user, units: int = 1) -> None:
+    """Count `units` against today's window; raise 429 when the action would
+    not fit inside a finite limit. Usage is always counted (so it can be
+    shown), including for staff who have no limit (None) and are never
+    blocked.
+
+    Weighted actions (reels charge 5 per watch) refuse when the REMAINDER is
+    too small — a single-unit action at 79/80 still fits, exactly as before.
+    """
     limit = daily_limit(user)
     today = timezone.now().date()
     with transaction.atomic():
         usage, _ = AiUsage.objects.select_for_update().get_or_create(user=user, day=today)
-        if limit is not None and usage.count >= limit:
+        if limit is not None and usage.count + units > limit:
             raise Throttled(
                 detail=(
                     f"You've reached today's AI limit ({limit}). It resets tomorrow — "
                     "upgrade your plan for a higher limit."
                 )
             )
-        usage.count += 1
+        usage.count += units
         usage.save(update_fields=["count"])
