@@ -174,7 +174,9 @@
     "removeBtn": "Remove",
     "sharedWithMe": "Shared with me ({{count}})",
     "sharedBy": "· shared by {{email}}",
-    "cardCount": "{{count}} cards"
+    "cardCount": "{{count}} cards",
+    "subdeckCount_one": "{{count}} sub-deck",
+    "subdeckCount_other": "{{count}} sub-decks"
   },
   "import": {
     "title": "Import",
@@ -296,6 +298,7 @@
   "deckCards": {
     "loading": "Loading…",
     "cardCount": "{{count}} cards",
+    "subdecks": "Sub-decks",
     "cardTypes": "Card types",
     "colouringBtn": "🎨 Colourise German",
     "colouring": "🎨 Colourising…",
