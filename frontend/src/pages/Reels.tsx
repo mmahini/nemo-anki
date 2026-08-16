@@ -85,11 +85,13 @@ export default function Reels() {
   const load = useCallback(async (offset = 0, langOverride?: string) => {
     try {
       const wanted = langOverride ?? lang;
-      const data = await fetchReels({
-        offset,
-        // Only narrow when there's actually a choice to make.
-        lang: multiLang && wanted ? wanted : undefined,
-      });
+      // Always sent when known. Deciding client-side ("only narrow when
+      // multi-language") read a stale closure right after the language gate —
+      // savePrefs still held multiLang=false, requested the mixed feed, and
+      // it only fixed itself on the next mount. The server validates against
+      // the user's real languages anyway; for single-language users the
+      // narrowed feed and the full feed are the same thing.
+      const data = await fetchReels({ offset, lang: wanted || undefined });
       setNeedsPrefs(data.needs_language_prefs);
       setCaughtUp(!!data.caught_up);
       setNextOffset(data.next_offset ?? null);
@@ -105,7 +107,7 @@ export default function Reels() {
       loadingMoreRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, multiLang, lang]);
+  }, [t, lang]);
 
   useEffect(() => {
     void load(0);
@@ -174,6 +176,9 @@ export default function Reels() {
       // first frame, even when they just picked several.
       const first = learning[0] ?? "";
       setLang(first);
+      // The mount-time hint check ran while this user had no languages yet;
+      // re-check now that they've just picked several.
+      if (learning.length > 1 && !localStorage.getItem(LANG_HINT_KEY)) setLangHint(true);
       await load(0, first);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("common.error"));
