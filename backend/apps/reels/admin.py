@@ -34,6 +34,7 @@ from .models import (
     ReelsBudget,
     ReelsCostMonth,
     ReelSource,
+    ReelSourceSuggestion,
     ReelsStorageSnapshot,
     ReelView,
 )
@@ -388,3 +389,54 @@ class ReelViewAdmin(admin.ModelAdmin):
     list_display = ("user", "reel", "seen_at", "saved")
     list_filter = ("saved",)
     search_fields = ("user__email", "reel__key")
+
+
+@admin.register(ReelSourceSuggestion)
+class ReelSourceSuggestionAdmin(admin.ModelAdmin):
+    """User-suggested Instagram accounts. Review here; "Approve" turns the
+    selected rows into real ReelSources (idempotent — an account we already
+    watch is skipped, and the suggestion still gets marked approved)."""
+
+    list_display = ("username", "teaches", "user", "status", "created_at", "handled_at")
+    list_filter = ("status", "target_language", "base_language")
+    search_fields = ("username", "user__email")
+    readonly_fields = ("created_at", "handled_at")
+    actions = ["approve_and_add", "reject"]
+
+    @admin.display(description="Teaches")
+    def teaches(self, obj) -> str:
+        target = language_label(obj.target_language)
+        if not obj.base_language:
+            return f"{target} (immersive)"
+        return f"{target} · {language_label(obj.base_language)}"
+
+    @admin.action(description="Approve — add to reel sources")
+    def approve_and_add(self, request, queryset):
+        created = existed = 0
+        for s in queryset.exclude(status="approved"):
+            _, was_created = ReelSource.objects.get_or_create(
+                username=s.username,
+                defaults={
+                    "kind": INSTAGRAM,
+                    "target_language": s.target_language,
+                    "base_language": s.base_language,
+                },
+            )
+            created += int(was_created)
+            existed += int(not was_created)
+            s.status = "approved"
+            s.handled_at = timezone.now()
+            s.save(update_fields=["status", "handled_at"])
+        self.message_user(
+            request,
+            f"Approved: {created} new source(s) added"
+            + (f", {existed} already existed" if existed else "")
+            + ". New sources are picked up by the next daily poll.",
+        )
+
+    @admin.action(description="Reject")
+    def reject(self, request, queryset):
+        count = queryset.exclude(status="rejected").update(
+            status="rejected", handled_at=timezone.now()
+        )
+        self.message_user(request, f"Rejected {count} suggestion(s).")

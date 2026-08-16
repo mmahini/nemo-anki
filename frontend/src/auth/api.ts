@@ -1302,6 +1302,20 @@ export function fetchReelsUnseenCount(): Promise<{ count: number }> {
   return jsonRequest<{ count: number }>("/api/reels/unseen-count/", { method: "GET" });
 }
 
+/** "Please add this Instagram account" — staff review it in the admin.
+ * `status`: "ok" (submitted), "exists" (we already watch it), "pending"
+ * (this user already suggested it). */
+export function suggestReelSource(payload: {
+  username: string;
+  target_language: string;
+  base_language: string;
+}): Promise<{ status: "ok" | "exists" | "pending" }> {
+  return jsonRequest(`/api/reels/suggest-source/`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 /** Turn the reel into a deck of cards in the user's account. Costs one unit
  * of the daily AI quota unless the reel carries a staff-curated deck (or the
  * user already took these cards — repeats are free and idempotent). */

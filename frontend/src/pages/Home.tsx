@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { fetchDecks, fetchReelsUnseenCount, type Deck } from "../auth/api";
+import {
+  fetchBooks,
+  fetchDecks,
+  fetchReelsUnseenCount,
+  fetchSharedBooks,
+  type Deck,
+} from "../auth/api";
 import { useAuth } from "../auth/AuthContext";
 import DailyDashboard from "../components/DailyDashboard";
 import StudyBuddyCard from "../components/StudyBuddyCard";
@@ -16,6 +22,10 @@ export default function Home() {
   const [decks, setDecks] = useState<Deck[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newReels, setNewReels] = useState(0);
+  // Books is a doorway most users never need — it only earns a slot once they
+  // actually have a book (their own or shared with them), and then at the
+  // bottom, after the everyone-features.
+  const [hasBooks, setHasBooks] = useState(false);
 
   useEffect(() => {
     fetchDecks()
@@ -24,6 +34,9 @@ export default function Home() {
     // Best-effort badge; the card is a doorway either way.
     fetchReelsUnseenCount()
       .then((r) => setNewReels(r.count))
+      .catch(() => {});
+    Promise.all([fetchBooks().catch(() => []), fetchSharedBooks().catch(() => [])])
+      .then(([own, shared]) => setHasBooks(own.length > 0 || shared.length > 0))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -71,13 +84,6 @@ export default function Home() {
             </span>
           </span>
         </Link>
-        <Link className="homecard" to="/app/books">
-          <span className="homecard__icon" aria-hidden>📖</span>
-          <span>
-            <span className="homecard__title">{t("home.booksTitle")}</span>
-            <span className="homecard__body">{t("home.booksBody")}</span>
-          </span>
-        </Link>
         <Link className="homecard" to="/app/import">
           <span className="homecard__icon" aria-hidden>↓</span>
           <span>
@@ -85,6 +91,15 @@ export default function Home() {
             <span className="homecard__body">{t("home.importBody")}</span>
           </span>
         </Link>
+        {hasBooks && (
+          <Link className="homecard" to="/app/books">
+            <span className="homecard__icon" aria-hidden>📖</span>
+            <span>
+              <span className="homecard__title">{t("home.booksTitle")}</span>
+              <span className="homecard__body">{t("home.booksBody")}</span>
+            </span>
+          </Link>
+        )}
       </div>
     </div>
   );

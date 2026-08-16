@@ -2217,7 +2217,52 @@ kbd {
   -webkit-tap-highlight-color: transparent;
 }
 .reels-tabs__tab--on { background: rgba(255, 255, 255, 0.92); color: #111; }
+/* The "suggest an account" opener: same pill family, reads as an add button. */
+.reels-tabs__tab--plus { padding: 6px 12px; font-size: 1.05rem; line-height: 1; }
 body.reels-immersive .reels-tabs { opacity: 0; pointer-events: none; }
+
+/* Bottom sheet (suggest an account). */
+.sheet { position: fixed; inset: 0; z-index: 60; }
+.sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(15, 20, 40, 0.5);
+  cursor: pointer;
+}
+.sheet__panel {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, 100%);
+  box-sizing: border-box;
+  background: var(--surface, #fff);
+  border-radius: 18px 18px 0 0;
+  padding: 20px 20px calc(20px + var(--safe-b));
+  display: grid;
+  gap: 12px;
+  /* Own keyframes: the shared sheet-up would drop the -50% X during the
+     animation and the panel would jump sideways on wide screens. */
+  animation: sheet-up-centered 0.2s ease;
+}
+@keyframes sheet-up-centered {
+  from { transform: translate(-50%, 100%); }
+  to { transform: translate(-50%, 0); }
+}
+.sheet__title { margin: 0; font-size: 1.1rem; }
+.sheet__lede { margin: 0; font-size: 0.9rem; }
+.sheet__label { display: grid; gap: 6px; font-size: 0.85rem; font-weight: 600; }
+.sheet__input {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #d5d8e0);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: inherit;
+}
+.sheet__done { margin: 4px 0 8px; font-size: 0.95rem; }
+.sheet__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
 /* Language switch for multi-language learners — chips under the tabs; a
    sideways swipe on the feed does the same thing. */

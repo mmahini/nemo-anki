@@ -842,3 +842,73 @@ class FeedLanguageFilterTests(TestCase):
         res = self.client.get(self.url, {"lang": "de"})
         self.assertTrue(res.data["caught_up"])
         self.assertEqual(self._keys(res), {"DE1"})  # replays German, not English
+
+
+class SuggestSourceTests(TestCase):
+    """User-suggested Instagram accounts: honest answers for duplicates, a
+    daily cap against scripts, and an admin approval that actually creates
+    the source."""
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.user = User.objects.create_user("suggest@x.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.url = reverse("reel-suggest-source")
+
+    def _post(self, username, target="de", base=""):
+        return self.client.post(
+            self.url,
+            {"username": username, "target_language": target, "base_language": base},
+        )
+
+    def test_creates_a_pending_suggestion_and_normalises_the_handle(self):
+        from .models import ReelSourceSuggestion
+
+        res = self._post("@Deutsch.Daily", "de", "fa")
+        self.assertEqual(res.status_code, 201)
+        s = ReelSourceSuggestion.objects.get()
+        self.assertEqual((s.username, s.status), ("deutsch.daily", "pending"))
+
+    def test_an_account_we_already_watch_answers_exists(self):
+        make_source(username="easytodeutsch")
+        res = self._post("easytodeutsch")
+        self.assertEqual((res.status_code, res.data["status"]), (200, "exists"))
+
+    def test_resuggesting_is_idempotent(self):
+        from .models import ReelSourceSuggestion
+
+        self._post("neuekanal")
+        res = self._post("neuekanal")
+        self.assertEqual((res.status_code, res.data["status"]), (200, "pending"))
+        self.assertEqual(ReelSourceSuggestion.objects.count(), 1)
+
+    def test_garbage_usernames_and_languages_are_rejected(self):
+        self.assertEqual(self._post("not a handle!").status_code, 400)
+        self.assertEqual(self._post("fine.handle", target="xx").status_code, 400)
+
+    def test_daily_cap(self):
+        for i in range(5):
+            self.assertEqual(self._post(f"kanal{i}").status_code, 201)
+        self.assertEqual(self._post("kanal5").status_code, 429)
+
+    def test_admin_approve_creates_the_source(self):
+        from django.contrib.admin.sites import AdminSite
+        from django.test import RequestFactory
+        from unittest.mock import MagicMock
+
+        from .admin import ReelSourceSuggestionAdmin
+        from .models import ReelSourceSuggestion
+
+        self._post("neuekanal", "de", "fa")
+        admin_obj = ReelSourceSuggestionAdmin(ReelSourceSuggestion, AdminSite())
+        request = RequestFactory().post("/")
+        admin_obj.message_user = MagicMock()
+        admin_obj.approve_and_add(request, ReelSourceSuggestion.objects.all())
+
+        src = ReelSource.objects.get(username="neuekanal")
+        self.assertEqual((src.target_language, src.base_language), ("de", "fa"))
+        s = ReelSourceSuggestion.objects.get()
+        self.assertEqual(s.status, "approved")
+        self.assertIsNotNone(s.handled_at)
