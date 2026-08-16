@@ -423,14 +423,19 @@ export function fetchSubscription(): Promise<SubscriptionSummary> {
 
 /** "I've transferred" — records a pending claim (with the user's source wallet
  * or transaction hash) for admin verification (Phase 1). */
-export function submitSubscriptionClaim(
+export async function submitSubscriptionClaim(
   plan: string,
   txReference: string,
 ): Promise<{ ok: boolean; status: string }> {
-  return jsonRequest("/api/subscription/claim", {
+  const res = await jsonRequest<{ ok: boolean; status: string }>("/api/subscription/claim", {
     method: "POST",
     body: JSON.stringify({ plan, tx_reference: txReference }),
   });
+  // Client-side twin of the server's `subscription_requested`: this one adds
+  // session + PWA context; the server one survives ad-blockers. Both named
+  // apart on purpose so neither double-counts the other.
+  cdpTrack("subscription_claimed", { plan });
+  return res;
 }
 
 // ====== Decks ======

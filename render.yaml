@@ -43,6 +43,13 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
+      # Wiser CDP server-side events (core.cdp): signup + subscription
+      # lifecycle are emitted from the backend, where they actually happen.
+      # Same public write key as the frontend pixel's VITE_ pair on Vercel.
+      - key: CDP_INGEST_URL
+        value: https://cdp-api.wisry.ai/cdp/ingest
+      - key: CDP_WRITE_KEY
+        value: wcdp_nemo_anki_public_key
       # Resend — emails sign-in OTP codes (domain nemoapps.xyz). Without the key
       # the code is returned as dev_code; with it, the code is emailed only.
       - key: RESEND_API_KEY

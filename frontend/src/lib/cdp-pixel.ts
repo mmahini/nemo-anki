@@ -130,7 +130,24 @@ function post(body: Record<string, unknown>): void {
   }
 }
 
+/** How the app is being run — browser tab vs installed PWA. Standalone is the
+ * install signal on Android/desktop; iOS Safari exposes `navigator.standalone`
+ * instead of matching the media query. Evaluated per event: a user can install
+ * mid-session and the switch should show up in the stream. */
+function displayMode(): string {
+  try {
+    if ((navigator as { standalone?: boolean }).standalone === true) return "standalone";
+    for (const mode of ["standalone", "fullscreen", "minimal-ui"]) {
+      if (window.matchMedia(`(display-mode: ${mode})`).matches) return mode;
+    }
+  } catch {
+    // matchMedia missing (ancient browser) — report as a plain tab
+  }
+  return "browser";
+}
+
 function buildEvent(type: EventType, extra: Record<string, unknown>, contextExtra: Record<string, unknown>) {
+  const mode = displayMode();
   return {
     type,
     anonymousId: anonymousId(),
@@ -139,6 +156,8 @@ function buildEvent(type: EventType, extra: Record<string, unknown>, contextExtr
       source: "nemo-anki",
       ts: new Date().toISOString(),
       page: { url: window.location.href },
+      // PWA vs browser rides on every event, so any funnel can split by it.
+      app: { display_mode: mode, pwa: mode !== "browser" },
       ...contextExtra,
     },
     ...extra,

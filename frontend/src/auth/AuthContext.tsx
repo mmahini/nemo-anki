@@ -59,7 +59,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(
-    (payload: StoredAuth, opts?: { isNewUser?: boolean }) => {
+    // isNewUser stays in the signature for callers (Verify keys its welcome
+    // redirect off it) even though the CDP signup event moved server-side.
+    (payload: StoredAuth, _opts?: { isNewUser?: boolean }) => {
       saveStored(payload);
       configureAuth({
         tokens: { access: payload.access, refresh: payload.refresh },
@@ -69,10 +71,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         onAuthFailed: () => signOut(),
       });
       setUser(payload.user);
-      // Wiser CDP: a first-ever verification is a one-time `signup`; every explicit
-      // OTP sign-in (first or returning) is also a `login`. identify is handled by
-      // the user effect below, covering both sign-in and session restore.
-      if (opts?.isNewUser) cdpTrack("signup");
+      // Wiser CDP: every explicit OTP sign-in (first or returning) is a `login`.
+      // `signup` is emitted SERVER-side in verify-otp (apps.accounts.views) —
+      // the client-side event could be lost to an ad-blocker or a closed tab,
+      // and the account-creation decision lives on the server anyway. identify
+      // is handled by the user effect below, covering sign-in and restore.
       cdpTrack("login");
     },
     [signOut],
