@@ -198,6 +198,11 @@ SIMPLE_JWT = {
 # When unset, the import endpoint falls back to a deterministic line parser.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+# Wiser CDP server-side events (core.cdp) — the browser pixel has its own
+# VITE_-prefixed pair on Vercel. Unset (dev/CI/tests) means: emit nothing.
+CDP_INGEST_URL = os.getenv("CDP_INGEST_URL", "")
+CDP_WRITE_KEY = os.getenv("CDP_WRITE_KEY", "")
 GEMINI_VERIFY_SSL = os.getenv("GEMINI_VERIFY_SSL", "1") != "0"
 
 # Auto image lookup (Gemini picks a search phrase, Openverse supplies the

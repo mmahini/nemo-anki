@@ -201,3 +201,28 @@ class NewUserTelegramNotificationTests(APITestCase):
         User.objects.create_user(email="already@example.com")
         self._verify("already@example.com")
         mock_notify.assert_not_called()
+
+
+class SignupCdpTests(TestCase):
+    """`signup` is emitted server-side at the moment the account row is
+    created — the client only mirrors `is_new_user` for its welcome flow."""
+
+    def _verify(self, email):
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        res = client.post(reverse("auth-request-otp"), {"email": email})
+        otp_id, code = res.data["otp_id"], res.data["dev_code"]
+        return client.post(reverse("auth-verify-otp"), {"otp_id": otp_id, "code": code})
+
+    def test_first_verification_tracks_signup_once(self):
+        from unittest.mock import patch
+
+        with patch("apps.accounts.views.cdp.track") as track:
+            first = self._verify("brand.new@x.com")
+            self.assertTrue(first.data["is_new_user"])
+            again = self._verify("brand.new@x.com")
+            self.assertFalse(again.data["is_new_user"])
+
+        track.assert_called_once()
+        self.assertEqual(track.call_args.args[1], "signup")

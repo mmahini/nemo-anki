@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from core import cdp
+
 from .email import send_otp_email
 from .models import EmailOTP, User
 from .notifications import notify_new_user_signup
@@ -103,12 +105,18 @@ class VerifyOTPView(APIView):
         )
         if created:
             notify_new_user_signup(user)
+            # Signup is decided right here, so it's tracked right here — the
+            # client-side event could be lost to an ad-blocker or a closed
+            # tab. The pixel's identify() moments later folds this into the
+            # same profile.
+            cdp.track(user, "signup", {"referral_applied": referral_applied})
         return Response(
             {
                 **_tokens_for(user),
                 "user": UserSerializer(user).data,
-                # First-ever verification creates the account; the client uses
-                # this to emit a one-time Wiser CDP `signup` event.
+                # First-ever verification creates the account; the client
+                # keys its welcome flow off this (the CDP signup event is
+                # emitted server-side above).
                 "is_new_user": created,
                 # The invite reward was granted — the client tells the user in
                 # the welcome flow.

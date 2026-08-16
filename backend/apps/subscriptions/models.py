@@ -102,6 +102,19 @@ class Subscription(models.Model):
         self.tier = PLANS[plan]["tier"]
         self.status = self.computed_state
         self.save()
+        # Activation happens in Django admin — no browser, no pixel. This is
+        # the conversion event, so it goes out server-side (see core.cdp).
+        from core import cdp
+
+        cdp.track(
+            self.user,
+            "subscription_activated",
+            {
+                "plan": plan,
+                "tier": self.tier,
+                "period_end": self.current_period_end.isoformat(),
+            },
+        )
 
     def grant_bonus(self, tier: str, days: int) -> None:
         """Gift paid-tier access without a purchase (the referral reward).
