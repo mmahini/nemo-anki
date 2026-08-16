@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.subscriptions.quota import AiQuotaMixin
+from core import cdp
 
 from .models import Deck, DeckConfig, DeckShare
 from .serializers import DeckConfigSerializer, DeckSerializer
@@ -58,6 +59,7 @@ class DeckListView(APIView):
         config = serializer.validated_data.get("config") or _default_config(request.user)
         deck = serializer.save(user=request.user, config=config)
         _with_counts(deck, timezone.now())
+        cdp.track(request.user, "feature_used", {"feature": "deck_create"})
         return Response(DeckSerializer(deck, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 

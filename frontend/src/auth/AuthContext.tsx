@@ -16,7 +16,7 @@ import {
   NetworkError,
   ServerError,
 } from "./api";
-import { cdpIdentify, cdpReset, cdpTrack } from "../lib/cdp-pixel";
+import { cdpIdentify, cdpReset } from "../lib/cdp-pixel";
 import { applyLanguage } from "../i18n";
 
 const STORAGE_KEY = "nemo-anki.auth";
@@ -71,12 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         onAuthFailed: () => signOut(),
       });
       setUser(payload.user);
-      // Wiser CDP: every explicit OTP sign-in (first or returning) is a `login`.
-      // `signup` is emitted SERVER-side in verify-otp (apps.accounts.views) —
-      // the client-side event could be lost to an ad-blocker or a closed tab,
-      // and the account-creation decision lives on the server anyway. identify
-      // is handled by the user effect below, covering sign-in and restore.
-      cdpTrack("login");
+      // Wiser CDP: `signup` and `login` are both emitted SERVER-side in
+      // verify-otp (apps.accounts.views) — everything the backend can see
+      // happen is tracked there, beyond the reach of ad-blockers. The pixel
+      // keeps only what's inherently client-shaped: page, identify,
+      // page_leave, and the sign-out `logout` (there is no logout endpoint).
+      // identify is handled by the user effect below (sign-in and restore).
     },
     [signOut],
   );

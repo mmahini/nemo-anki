@@ -110,6 +110,10 @@ class VerifyOTPView(APIView):
             # tab. The pixel's identify() moments later folds this into the
             # same profile.
             cdp.track(user, "signup", {"referral_applied": referral_applied})
+        # Every OTP verification IS a login (first or returning) — server-side
+        # like every event the backend can see happen (the pixel keeps only
+        # what's inherently client-shaped: page/identify/page_leave/logout).
+        cdp.track(user, "login", {"is_new_user": created})
         return Response(
             {
                 **_tokens_for(user),
