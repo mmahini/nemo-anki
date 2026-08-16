@@ -67,6 +67,11 @@ export default function Reels() {
   /** The "suggest an Instagram account" bottom sheet. */
   const [suggestOpen, setSuggestOpen] = useState(false);
 
+  /** Today's reel quota is spent — the feed gives way to the upgrade panel.
+   * Replaying already-watched reels stays free (the server only charges the
+   * first view), so the Saved tab and the library remain usable. */
+  const [quotaOver, setQuotaOver] = useState(false);
+
   // Per-language feed. Mixing German and English in one scroll reads as
   // noise, so a multi-language learner watches one language at a time and
   // switches — by chip, or by swiping sideways (the vertical axis is taken).
@@ -160,7 +165,14 @@ export default function Reels() {
     setActiveId(reel.id);
     if (!seenRef.current.has(reel.id)) {
       seenRef.current.add(reel.id);
-      void markReelSeen(reel.id).catch(() => {});
+      markReelSeen(reel.id).catch((e: unknown) => {
+        // 429 = today's quota is spent (each new reel costs quota units).
+        // Anything else stays best-effort silent, as before.
+        if (typeof e === "object" && e !== null && (e as { status?: number }).status === 429) {
+          seenRef.current.delete(reel.id); // not paid for — retry-able tomorrow
+          setQuotaOver(true);
+        }
+      });
     }
   }
 
@@ -327,7 +339,17 @@ export default function Reels() {
       )}
       {error && <p className="reels-feed__pill reels-feed__pill--error">{error}</p>}
 
-      {tab === "saved" && savedReels !== null && savedReels.length === 0 ? (
+      {tab === "feed" && quotaOver ? (
+        <div className="reels-quota">
+          <span className="reels-quota__icon" aria-hidden>⚡</span>
+          <h2 className="reels-quota__title">{t("reels.quotaTitle")}</h2>
+          <p className="reels-quota__body">{t("reels.quotaBody")}</p>
+          <Link className="btn btn--primary reels-quota__cta" to="/app/subscribe">
+            {t("reels.quotaCta")}
+          </Link>
+          <p className="reels-quota__note">{t("reels.quotaNote")}</p>
+        </div>
+      ) : tab === "saved" && savedReels !== null && savedReels.length === 0 ? (
         <p className="reels-stage__empty">{t("reels.savedEmpty")}</p>
       ) : tab === "feed" && !shown.length ? (
         <p className="reels-stage__empty">{t("reels.emptyLang")}</p>

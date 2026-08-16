@@ -95,15 +95,27 @@ class ReelFeedView(APIView):
 
 
 class ReelSeenView(APIView):
-    """POST /api/reels/<pk>/seen/ — idempotent; the client fires it freely."""
+    """POST /api/reels/<pk>/seen/ — marks watched AND meters it.
+
+    Watching a reel costs REELS_VIEW_QUOTA_UNITS of the daily AI quota — the
+    same pool the AI features draw from, so Basic's 80/day buys 16 reels.
+    Only the FIRST view of a reel charges: the charge guards row creation, so
+    a 429 leaves no row and the caught-up library replay (rows that already
+    exist) stays free — the quota gates NEW content, not re-watching what was
+    already paid for. Re-marking an existing row is idempotent and free.
+    """
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        from django.conf import settings
+
         reel = Reel.objects.filter(pk=pk).first()
         if reel is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        ReelView.objects.get_or_create(user=request.user, reel=reel)
+        if not ReelView.objects.filter(user=request.user, reel=reel).exists():
+            consume_ai_quota(request.user, units=settings.REELS_VIEW_QUOTA_UNITS)
+            ReelView.objects.get_or_create(user=request.user, reel=reel)
         return Response({"ok": True})
 
 
