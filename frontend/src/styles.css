@@ -2086,6 +2086,50 @@ kbd {
 .wdemo__carddiv { display: block; width: 40px; height: 1px; background: var(--line); }
 .wdemo__cardback { color: var(--ink-soft); }
 
+/* Miniature reel for the onboarding step — the same dark frame, play badge
+   and caption gradient the real feed uses, shrunk to a card. */
+.wreel {
+  position: relative;
+  height: 190px;
+  margin-top: 4px;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(120px 90px at 70% 18%, rgba(76, 110, 245, 0.5), transparent 70%),
+    radial-gradient(160px 120px at 22% 80%, rgba(18, 184, 134, 0.35), transparent 70%),
+    #101423;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.wreel__play {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 19px;
+  display: grid;
+  place-items: center;
+}
+.wreel__meta {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 26px 14px 10px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+  color: #fff;
+  display: grid;
+  gap: 2px;
+  /* Shrink-wrap each line at the reading edge: the LTR-pinned @handle then
+     sits on the same side as the RTL caption instead of drifting across. */
+  justify-items: start;
+  text-align: start;
+}
+.wreel__source { font-weight: 700; font-size: 0.85rem; direction: ltr; unicode-bidi: isolate; }
+.wreel__caption { font-size: 0.8rem; color: rgba(255, 255, 255, 0.8); }
+
 /* Grade chips — same colours as the real review buttons, so the mapping is
    already learned by the time they reach a card. */
 .wgrades { display: flex; gap: 8px; margin-top: 2px; }

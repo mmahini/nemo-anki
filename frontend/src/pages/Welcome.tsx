@@ -192,6 +192,21 @@ export default function Welcome() {
       <p className="wstep__note">{t("welcome.reviewNote")}</p>
     </div>,
 
+    <div className="wstep" key="reels">
+      <Nemo />
+      <h1 className="wstep__title">{t("welcome.reelsTitle")}</h1>
+      <p className="wstep__lede">{t("welcome.reelsLede")}</p>
+      {/* A miniature reel, so the word means something before the tab does. */}
+      <div className="wreel" aria-hidden>
+        <span className="wreel__play">▶</span>
+        <div className="wreel__meta">
+          <span className="wreel__source">@easytodeutsch</span>
+          <span className="wreel__caption">{t("welcome.reelsDemoCaption")}</span>
+        </div>
+      </div>
+      <p className="wstep__note">{t("welcome.reelsNote")}</p>
+    </div>,
+
     <div className="wstep" key="tour">
       <Nemo />
       <h1 className="wstep__title">{t("welcome.tourTitle")}</h1>
