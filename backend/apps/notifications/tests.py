@@ -12,7 +12,11 @@ from rest_framework.test import APITestCase
 from apps.cards.models import Card, CardState, ReviewLog
 from apps.decks.models import Deck, DeckConfig
 
-from .management.commands.poll_telegram_updates import _process_update_safely, process_telegram_update
+from .management.commands.poll_telegram_updates import (
+    _process_update_safely,
+    _proposal_keyboard,
+    process_telegram_update,
+)
 from .models import PendingTelegramCard, PushSubscription, TelegramLink, TelegramPollerState
 from .tasks import (
     _digest_text,
@@ -1252,7 +1256,7 @@ class TelegramWordLookupTests(APITestCase):
         self.assertIn("Reading: howss", kwargs["json"]["text"])
         buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
         self.assertEqual(buttons[0][0]["callback_data"], f"create:{pending.id}")
-        self.assertEqual(buttons[1][0]["callback_data"], f"edit:{pending.id}")
+        self.assertEqual(buttons[2][0]["callback_data"], f"edit:{pending.id}")
         # No card written yet — only after Create is tapped.
         self.assertEqual(Card.objects.count(), 0)
 
@@ -1362,7 +1366,7 @@ class TelegramWizardFlowTests(APITestCase):
         self.assertIn("Meaning: house", kwargs["json"]["text"])
         buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
         self.assertEqual(buttons[0][0]["callback_data"], f"create:{self.pending.id}")
-        self.assertEqual(buttons[1][0]["callback_data"], f"edit:{self.pending.id}")
+        self.assertEqual(buttons[2][0]["callback_data"], f"edit:{self.pending.id}")
 
     @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
     def test_create_button_finalizes_and_saves_exactly_one_card(self, mock_post):
@@ -1836,6 +1840,74 @@ class TelegramProposalImageTests(APITestCase):
         callback_data = [b["callback_data"] for row in buttons for b in row]
         self.assertIn("menu:lookup", callback_data)
 
+    @patch("apps.notifications.management.commands.poll_telegram_updates.attach_thumbnail_from_url")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_no_image_creates_card_without_attaching_even_when_an_image_was_found(
+        self, mock_post, mock_attach
+    ):
+        # An image was already found and would normally be attached by
+        # create: — no_image: must ignore it entirely, not just skip an
+        # empty image_url.
+        self.pending.image_url = "https://images.example/apple.jpg"
+        self.pending.awaiting_field = ""
+        self.pending.save(update_fields=["image_url", "awaiting_field"])
+
+        process_telegram_update(self._callback(f"no_image:{self.pending.id}"), "https://api.telegram.org/botX")
+
+        card = Card.objects.get(front="Haus", deck__user=self.user)
+        self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
+        mock_attach.assert_not_called()
+        self.assertEqual(mock_post.call_count, 2)  # answerCallbackQuery + sendMessage
+        args, kwargs = mock_post.call_args
+        self.assertIn("sendMessage", args[0])
+        self.assertIn('Added "Haus"', kwargs["json"]["text"])
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_no_image_double_tap_only_saves_one_card(self, mock_post):
+        self.pending.awaiting_field = ""
+        self.pending.save(update_fields=["awaiting_field"])
+
+        process_telegram_update(self._callback(f"no_image:{self.pending.id}"), "https://api.telegram.org/botX")
+        process_telegram_update(self._callback(f"no_image:{self.pending.id}"), "https://api.telegram.org/botX")
+
+        # Inherited from _finalize's own claim-by-delete — no_image: adds no
+        # claim of its own, so this only passes if that reuse is genuine.
+        self.assertEqual(Card.objects.count(), 1)
+        self.assertFalse(PendingTelegramCard.objects.filter(id=self.pending.id).exists())
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_create_and_no_image_race_only_saves_one_card(self, mock_post):
+        # Whichever of the two taps wins the claim, exactly one card must
+        # exist — proving the two buttons don't each carry their own claim.
+        self.pending.awaiting_field = ""
+        self.pending.save(update_fields=["awaiting_field"])
+
+        process_telegram_update(self._callback(f"create:{self.pending.id}"), "https://api.telegram.org/botX")
+        process_telegram_update(self._callback(f"no_image:{self.pending.id}"), "https://api.telegram.org/botX")
+
+        self.assertEqual(Card.objects.count(), 1)
+
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_no_image_unknown_pending_id_is_noop(self, mock_post):
+        process_telegram_update(self._callback("no_image:999999"), "https://api.telegram.org/botX")
+
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs["json"]["text"], "This card was already added.")
+        self.assertTrue(kwargs["json"]["show_alert"])
+
+    def test_proposal_keyboard_has_five_buttons_in_three_grouped_rows(self):
+        keyboard = _proposal_keyboard(42)["inline_keyboard"]
+        self.assertEqual(
+            [[b["callback_data"] for b in row] for row in keyboard],
+            [
+                ["create:42", "no_image:42"],
+                ["regenerate:42", "regenerate_image:42"],
+                ["edit:42"],
+            ],
+        )
+
 
 class TelegramSentenceInputTests(APITestCase):
     """/sentence <text> skips the translation/pronunciation picker entirely
@@ -2037,7 +2109,7 @@ class TelegramRegenerateTests(APITestCase):
         self.assertIn("sendMessage", args[0])
         self.assertIn("Meaning: home", kwargs["json"]["text"])
         buttons = kwargs["json"]["reply_markup"]["inline_keyboard"]
-        self.assertEqual(buttons[2][0]["callback_data"], f"regenerate:{self.pending.id}")
+        self.assertEqual(buttons[1][0]["callback_data"], f"regenerate:{self.pending.id}")
 
     @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
     @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
@@ -2114,6 +2186,142 @@ class TelegramRegenerateTests(APITestCase):
         mock_enrich.assert_not_called()
         self.pending.refresh_from_db()
         self.assertEqual(self.pending.back, "house")
+
+
+class TelegramRegenerateImageTests(APITestCase):
+    """Regenerate Image only re-searches the picture — front/back/reading/
+    example are never touched, unlike regenerate: (see TelegramRegenerateTests
+    above). Edits the same proposal message instead of sending a new one."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        self.link = TelegramLink.objects.create(
+            user=self.user, chat_id=777, default_language="de", default_back_language="English",
+        )
+        self.pending = PendingTelegramCard.objects.create(
+            user=self.user, language="de", front="Haus", back="house", reading="haʊs",
+            article="das", plural="die Häuser", example="Das ist mein Haus.",
+            awaiting_field="",
+        )
+
+    def _callback(self, data, chat_id=777, message_id=555):
+        return {
+            "update_id": 1,
+            "callback_query": {
+                "id": "cb1", "data": data, "message": {"chat": {"id": chat_id}, "message_id": message_id},
+            },
+        }
+
+    @override_settings(CARD_IMAGE_SEARCH_ENABLED=True)
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.enrich_card")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_dispatches_search_against_the_same_message_with_unchanged_content(
+        self, mock_post, mock_enrich, mock_delay
+    ):
+        process_telegram_update(
+            self._callback(f"regenerate_image:{self.pending.id}"), "https://api.telegram.org/botX"
+        )
+
+        mock_enrich.assert_not_called()  # text is never touched, unlike regenerate:
+        mock_delay.assert_called_once_with(
+            self.pending.id, 777, 555, "Haus", "house", "de", "vocab", "haʊs", "Das ist mein Haus.",
+        )
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.back, "house")  # unchanged
+        self.assertEqual(self.pending.image_url, "")  # reset, ready to be re-claimed
+
+    @override_settings(CARD_IMAGE_SEARCH_ENABLED=True)
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.consume_ai_quota")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_consumes_no_ai_quota(self, mock_post, mock_quota, mock_delay):
+        # Matches _send_proposal's own dispatch — the background image search
+        # has never been quota-gated, only the word/sentence lookup is.
+        process_telegram_update(
+            self._callback(f"regenerate_image:{self.pending.id}"), "https://api.telegram.org/botX"
+        )
+        mock_quota.assert_not_called()
+
+    @override_settings(CARD_IMAGE_SEARCH_ENABLED=True)
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_resets_a_previously_found_image_before_redispatching(self, mock_post, mock_delay):
+        self.pending.image_url = "https://images.example/old.jpg"
+        self.pending.save(update_fields=["image_url"])
+
+        process_telegram_update(
+            self._callback(f"regenerate_image:{self.pending.id}"), "https://api.telegram.org/botX"
+        )
+
+        mock_delay.assert_called_once()
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, "")
+
+    @override_settings(CARD_IMAGE_SEARCH_ENABLED=True)
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_noops_while_a_search_is_already_in_flight(self, mock_post, mock_delay):
+        # Regression test for the race this guard exists to close: a search
+        # already claimed for this row (the sentinel find_and_attach_
+        # proposal_image writes while running) must not be stomped back to ""
+        # and redispatched — see _regenerate_image's docstring.
+        from apps.notifications.tasks import _IMAGE_SEARCH_CLAIMED
+
+        self.pending.image_url = _IMAGE_SEARCH_CLAIMED
+        self.pending.save(update_fields=["image_url"])
+
+        process_telegram_update(
+            self._callback(f"regenerate_image:{self.pending.id}"), "https://api.telegram.org/botX"
+        )
+
+        mock_delay.assert_not_called()
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.image_url, _IMAGE_SEARCH_CLAIMED)  # untouched, not reset
+
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_shows_a_clear_message_when_image_search_is_disabled(self, mock_post, mock_delay):
+        # CARD_IMAGE_SEARCH_ENABLED defaults to False — no override here.
+        process_telegram_update(
+            self._callback(f"regenerate_image:{self.pending.id}"), "https://api.telegram.org/botX"
+        )
+
+        mock_delay.assert_not_called()
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertIn("answerCallbackQuery", args[0])
+        self.assertIn("unavailable", kwargs["json"]["text"])
+        self.assertTrue(kwargs["json"]["show_alert"])
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.awaiting_field, "")  # row untouched
+
+    @override_settings(CARD_IMAGE_SEARCH_ENABLED=True)
+    @patch("apps.notifications.management.commands.poll_telegram_updates._FIRE_AND_FORGET", new=_SyncExecutor())
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_unknown_pending_id_is_noop(self, mock_post):
+        process_telegram_update(self._callback("regenerate_image:999999"), "https://api.telegram.org/botX")
+
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs["json"]["text"], "This action is no longer available.")
+        self.assertTrue(kwargs["json"]["show_alert"])
+
+    @override_settings(CARD_IMAGE_SEARCH_ENABLED=True)
+    @patch("apps.notifications.tasks.find_and_attach_proposal_image.delay")
+    @patch("apps.notifications.management.commands.poll_telegram_updates.requests.post")
+    def test_noop_while_wizard_still_in_progress(self, mock_post, mock_delay):
+        self.pending.awaiting_field = "reading"
+        self.pending.save(update_fields=["awaiting_field"])
+
+        process_telegram_update(
+            self._callback(f"regenerate_image:{self.pending.id}"), "https://api.telegram.org/botX"
+        )
+
+        mock_delay.assert_not_called()
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.awaiting_field, "reading")
 
 
 class TelegramMainMenuCallbackTests(APITestCase):
