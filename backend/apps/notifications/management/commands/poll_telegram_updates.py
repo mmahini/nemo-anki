@@ -403,9 +403,17 @@ def _proposal_caption(pending: PendingTelegramCard) -> str:
 def _proposal_keyboard(pending_id: int) -> dict:
     return {
         "inline_keyboard": [
-            [{"text": "✅ Create", "callback_data": f"create:{pending_id}"}],
-            [{"text": "✏️ Edit", "callback_data": f"edit:{pending_id}"}],
-            [{"text": "🔄 Regenerate", "callback_data": f"regenerate:{pending_id}"}],
+            [
+                {"text": "✅ Create Card", "callback_data": f"create:{pending_id}"},
+                {"text": "🚫 Create without image", "callback_data": f"no_image:{pending_id}"},
+            ],
+            [
+                {"text": "🔄 Regenerate", "callback_data": f"regenerate:{pending_id}"},
+                {"text": "🖼️ Regenerate Image", "callback_data": f"regenerate_image:{pending_id}"},
+            ],
+            [
+                {"text": "✏️ Edit", "callback_data": f"edit:{pending_id}"},
+            ],
         ]
     }
 
@@ -525,6 +533,38 @@ def _regenerate(link: TelegramLink, api: str, chat_id, pending: PendingTelegramC
     pending.example = result.get("example", "")
     pending.save(update_fields=["back", "reading", "article", "plural", "example"])
     _send_proposal(api, chat_id, pending)
+
+
+def _regenerate_image(api: str, chat_id, message_id, pending: PendingTelegramCard) -> None:
+    """Re-searches for an image only — front/back/reading/example are never
+    touched, unlike _regenerate. Edits the *same* proposal message instead of
+    sending a new one, mirroring _send_proposal's image dispatch but keyed off
+    the message this callback was tapped on. Callers must already have
+    checked settings.CARD_IMAGE_SEARCH_ENABLED.
+
+    Resets image_url back to "" first so find_and_attach_proposal_image's own
+    claim (keyed on image_url=="" plus an exact content match) can be won
+    again — but only if nothing is already claimed for this row. Without that
+    guard, tapping this while the original automatic search from
+    _send_proposal is still mid-flight would stomp its claim sentinel back to
+    "" (that search doesn't recheck its claim before writing its result, only
+    that front/back/card_type/reading/example still match — all of which this
+    function leaves untouched), letting a second, redundant Gemini/Openverse
+    search run concurrently with the first. Excluding the sentinel from the
+    reset means: if a search is already in flight, this no-ops without
+    dispatching anything; otherwise the reset succeeds and a fresh dispatch is
+    correct."""
+    from apps.notifications.tasks import _IMAGE_SEARCH_CLAIMED, find_and_attach_proposal_image
+
+    claimed_reset = PendingTelegramCard.objects.filter(id=pending.id).exclude(
+        image_url=_IMAGE_SEARCH_CLAIMED
+    ).update(image_url="")
+    if not claimed_reset:
+        return
+    find_and_attach_proposal_image.delay(
+        pending.id, chat_id, message_id, pending.front, pending.back, pending.language, pending.card_type,
+        pending.reading, pending.example,
+    )
 
 
 def _stash_pending_lookup(link: TelegramLink, api: str, chat_id, text: str, card_type: str) -> None:
@@ -768,7 +808,9 @@ def _handle_reply(pending: PendingTelegramCard, api: str, chat_id, text: str) ->
 def _handle_callback_query(update: dict, api: str) -> None:
     callback = update["callback_query"]
     data = callback.get("data") or ""
-    chat_id = (callback.get("message") or {}).get("chat", {}).get("id")
+    message = callback.get("message") or {}
+    chat_id = message.get("chat", {}).get("id")
+    message_id = message.get("message_id")
     callback_id = callback["id"]
 
     # Each callback query is answered exactly once. Telegram only reliably
@@ -900,6 +942,14 @@ def _handle_callback_query(update: dict, api: str) -> None:
         _finalize(api, chat_id, pending)
         return
 
+    if data.startswith("no_image:"):
+        pending = _pending("no_image:", stale_text="This card was already added.")
+        if not pending:
+            return
+        pending.image_url = ""  # in-memory only — _finalize reads this, never re-queries
+        _finalize(api, chat_id, pending)
+        return
+
     if data.startswith("edit:"):
         pending = _pending("edit:")
         if not pending:
@@ -916,6 +966,23 @@ def _handle_callback_query(update: dict, api: str) -> None:
         if not pending or pending.awaiting_field:
             return
         _regenerate(link, api, chat_id, pending)
+        return
+
+    if data.startswith("regenerate_image:"):
+        if not settings.CARD_IMAGE_SEARCH_ENABLED:
+            # Checked before touching the DB — same "can't do this right now"
+            # alert style _pending already uses for a stale button, rather
+            # than a silent no-op that looks like a dead tap.
+            _answer_once(
+                "Image search is currently unavailable — you can still create the card without one.",
+                show_alert=True,
+            )
+            return
+        pending = _pending("regenerate_image:")
+        # Same guard as regenerate: — only valid from a finished proposal.
+        if not pending or pending.awaiting_field:
+            return
+        _regenerate_image(api, chat_id, message_id, pending)
         return
 
     if data.startswith("cancel:"):
