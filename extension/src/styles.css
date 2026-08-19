@@ -1,0 +1,108 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+}
+
+body {
+  margin: 0;
+  min-width: 300px;
+}
+
+main.popup,
+main.proposal {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+h1 {
+  font-size: 16px;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.muted {
+  opacity: 0.65;
+  font-size: 13px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid #999;
+  border-radius: 6px;
+  resize: vertical;
+  background: Field;
+  color: FieldText;
+  box-sizing: border-box;
+}
+
+button {
+  font: inherit;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: #e5e7eb;
+  color: #111;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.toggle button {
+  flex: 1;
+  background: #e5e7eb;
+  color: #111;
+}
+
+.toggle button.active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.error {
+  color: #dc2626;
+  font-size: 13px;
+}

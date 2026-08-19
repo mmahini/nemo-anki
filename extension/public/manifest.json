@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Nemo Anki — Quick Card Capture",
+  "version": "0.1.0",
+  "description": "Select text on any page and turn it into a Nemo Anki flashcard.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Nemo Anki"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["contextMenus", "storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "http://localhost:8004/*",
+    "https://nemo-anki-backend.onrender.com/*"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "capture-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Add selected text to Nemo Anki"
+    }
+  }
+}
