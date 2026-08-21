@@ -10,6 +10,12 @@ export type AuthUser = {
 
 export type StoredAuth = AuthTokens & { user: AuthUser };
 
+/** An in-progress OTP login — kept in chrome.storage.session (not .local,
+ * since it's only useful for the current browser session) so the popup
+ * reopening mid-flow (Chrome unloads it on every outside click) lands back
+ * on the code screen instead of losing the email and starting over. */
+export type PendingOtp = { email: string; otpId: string; devCode?: string };
+
 /** What the card teaches — mirrors the backend's CardType (apps/cards/models.py). */
 export type CardType =
   | "vocab"
