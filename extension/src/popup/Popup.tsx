@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ApiError, requestOtp, signOut, verifyOtp } from "../lib/api";
-import { loadStoredAuth } from "../lib/auth";
+import { ApiError, AuthRequiredError, fetchMe, requestOtp, signOut, verifyOtp } from "../lib/api";
+import { clearPendingOtp, loadPendingOtp, loadStoredAuth, savePendingOtp } from "../lib/auth";
 import type { AuthUser } from "../lib/types";
 
 type Step = "loading" | "email" | "code" | "signed-in";
@@ -19,11 +19,40 @@ export function Popup() {
     void (async () => {
       const stored = await loadStoredAuth();
       if (stored) {
-        setUser(stored.user);
-        setStep("signed-in");
-      } else {
-        setStep("email");
+        // Validate rather than trust the cached blob outright — request()
+        // already retries once via the refresh token on a 401, so this
+        // either confirms the session or tells us the refresh token is
+        // actually dead (AuthRequiredError), not just that one call failed.
+        try {
+          const fresh = await fetchMe();
+          setUser(fresh);
+          setStep("signed-in");
+        } catch (err) {
+          if (err instanceof AuthRequiredError) {
+            setStep("email");
+          } else {
+            // Network/server hiccup — don't sign a user out over a
+            // transient failure, just trust the cached profile for now.
+            setUser(stored.user);
+            setStep("signed-in");
+          }
+        }
+        return;
       }
+
+      // Not signed in — resume an in-progress OTP login if the popup was
+      // closed and reopened mid-flow (Chrome unloads it on every outside
+      // click) instead of asking for the email again.
+      const pending = await loadPendingOtp();
+      if (pending) {
+        setEmail(pending.email);
+        setOtpId(pending.otpId);
+        setDevCode(pending.devCode ?? "");
+        setStep("code");
+        return;
+      }
+
+      setStep("email");
     })();
   }, []);
 
@@ -32,9 +61,11 @@ export function Popup() {
     setError("");
     setBusy(true);
     try {
-      const res = await requestOtp(email.trim());
+      const trimmedEmail = email.trim();
+      const res = await requestOtp(trimmedEmail);
       setOtpId(res.otp_id);
       setDevCode(res.dev_code ?? "");
+      await savePendingOtp({ email: trimmedEmail, otpId: res.otp_id, devCode: res.dev_code });
       setStep("code");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't send the code — try again.");
@@ -49,6 +80,7 @@ export function Popup() {
     setBusy(true);
     try {
       const signedInUser = await verifyOtp(otpId, code.trim());
+      await clearPendingOtp();
       setUser(signedInUser);
       setStep("signed-in");
     } catch (err) {

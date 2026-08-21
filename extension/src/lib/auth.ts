@@ -1,4 +1,4 @@
-import type { AuthTokens, StoredAuth } from "./types";
+import type { AuthTokens, PendingOtp, StoredAuth } from "./types";
 
 // Mirrors the web app's localStorage key/shape (frontend/src/auth/AuthContext.tsx)
 // so the two clients are easy to reason about together, even though tokens are
@@ -23,4 +23,19 @@ export async function updateStoredTokens(tokens: AuthTokens): Promise<void> {
   const stored = await loadStoredAuth();
   if (!stored) return;
   await saveStoredAuth({ ...stored, ...tokens });
+}
+
+const PENDING_OTP_KEY = "nemo-anki.pending-otp";
+
+export async function loadPendingOtp(): Promise<PendingOtp | null> {
+  const result = await chrome.storage.session.get(PENDING_OTP_KEY);
+  return (result[PENDING_OTP_KEY] as PendingOtp | undefined) ?? null;
+}
+
+export async function savePendingOtp(pending: PendingOtp): Promise<void> {
+  await chrome.storage.session.set({ [PENDING_OTP_KEY]: pending });
+}
+
+export async function clearPendingOtp(): Promise<void> {
+  await chrome.storage.session.remove(PENDING_OTP_KEY);
 }
