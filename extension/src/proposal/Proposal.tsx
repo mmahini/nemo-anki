@@ -1,9 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import { ApiError, AuthRequiredError, createCard, enrichCard, fetchDecks, fetchMe } from "../lib/api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ApiError,
+  AuthRequiredError,
+  createCard,
+  enrichCard,
+  enrichVoice,
+  fetchDecks,
+  fetchMe,
+} from "../lib/api";
 import type { Article, CardType, Deck } from "../lib/types";
 
 type Category = "word" | "sentence";
-type Status = "loading" | "ready" | "signed-out" | "no-decks" | "error";
+type Mode = "text" | "voice";
+type Status = "loading" | "record" | "transcribing" | "ready" | "signed-out" | "no-decks" | "error";
 
 // EnrichRequestSerializer caps `front` at 500 chars server-side (backend/apps/
 // imports/views.py) — truncate up front so a long selection can't 400.
@@ -22,7 +31,12 @@ function getCaptureId(): string | null {
   return new URLSearchParams(window.location.search).get("capture");
 }
 
+function getMode(): Mode {
+  return new URLSearchParams(window.location.search).get("mode") === "voice" ? "voice" : "text";
+}
+
 export function Proposal() {
+  const [mode] = useState<Mode>(getMode);
   const [status, setStatus] = useState<Status>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [language, setLanguage] = useState<"de" | "en" | "">("");
@@ -38,35 +52,43 @@ export function Proposal() {
   const [deckId, setDeckId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     void init();
-    // Runs once on mount to resolve the capture id from the URL — intentionally
-    // not re-run on any state change.
+    // Runs once on mount to resolve the capture id/mode from the URL —
+    // intentionally not re-run on any state change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function init() {
-    const captureId = getCaptureId();
-    if (!captureId) {
-      setStatus("error");
-      setErrorMessage("Nothing was captured — select some text and try again.");
-      return;
-    }
-    const key = `capture:${captureId}`;
-    const stored = await chrome.storage.session.get(key);
-    const capture = stored[key] as { text: string } | undefined;
-    if (!capture?.text) {
-      setStatus("error");
-      setErrorMessage("This capture expired — select the text again.");
-      return;
-    }
-    void chrome.storage.session.remove(key);
+    let text = "";
+    let guessedCategory: Category = "word";
 
-    const text = capture.text.slice(0, MAX_FRONT_LENGTH);
-    setFront(text);
-    const guessedCategory = guessCategory(text);
-    setCategory(guessedCategory);
+    if (mode === "text") {
+      const captureId = getCaptureId();
+      if (!captureId) {
+        setStatus("error");
+        setErrorMessage("Nothing was captured — select some text and try again.");
+        return;
+      }
+      const key = `capture:${captureId}`;
+      const stored = await chrome.storage.session.get(key);
+      const capture = stored[key] as { text: string } | undefined;
+      if (!capture?.text) {
+        setStatus("error");
+        setErrorMessage("This capture expired — select the text again.");
+        return;
+      }
+      void chrome.storage.session.remove(key);
+
+      text = capture.text.slice(0, MAX_FRONT_LENGTH);
+      setFront(text);
+      guessedCategory = guessCategory(text);
+      setCategory(guessedCategory);
+    }
 
     try {
       const [me, deckList] = await Promise.all([fetchMe(), fetchDecks()]);
@@ -84,6 +106,12 @@ export function Proposal() {
       const lastDeckId = lastDeckStored[lastDeckKey] as number | undefined;
       const defaultDeck = deckList.find((d) => d.id === lastDeckId) ?? deckList[0];
       setDeckId(defaultDeck.id);
+
+      if (mode === "voice") {
+        // No text yet — wait for a recording instead of enriching immediately.
+        setStatus("record");
+        return;
+      }
 
       const result = await enrichCard({
         front: text,
@@ -111,6 +139,79 @@ export function Proposal() {
       setErrorMessage(
         err instanceof ApiError ? err.message : "Couldn't reach Nemo Anki — check your connection.",
       );
+    }
+  }
+
+  async function handleStartRecording() {
+    setErrorMessage("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        void handleRecordingStopped();
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch {
+      setErrorMessage("Microphone access was denied — allow it and try again.");
+    }
+  }
+
+  function handleStopRecording() {
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+  }
+
+  async function handleRecordingStopped() {
+    const mimeType = mediaRecorderRef.current?.mimeType || "audio/webm";
+    const blob = new Blob(chunksRef.current, { type: mimeType });
+    chunksRef.current = [];
+    if (blob.size === 0) {
+      setErrorMessage("Didn't catch any audio — try recording again.");
+      return;
+    }
+
+    setStatus("transcribing");
+    try {
+      const result = await enrichVoice({
+        audio: blob,
+        language,
+        card_type: "vocab",
+        back_language: "English",
+      });
+      if (!result.front) {
+        setErrorMessage("Couldn't make out what you said — try recording again.");
+        setStatus("record");
+        return;
+      }
+      setFront(result.front);
+      setBack(result.back);
+      setReading(result.reading);
+      setExample(result.example);
+      setArticle(result.article);
+      setPlural(result.plural);
+      if (result.card_type === "sentence") {
+        setCategory("sentence");
+      } else if (result.card_type) {
+        setCategory("word");
+        setWordCardType(result.card_type);
+      }
+      setStatus("ready");
+    } catch (err) {
+      if (err instanceof AuthRequiredError) {
+        setStatus("signed-out");
+        return;
+      }
+      setErrorMessage(
+        err instanceof ApiError ? err.message : "Couldn't reach Nemo Anki — check your connection.",
+      );
+      setStatus("record");
     }
   }
 
@@ -153,6 +254,40 @@ export function Proposal() {
     return (
       <main className="proposal">
         <p className="muted">Getting a proposal from Nemo Anki…</p>
+      </main>
+    );
+  }
+
+  if (status === "record") {
+    return (
+      <main className="proposal">
+        <h1>Add to Nemo Anki</h1>
+        <p className="muted">
+          {recording ? "Recording… speak a word or sentence." : "Tap record, then speak a word or sentence."}
+        </p>
+        {errorMessage && <p className="error">{errorMessage}</p>}
+        <div className="actions">
+          <button type="button" className="secondary" onClick={() => window.close()}>
+            Cancel
+          </button>
+          {recording ? (
+            <button type="button" onClick={handleStopRecording}>
+              ⏹ Stop
+            </button>
+          ) : (
+            <button type="button" onClick={() => void handleStartRecording()}>
+              🎤 Record
+            </button>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  if (status === "transcribing") {
+    return (
+      <main className="proposal">
+        <p className="muted">🎤 Listening to what you said…</p>
       </main>
     );
   }
@@ -207,6 +342,7 @@ export function Proposal() {
   return (
     <main className="proposal">
       <h1>Add to Nemo Anki</h1>
+      {mode === "voice" && front && <p className="muted">🎤 I heard: "{front}"</p>}
 
       <div className="toggle">
         <button

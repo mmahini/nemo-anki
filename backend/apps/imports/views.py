@@ -23,6 +23,7 @@ from .gemini import (
     conversation_text,
     enrich_card,
     parse_text,
+    transcribe_audio,
     writing_check,
     writing_prompt,
     writing_topic,
@@ -91,6 +92,68 @@ class EnrichView(AiQuotaMixin, APIView):
             serializer.validated_data["back_language"],
         )
         return Response(result, status=status.HTTP_200_OK)
+
+
+MAX_VOICE_BYTES = 10 * 1024 * 1024  # matches the Telegram bot's _VOICE_MAX_BYTES
+
+
+class EnrichVoiceView(AiQuotaMixin, APIView):
+    """Voice variant of EnrichView: transcribe an uploaded recording, then run
+    the same enrichment as a typed/selected term — one HTTP request, one AI
+    quota unit, even though transcription and enrichment are two separate
+    Gemini calls under the hood (AiQuotaMixin.initial() only fires once per
+    request). Mirrors the Telegram bot's voice flow (apps.notifications
+    .management.commands.poll_telegram_updates._handle_voice_message), which
+    is tested to charge quota exactly once the same way — see
+    apps.imports.tests.EnrichVoiceViewTests."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        upload = request.FILES.get("audio")
+        if not upload:
+            return Response({"detail": "Attach an audio recording."}, status=status.HTTP_400_BAD_REQUEST)
+        if upload.size and upload.size > MAX_VOICE_BYTES:
+            return Response(
+                {"detail": "That recording is too large (10 MB max)."},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        language = (request.data.get("language") or "").strip()
+        card_type = request.data.get("card_type") or "vocab"
+        if card_type not in ALLOWED_TYPES:
+            card_type = "vocab"
+        back_language = (request.data.get("back_language") or "English").strip()
+
+        transcribed = transcribe_audio(
+            upload.read(), mime_type=upload.content_type or "audio/webm", language=language
+        )
+        text = transcribed.get("text", "")
+        if not text:
+            # Nothing understood — a graceful empty proposal, not an error,
+            # matching EnrichView's own "empty content is not a failure" shape.
+            return Response(
+                {
+                    "front": "", "card_type": card_type, "back": "", "reading": "",
+                    "article": "none", "plural": "", "example": "",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        kind = "sentence" if transcribed.get("kind") == "sentence" else card_type
+        result = enrich_card(text, language, kind, back_language)
+        return Response(
+            {
+                "front": text,
+                "card_type": result.get("card_type", kind),
+                "back": result.get("back", ""),
+                "reading": result.get("reading", ""),
+                "article": result.get("article", "none"),
+                "plural": result.get("plural", ""),
+                "example": result.get("example", ""),
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class ConjugateView(AiQuotaMixin, APIView):
