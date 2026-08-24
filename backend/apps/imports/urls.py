@@ -6,6 +6,7 @@ from .views import (
     ConjugateView,
     ConversationMessageView,
     ConversationTextView,
+    EnrichVoiceView,
     EnrichView,
     ImportParseView,
     WritingBooksView,
@@ -18,6 +19,7 @@ from .views import (
 urlpatterns = [
     path("import/parse/", ImportParseView.as_view(), name="import-parse"),
     path("import/enrich/", EnrichView.as_view(), name="import-enrich"),
+    path("import/enrich-voice/", EnrichVoiceView.as_view(), name="import-enrich-voice"),
     path("import/conjugate/", ConjugateView.as_view(), name="import-conjugate"),
     path("import/analyze-de/", AnalyzeGermanView.as_view(), name="import-analyze-de"),
     path("import/anki/", AnkiImportView.as_view(), name="import-anki"),

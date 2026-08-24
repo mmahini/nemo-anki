@@ -52,6 +52,18 @@ export type EnrichResult = {
   example: string;
 };
 
+export type EnrichVoicePayload = {
+  audio: Blob;
+  language?: "de" | "en" | "";
+  card_type?: CardType;
+  back_language?: string;
+};
+
+/** Response shape from POST /api/import/enrich-voice/ — EnrichResult plus the
+ * transcript itself, since (unlike text capture) the proposal window doesn't
+ * already know what "front" is before this call returns. */
+export type EnrichVoiceResult = EnrichResult & { front: string };
+
 export type CreateCardPayload = {
   deck: number;
   card_type: CardType;

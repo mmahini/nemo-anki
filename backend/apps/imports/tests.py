@@ -1,9 +1,19 @@
 import base64
 from unittest.mock import Mock, patch
 
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.urls import reverse
+from django.utils import timezone
+from rest_framework.test import APITestCase
+
+from apps.subscriptions.models import AiUsage
+from apps.subscriptions.plans import TRIAL_DAILY_AI_LIMIT
 
 from .gemini import _clean_conjugations, enrich_card, extract_text_from_image, transcribe_audio
+
+User = get_user_model()
 
 
 def _gemini_response(text):
@@ -63,6 +73,140 @@ class TranscribeAudioTests(TestCase):
         mock_post.return_value = _gemini_response("not json at all")
 
         self.assertEqual(transcribe_audio(b"audio"), {"text": "", "kind": "word"})
+
+
+class EnrichVoiceViewTests(APITestCase):
+    """POST /api/import/enrich-voice/ — transcribe an uploaded recording, then
+    enrich it through the same pipeline as typed/selected text. Mirrors the
+    Telegram bot's voice flow (apps.notifications.management.commands
+    .poll_telegram_updates._handle_voice_message) over HTTP instead of
+    Telegram's own transport — see that module's tests, especially
+    test_voice_consumes_quota_exactly_once, for the precedent this preserves."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        self.client.force_authenticate(self.user)
+        self.url = reverse("import-enrich-voice")
+
+    def _audio(self, size=10, content_type="audio/webm"):
+        return SimpleUploadedFile("voice.webm", b"x" * size, content_type=content_type)
+
+    def test_requires_authentication(self):
+        self.client.force_authenticate(None)
+        res = self.client.post(self.url, {"audio": self._audio()}, format="multipart")
+        self.assertEqual(res.status_code, 401)
+
+    @patch("apps.imports.views.transcribe_audio")
+    def test_oversized_audio_is_rejected(self, mock_transcribe):
+        oversized = SimpleUploadedFile(
+            "voice.webm", b"x" * (10 * 1024 * 1024 + 1), content_type="audio/webm"
+        )
+        res = self.client.post(self.url, {"audio": oversized}, format="multipart")
+        self.assertEqual(res.status_code, 413)
+        mock_transcribe.assert_not_called()
+
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.transcribe_audio")
+    def test_empty_transcription_returns_empty_proposal(self, mock_transcribe, mock_enrich):
+        mock_transcribe.return_value = {"text": "", "kind": "word"}
+
+        res = self.client.post(self.url, {"audio": self._audio(), "language": "de"}, format="multipart")
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(
+            res.data,
+            {
+                "front": "", "card_type": "vocab", "back": "", "reading": "",
+                "article": "none", "plural": "", "example": "",
+            },
+        )
+        mock_enrich.assert_not_called()
+
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.transcribe_audio")
+    def test_successful_transcription_flows_into_enrichment(self, mock_transcribe, mock_enrich):
+        mock_transcribe.return_value = {"text": "Haus", "kind": "word"}
+        mock_enrich.return_value = {
+            "card_type": "vocab", "back": "house", "reading": "haus",
+            "article": "das", "plural": "Häuser", "example": "Das ist mein Haus.",
+        }
+
+        res = self.client.post(
+            self.url,
+            {"audio": self._audio(), "language": "de", "back_language": "English"},
+            format="multipart",
+        )
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(
+            res.data,
+            {
+                "front": "Haus", "card_type": "vocab", "back": "house", "reading": "haus",
+                "article": "das", "plural": "Häuser", "example": "Das ist mein Haus.",
+            },
+        )
+
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.transcribe_audio")
+    def test_transcribe_audio_receives_the_uploaded_bytes(self, mock_transcribe, mock_enrich):
+        mock_transcribe.return_value = {"text": "Haus", "kind": "word"}
+        mock_enrich.return_value = {
+            "card_type": "vocab", "back": "house", "reading": "", "article": "none",
+            "plural": "", "example": "",
+        }
+        # Django's multipart parser strips MIME parameters from
+        # UploadedFile.content_type, so a browser-recorded
+        # "audio/webm;codecs=opus" blob arrives server-side as bare
+        # "audio/webm" — assert what the view actually receives and forwards.
+        audio = SimpleUploadedFile("voice.webm", b"real-bytes", content_type="audio/webm")
+
+        self.client.post(self.url, {"audio": audio, "language": "de"}, format="multipart")
+
+        mock_transcribe.assert_called_once_with(b"real-bytes", mime_type="audio/webm", language="de")
+
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.transcribe_audio")
+    def test_enrich_card_receives_the_transcript(self, mock_transcribe, mock_enrich):
+        mock_transcribe.return_value = {"text": "Ich gehe ins Kino.", "kind": "sentence"}
+        mock_enrich.return_value = {
+            "card_type": "sentence", "back": "I am going to the cinema.", "reading": "",
+            "article": "none", "plural": "", "example": "",
+        }
+
+        self.client.post(
+            self.url,
+            {"audio": self._audio(), "language": "de", "back_language": "English"},
+            format="multipart",
+        )
+
+        mock_enrich.assert_called_once_with("Ich gehe ins Kino.", "de", "sentence", "English")
+
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.transcribe_audio")
+    def test_quota_consumed_exactly_once(self, mock_transcribe, mock_enrich):
+        # Transcription + enrichment are two Gemini calls but one logical
+        # lookup — mirrors apps.notifications.tests
+        # .test_voice_consumes_quota_exactly_once for the Telegram bot.
+        mock_transcribe.return_value = {"text": "Haus", "kind": "word"}
+        mock_enrich.return_value = {
+            "card_type": "vocab", "back": "house", "reading": "", "article": "none",
+            "plural": "", "example": "",
+        }
+
+        res = self.client.post(self.url, {"audio": self._audio(), "language": "de"}, format="multipart")
+
+        self.assertEqual(res.status_code, 200)
+        usage = AiUsage.objects.get(user=self.user, day=timezone.now().date())
+        self.assertEqual(usage.count, 1)
+
+    @patch("apps.imports.views.transcribe_audio")
+    def test_returns_429_once_quota_exhausted(self, mock_transcribe):
+        AiUsage.objects.create(user=self.user, day=timezone.now().date(), count=TRIAL_DAILY_AI_LIMIT)
+
+        res = self.client.post(self.url, {"audio": self._audio(), "language": "de"}, format="multipart")
+
+        self.assertEqual(res.status_code, 429)
+        mock_transcribe.assert_not_called()
 
 
 @override_settings(GEMINI_API_KEY="test-key")
