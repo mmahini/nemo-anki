@@ -98,6 +98,18 @@ export function Popup() {
     setStep("email");
   }
 
+  function handleStartVoice() {
+    // Same window size background.ts uses for a text capture — the proposal
+    // window handles both "capture=<id>" (text) and "mode=voice" the same way.
+    void chrome.windows.create({
+      url: chrome.runtime.getURL("proposal.html?mode=voice"),
+      type: "popup",
+      width: 420,
+      height: 600,
+    });
+    window.close();
+  }
+
   if (step === "loading") {
     return (
       <main className="popup">
@@ -116,6 +128,9 @@ export function Popup() {
           Anki</strong> (or use the keyboard shortcut — see
           chrome://extensions/shortcuts) to turn it into a flashcard.
         </p>
+        <button type="button" onClick={handleStartVoice}>
+          🎤 Record voice
+        </button>
         <button type="button" className="secondary" onClick={() => void handleSignOut()}>
           Sign out
         </button>

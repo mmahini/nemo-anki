@@ -6,6 +6,8 @@ import type {
   Deck,
   EnrichPayload,
   EnrichResult,
+  EnrichVoicePayload,
+  EnrichVoiceResult,
   StoredAuth,
 } from "./types";
 
@@ -54,7 +56,10 @@ async function request<T>(
   if (needsAuth && !stored) throw new AuthRequiredError();
 
   const buildHeaders = (token: string | null): HeadersInit => ({
-    "Content-Type": "application/json",
+    // A FormData body (voice upload) must NOT get an explicit Content-Type —
+    // the browser sets its own multipart boundary automatically, and an
+    // explicit header here would override that and break the upload.
+    ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(init.headers ?? {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   });
@@ -129,6 +134,22 @@ export function enrichCard(payload: EnrichPayload) {
   return request<EnrichResult>("/api/import/enrich/", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+/** Voice variant: transcribes the recording and enriches it server-side in
+ * one request, so it consumes one AI quota unit — see backend/apps/imports
+ * /views.py's EnrichVoiceView for why this isn't two separate calls. */
+export function enrichVoice(payload: EnrichVoicePayload) {
+  const form = new FormData();
+  const ext = payload.audio.type.split("/")[1]?.split(";")[0] || "webm";
+  form.append("audio", payload.audio, `voice.${ext}`);
+  if (payload.language) form.append("language", payload.language);
+  if (payload.card_type) form.append("card_type", payload.card_type);
+  if (payload.back_language) form.append("back_language", payload.back_language);
+  return request<EnrichVoiceResult>("/api/import/enrich-voice/", {
+    method: "POST",
+    body: form,
   });
 }
 
