@@ -1,9 +1,35 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "redirects": [
-    { "source": "/anki", "destination": "https://anki.nemoapps.xyz", "permanent": false },
-    { "source": "/anki/:path*", "destination": "https://anki.nemoapps.xyz/:path*", "permanent": false },
-    { "source": "/gardening", "destination": "https://gardening.nemoapps.xyz", "permanent": false },
-    { "source": "/gardening/:path*", "destination": "https://gardening.nemoapps.xyz/:path*", "permanent": false }
+    {
+      "source": "/anki",
+      "destination": "https://anki.nemoapps.xyz",
+      "permanent": false
+    },
+    {
+      "source": "/anki/:path*",
+      "destination": "https://anki.nemoapps.xyz/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/gardening",
+      "destination": "https://gardening.nemoapps.xyz",
+      "permanent": false
+    },
+    {
+      "source": "/gardening/:path*",
+      "destination": "https://gardening.nemoapps.xyz/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/map",
+      "destination": "https://map.nemoapps.xyz",
+      "permanent": false
+    },
+    {
+      "source": "/map/:path*",
+      "destination": "https://map.nemoapps.xyz/:path*",
+      "permanent": false
+    }
   ]
 }
