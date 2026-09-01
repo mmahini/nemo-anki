@@ -2,8 +2,10 @@ import { Link, Navigate } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 
-/* Inline SVG illustrations — kept in-file so the landing stays a single
-   self-contained unit that works offline (PWA) with no external assets. */
+/* Small icons stay inline SVG; the scene illustrations live in
+   /public/landing/*.webp (Gemini-generated, see the main nemoapps.xyz
+   landing for the same approach). They're marketing-only, so it's fine
+   that they aren't precached for offline use. */
 
 function IconSpark() {
   return (
@@ -71,38 +73,50 @@ const FEATURES = [
   {
     Icon: IconLayers,
     tone: "der",
+    img: "/landing/feat-cards.webp",
+    alt: "Colour-edged flashcards with a streak heatmap and review clock",
     title: "Real Anki flashcards",
-    body: "The spaced-repetition engine you trust — faithful SM-2 scheduling, Again / Hard / Good / Easy grading, and cards shown exactly when you're about to forget them. Daily streaks and a heatmap keep the habit visible.",
+    body: "Faithful SM-2 scheduling with Again / Hard / Good / Easy grading — cards return exactly when you're about to forget them, and streaks keep the habit visible.",
   },
   {
     Icon: IconSpark,
     tone: "die",
+    img: "/landing/feat-ai.webp",
+    alt: "A coursebook page dissolving into sparkles that become flashcards",
     title: "Turn any chapter into cards",
-    body: "Paste a page from Menschen or Oxford Word Skills and the AI reads it, picks the words, sentences and grammar worth learning, and drafts clean cards for you to review before saving.",
+    body: "Paste a page from Menschen or Oxford Word Skills — the AI picks what's worth learning and drafts clean cards for you to review before saving.",
   },
   {
     Icon: IconWand,
     tone: "das",
+    img: "/landing/feat-fill.webp",
+    alt: "A flashcard being filled in by magic sparkles",
     title: "Cards that fill themselves in",
-    body: "One click adds the translation and IPA reading — plus der/die/das articles, plurals and conjugations for German, or collocations and natural examples for English.",
+    body: "One click adds the translation and IPA — plus der/die/das, plurals and conjugations for German, or collocations and examples for English.",
   },
   {
     Icon: IconBook,
     tone: "der",
+    img: "/landing/feat-books.webp",
+    alt: "An open book with floating inline-translation bubbles",
     title: "Read real books",
-    body: "Upload a PDF, split it into lessons, and study straight from the source in either language — with inline translations into your native language whenever you get stuck.",
+    body: "Upload a PDF, split it into lessons, and study straight from the source — with inline translations whenever you get stuck.",
   },
   {
     Icon: IconPen,
     tone: "die",
+    img: "/landing/feat-write.webp",
+    alt: "A hand writing in a notebook while a friendly spark gives feedback",
     title: "Practise writing",
-    body: "Get an AI reference text to translate, write your own version, and receive feedback — turning passive vocabulary into words you can actually produce.",
+    body: "Translate an AI reference text in your own words and get feedback — turning passive vocabulary into words you can produce.",
   },
   {
     Icon: IconChat,
     tone: "das",
+    img: "/landing/feat-chat.webp",
+    alt: "A learner with headphones chatting with a friendly AI orb",
     title: "Hold a conversation",
-    body: "Chat or speak with an AI partner in German or English, tuned to the vocabulary you're learning, so every exchange reinforces what's in your decks.",
+    body: "Chat or speak with an AI partner in German or English, tuned to the vocabulary in your decks.",
   },
 ] as const;
 
@@ -125,6 +139,7 @@ export default function LandingPage() {
         <div className="landing__navlinks">
           <a href="#features" className="landing__navlink">Features</a>
           <a href="#ai" className="landing__navlink">How it works</a>
+          <a href="#reels" className="landing__navlink">Reels</a>
           <a href="#about" className="landing__navlink">About</a>
           {/* Always go to /app — ProtectedRoute sends guests to sign-in, so a
               signed-in user is never asked to log in again. */}
@@ -178,6 +193,16 @@ export default function LandingPage() {
               <span className="grade grade--easy">Easy</span>
             </div>
           </div>
+
+          <div className="hero__art">
+            <img
+              src="/landing/hero-learn.webp"
+              alt="A learner at a warm desk at night, surrounded by glowing flashcards rising from an open book"
+              width="1344"
+              height="768"
+              fetchPriority="high"
+            />
+          </div>
         </div>
       </section>
 
@@ -193,8 +218,11 @@ export default function LandingPage() {
         </header>
 
         <div className="features__grid">
-          {FEATURES.map(({ Icon, tone, title, body }) => (
+          {FEATURES.map(({ Icon, tone, img, alt, title, body }) => (
             <article className={`feature feature--${tone}`} key={title}>
+              <span className="feature__img">
+                <img src={img} alt={alt} loading="lazy" />
+              </span>
               <span className="feature__icon"><Icon /></span>
               <h3 className="feature__title">{title}</h3>
               <p className="feature__body">{body}</p>
@@ -249,6 +277,35 @@ export default function LandingPage() {
               <span className="gcard__back">able to recover quickly · under pressure</span>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ---------- REELS ---------- */}
+      <section className="reelsfeat" id="reels">
+        <div className="reelsfeat__art">
+          <img
+            src="/landing/feat-reels.webp"
+            alt="A phone playing a full-screen vertical feed of short language-teaching videos, with flashcards flying out of the screen"
+            loading="lazy"
+            width="768"
+            height="1344"
+          />
+        </div>
+        <div className="reelsfeat__copy">
+          <span className="section-kicker">Instagram feeds, made useful</span>
+          <h2>Scroll Reels — and actually learn</h2>
+          <p>
+            A full-screen vertical feed of short videos from the best
+            language-teaching Instagram creators — matched to the languages you
+            learn and explained in a language you already know. Save the good
+            ones, and turn any reel into flashcards with one tap.
+          </p>
+          <ul className="reelsfeat__list">
+            <li>Fresh reels from hand-picked creators, filtered by level</li>
+            <li>The feed you know — swipe, like, save</li>
+            <li>One tap turns a reel's vocabulary into cards in your deck</li>
+          </ul>
+          <Link to="/app" className="btn btn--primary btn--lg">Open the Reels feed</Link>
         </div>
       </section>
 
@@ -392,7 +449,7 @@ export default function LandingPage() {
       </section>
 
       <footer className="landing__footer">
-        German (Menschen) · English (Oxford Word Skills) · faithful SM-2 · works offline (PWA)
+        German (Menschen) · English (Oxford Word Skills) · faithful SM-2 · Reels from Instagram creators · works offline (PWA)
       </footer>
     </main>
   );
