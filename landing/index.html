@@ -3,50 +3,55 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nemo Apps — apps for everyday life, built for social good</title>
+    <title>Mahini &amp; Motamedi — AI &amp; Product Studio</title>
     <meta
       name="description"
-      content="We are developers and AI specialists who turn our own everyday needs into apps — and put social responsibility first, building software for social-impact projects: Bazno, Tahdig, Soroush Mehr, Toloo Global, Nemo Anki, Nemo Gardening, Nemo Map."
+      content="Boutique AI & software studio based in Austria. From first concept to production-ready platforms: deep-tech AI architecture combined with audience-first product strategy. GDPR-compliant, end-to-end execution."
     />
     <link rel="icon" type="image/png" href="assets/favicon.png" />
-    <meta property="og:title" content="Nemo Apps — apps for everyday life, built for social good" />
-    <meta property="og:description" content="A small team of developers and AI specialists. We app-ify our everyday needs and build software for social-responsibility projects." />
+    <meta property="og:title" content="Mahini & Motamedi — AI & Product Studio" />
+    <meta property="og:description" content="You bring the vision. We build the intelligent software. Boutique AI & product studio based in Austria — from strategy to production-ready code." />
     <meta property="og:image" content="https://nemoapps.xyz/assets/og.jpg" />
     <meta property="og:url" content="https://nemoapps.xyz" />
     <meta property="og:type" content="website" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
-      /* ================= Nemo Apps design system =================
-         Logo: the seeker's flask — an alchemist's vessel holding a
-         compass star (exploration + transformation). See DESIGN.md.
-         Palette from the mark: indigo → teal gradient, coral heart. */
+      /* ============ Mahini & Motamedi — studio design system ============
+         Premium B2B one-pager: slate neutrals, high whitespace,
+         indigo/teal accents used sparingly. Fonts are self-hosted
+         (GDPR: no requests to Google servers). */
+      @font-face {
+        font-family: "Plus Jakarta Sans";
+        font-style: normal;
+        font-weight: 200 800;
+        font-display: swap;
+        src: url("assets/fonts/plus-jakarta-sans-latin.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Plus Jakarta Sans";
+        font-style: italic;
+        font-weight: 200 800;
+        font-display: swap;
+        src: url("assets/fonts/plus-jakarta-sans-latin-italic.woff2") format("woff2");
+      }
       :root {
-        /* brand */
-        --brand: #4c6ef5;
-        --brand-dark: #3b5bdb;
-        --teal: #12b886;
-        --teal-dark: #0ca678;
-        --coral: #ff6b52;
-        --coral-dark: #e8563e;
-        --grad-brand: linear-gradient(100deg, var(--brand) 10%, var(--teal) 90%);
-        /* ink */
-        --ink: #1a1f2e;
-        --ink-soft: #4a5168;
-        --ink-faint: #8a90a2;
-        /* surfaces */
-        --bg: #f6f7fb;
+        --slate-950: #0b1220;
+        --slate-900: #0f172a;
+        --slate-800: #1e293b;
+        --ink: #0f172a;
+        --ink-soft: #475569;
+        --ink-faint: #94a3b8;
+        --bg: #f8fafc;
         --surface: #ffffff;
-        --line: #e6e8ef;
-        /* shape & elevation */
-        --radius-s: 13px;
-        --radius: 20px;
-        --radius-l: 28px;
-        --shadow: 0 10px 30px rgba(28, 40, 80, 0.08);
-        --shadow-lift: 0 22px 50px rgba(28, 40, 80, 0.14);
-        /* type */
-        --font: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        --line: #e2e8f0;
+        --indigo: #6366f1;
+        --indigo-deep: #4f46e5;
+        --teal: #14b8a6;
+        --coral: #fb7185;
+        --radius: 16px;
+        --radius-l: 24px;
+        --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 12px 32px rgba(15, 23, 42, 0.06);
+        --shadow-lift: 0 2px 4px rgba(15, 23, 42, 0.06), 0 24px 48px rgba(15, 23, 42, 0.1);
+        --font: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       }
       * { box-sizing: border-box; }
       html { scroll-behavior: smooth; }
@@ -54,475 +59,601 @@
       body {
         font-family: var(--font);
         color: var(--ink);
-        background:
-          radial-gradient(1100px 560px at 85% -8%, rgba(76, 110, 245, 0.14), transparent 60%),
-          radial-gradient(900px 500px at -12% 6%, rgba(18, 184, 134, 0.12), transparent 55%),
-          radial-gradient(700px 420px at 50% 30%, rgba(255, 107, 82, 0.05), transparent 60%),
-          var(--bg);
-        min-height: 100vh;
-        line-height: 1.55;
+        background: var(--bg);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
       }
       a { color: inherit; text-decoration: none; }
       img { max-width: 100%; height: auto; display: block; }
-      .wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 22px; }
+      :focus-visible { outline: 2px solid var(--indigo); outline-offset: 3px; border-radius: 4px; }
+      .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
 
-      /* ---------- header ---------- */
-      header { padding: 22px 0; }
-      header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
-      .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.18rem; letter-spacing: -0.01em; }
-      .brand__logo { width: 40px; height: 40px; object-fit: contain; }
-      .brand__nemo {
-        background: var(--grad-brand);
-        -webkit-background-clip: text; background-clip: text; color: transparent;
+      .kicker {
+        display: inline-flex; align-items: center; gap: 8px;
+        font-weight: 700; font-size: 0.76rem; letter-spacing: 0.12em; text-transform: uppercase;
+        color: var(--indigo-deep);
       }
-      nav { display: flex; gap: 6px; flex-wrap: wrap; }
-      nav a {
-        font-weight: 600; font-size: 0.92rem; color: var(--ink-soft);
-        padding: 7px 14px; border-radius: 999px; transition: background 0.15s ease, color 0.15s ease;
-      }
-      nav a:hover { background: rgba(76, 110, 245, 0.1); color: var(--brand-dark); }
+      .kicker::before { content: ""; width: 22px; height: 2px; background: var(--indigo); border-radius: 2px; }
+      h2 { font-size: clamp(1.7rem, 3.4vw, 2.4rem); line-height: 1.12; letter-spacing: -0.02em; margin: 14px 0 12px; font-weight: 800; }
+      .sub { color: var(--ink-soft); font-size: 1.06rem; max-width: 640px; margin: 0; }
 
-      /* ---------- hero ---------- */
-      .hero { padding: 44px 0 26px; position: relative; }
-      .hero__copy { position: relative; max-width: 760px; margin: 0 auto 40px; text-align: center; }
-      .eyebrow {
-        display: inline-block; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.08em;
-        text-transform: uppercase; color: var(--brand-dark);
-        background: rgba(76, 110, 245, 0.12); padding: 5px 12px; border-radius: 999px;
-      }
-      .eyebrow--coral { color: var(--coral-dark); background: rgba(255, 107, 82, 0.13); }
-      .eyebrow--teal { color: var(--teal-dark); background: rgba(18, 184, 134, 0.13); }
-      h1 { font-size: clamp(2.2rem, 5.6vw, 3.6rem); line-height: 1.08; margin: 18px 0 14px; letter-spacing: -0.02em; }
-      .grad {
-        background: var(--grad-brand);
-        -webkit-background-clip: text; background-clip: text; color: transparent;
-      }
-      .lede { font-size: 1.13rem; color: var(--ink-soft); max-width: 620px; margin: 0 auto 30px; }
-      .cta-row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
       .btn {
-        display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.98rem;
-        padding: 13px 26px; border-radius: 999px; transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        font-weight: 700; font-size: 0.96rem; padding: 13px 26px; border-radius: 10px;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
       }
-      .btn--primary { color: #fff; background: var(--grad-brand); box-shadow: 0 10px 26px rgba(59, 91, 219, 0.32); }
-      .btn--primary:hover { filter: saturate(1.12); }
-      .btn--ghost { color: var(--brand-dark); background: var(--surface); border: 1px solid rgba(76, 110, 245, 0.35); box-shadow: var(--shadow); }
-      .btn:hover { transform: translateY(-2px); }
+      .btn:hover { transform: translateY(-1px); }
+      .btn--primary { color: #fff; background: var(--indigo-deep); box-shadow: 0 8px 24px rgba(79, 70, 229, 0.35); }
+      .btn--primary:hover { background: var(--indigo); }
+      .btn--light { color: var(--slate-900); background: #fff; }
+      .btn--outline { color: #e2e8f0; border: 1px solid rgba(226, 232, 240, 0.35); }
+      .btn--outline:hover { border-color: rgba(226, 232, 240, 0.7); }
 
-      /* floating brand tiles (echo of the mosaic-fish logo) */
-      .tile {
-        position: absolute; border-radius: 10px; background: var(--grad-brand);
-        opacity: 0.16; pointer-events: none;
-        animation: floaty 7s ease-in-out infinite;
+      /* ============ hero (dark slate) ============ */
+      .top {
+        position: relative; color: #e2e8f0; background: var(--slate-900); overflow: hidden;
       }
-      .tile--1 { width: 30px; height: 30px; top: -6px; left: 3%; animation-delay: 0s; }
-      .tile--2 { width: 18px; height: 18px; top: 52%; left: -4%; animation-delay: 1.6s; }
-      .tile--3 { width: 24px; height: 24px; top: 8%; right: 2%; animation-delay: 0.9s; border-radius: 8px; }
-      .tile--4 { width: 14px; height: 14px; top: 66%; right: -3%; animation-delay: 2.4s; background: var(--coral); }
-      @keyframes floaty {
-        0%, 100% { transform: translateY(0) rotate(0deg); }
-        50% { transform: translateY(-14px) rotate(8deg); }
+      .top__bg {
+        position: absolute; inset: 0; z-index: 0;
+        background: url("assets/studio-hero.webp") center / cover no-repeat;
       }
+      .top__bg::after {
+        content: ""; position: absolute; inset: 0;
+        background: linear-gradient(100deg, rgba(15, 23, 42, 0.55) 30%, rgba(15, 23, 42, 0.1) 75%);
+      }
+      .top > * { position: relative; z-index: 1; }
 
-      .hero__art { position: relative; }
-      .hero__art img {
-        width: 100%; border-radius: var(--radius-l);
-        box-shadow: 0 30px 70px rgba(59, 91, 219, 0.22);
-        border: 1px solid rgba(255, 255, 255, 0.7);
+      header .wrap {
+        display: flex; align-items: center; justify-content: space-between; gap: 16px;
+        padding-top: 22px; padding-bottom: 22px; flex-wrap: wrap;
       }
-      /* soft glow behind the panorama */
-      .hero__art::before {
-        content: ""; position: absolute; inset: 8% -3% -4% -3%; z-index: -1;
-        background: var(--grad-brand); filter: blur(48px); opacity: 0.22; border-radius: 50%;
+      .brand { display: inline-flex; align-items: center; gap: 12px; }
+      .brand img { width: 36px; height: 36px; object-fit: contain; }
+      .brand__name { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; line-height: 1.2; }
+      .brand__tag { display: block; font-weight: 500; font-size: 0.72rem; color: var(--ink-faint); letter-spacing: 0.06em; text-transform: uppercase; }
+      nav { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+      nav a.navlink {
+        font-weight: 600; font-size: 0.9rem; color: #cbd5e1;
+        padding: 8px 13px; border-radius: 8px; transition: color 0.15s ease, background 0.15s ease;
       }
+      nav a.navlink:hover { color: #fff; background: rgba(255, 255, 255, 0.07); }
+      nav .btn { padding: 10px 18px; font-size: 0.88rem; margin-left: 8px; }
 
-      /* ---------- sections ---------- */
-      section.block { padding: 54px 0 18px; }
-      .block__head { max-width: 640px; margin-bottom: 28px; }
-      h2 { font-size: clamp(1.5rem, 3.4vw, 2.15rem); line-height: 1.15; margin: 14px 0 10px; letter-spacing: -0.015em; }
-      .block__sub { color: var(--ink-soft); font-size: 1.02rem; margin: 0; }
-
-      /* tinted full-width band for the impact section */
-      .band {
-        margin-top: 44px;
-        background: linear-gradient(180deg, rgba(255, 107, 82, 0.055), rgba(76, 110, 245, 0.05) 70%, transparent);
-        border-top: 1px solid var(--line);
+      .hero { padding: 84px 0 96px; }
+      .hero__badge {
+        display: inline-flex; align-items: center; gap: 8px;
+        font-weight: 600; font-size: 0.82rem; color: #c7d2fe;
+        border: 1px solid rgba(199, 210, 254, 0.3); background: rgba(99, 102, 241, 0.12);
+        padding: 7px 14px; border-radius: 999px;
       }
-
-      /* ---------- vision ---------- */
-      .vision { padding: 30px 0 8px; }
-      .vision__card {
-        display: grid; grid-template-columns: 0.95fr 1.05fr; align-items: stretch; overflow: hidden;
-        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l);
-        box-shadow: var(--shadow);
+      .hero__badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--teal); }
+      h1 {
+        font-size: clamp(2.3rem, 5.4vw, 3.9rem); line-height: 1.06; letter-spacing: -0.025em;
+        font-weight: 800; margin: 26px 0 0; max-width: 780px; color: #f8fafc;
       }
-      .vision__art { position: relative; min-height: 320px; }
-      .vision__art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-      .vision__body { padding: 38px 42px; }
-      .vision__points { display: grid; gap: 16px; margin-top: 18px; }
-      .point { display: flex; gap: 13px; align-items: flex-start; }
-      .point__icon {
-        flex: none; width: 40px; height: 40px; display: grid; place-items: center;
-        font-size: 1.25rem; border-radius: var(--radius-s); background: rgba(76, 110, 245, 0.1);
-      }
-      .point:nth-child(1) .point__icon { background: rgba(255, 107, 82, 0.12); }
-      .point:nth-child(3) .point__icon { background: rgba(18, 184, 134, 0.12); }
-      .point p { margin: 2px 0 0; color: var(--ink-soft); font-size: 0.98rem; }
-      .point strong { color: var(--ink); }
-
-      /* ---------- app cards ---------- */
-      .apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 20px; }
-      .app {
-        position: relative; display: flex; flex-direction: column; overflow: hidden;
-        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-        box-shadow: var(--shadow); transition: transform 0.15s ease, box-shadow 0.15s ease;
-      }
-      .app::after {
-        content: ""; position: absolute; inset: 0 0 auto 0; height: 4px;
-        background: var(--grad-brand); opacity: 0; transition: opacity 0.15s ease;
-      }
-      .apps--impact .app::after { background: linear-gradient(100deg, var(--coral), var(--brand)); }
-      .app:hover { transform: translateY(-4px); box-shadow: var(--shadow-lift); }
-      .app:hover::after { opacity: 1; }
-      .app__img { aspect-ratio: 4 / 3; overflow: hidden; background: #eef0f7; }
-      .app__img img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.35s ease; }
-      .app:hover .app__img img { transform: scale(1.045); }
-      .app__body { display: flex; flex-direction: column; gap: 8px; padding: 20px 22px 22px; flex: 1; }
-      .app__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-      .app__name { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 1.12rem; }
-      .app__emoji { font-size: 1.35rem; }
-      .tag { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
-      .tag--live { color: #1f9d57; background: rgba(31, 157, 87, 0.12); }
-      .tag--impact { color: var(--coral-dark); background: rgba(255, 107, 82, 0.14); }
-      .app__desc { color: var(--ink-soft); font-size: 0.95rem; margin: 0; flex: 1; }
-      .app__cta { margin-top: 10px; font-weight: 700; color: var(--brand-dark); }
-      .app__cta span { display: inline-block; transition: transform 0.15s ease; }
-      .app:hover .app__cta span { transform: translateX(4px); }
-
-      /* ---------- Saadi quote ---------- */
-      .quote { padding: 58px 0 10px; text-align: center; }
-      .quote__star { font-size: 1.5rem; color: var(--coral); display: block; margin-bottom: 14px; }
-      .quote__text {
-        font-size: clamp(1.2rem, 2.8vw, 1.6rem); font-weight: 600; line-height: 1.6;
-        margin: 0 auto; max-width: 760px; letter-spacing: -0.01em;
-        background: linear-gradient(100deg, var(--brand-dark), var(--teal-dark));
+      h1 .accent {
+        background: linear-gradient(100deg, #a5b4fc, #5eead4);
         -webkit-background-clip: text; background-clip: text; color: transparent;
       }
-      .quote__by { display: block; margin-top: 14px; font-weight: 700; color: var(--ink-soft); font-size: 0.92rem; }
-
-      /* ---------- partner section ---------- */
-      .partner { padding: 30px 0 20px; }
-      .partner__card {
-        display: grid; grid-template-columns: 1.05fr 0.95fr; align-items: stretch; overflow: hidden;
-        color: #fff; border-radius: var(--radius-l);
-        background: linear-gradient(115deg, var(--brand-dark), var(--brand) 60%, var(--teal));
-        box-shadow: 0 18px 44px rgba(59, 91, 219, 0.35);
+      .hero__sub { color: #b6c2d9; font-size: 1.12rem; line-height: 1.7; max-width: 640px; margin: 22px 0 0; }
+      .hero__cta { display: flex; gap: 14px; flex-wrap: wrap; margin: 34px 0 0; }
+      .trust { display: flex; gap: 10px 26px; flex-wrap: wrap; margin: 44px 0 0; padding: 0; list-style: none; }
+      .trust li { display: inline-flex; align-items: center; gap: 9px; color: #9fb0ca; font-size: 0.9rem; font-weight: 500; }
+      .trust li::before {
+        content: "✓"; display: grid; place-items: center; width: 18px; height: 18px; flex: none;
+        border-radius: 50%; background: rgba(20, 184, 166, 0.18); color: #5eead4;
+        font-size: 0.7rem; font-weight: 800;
       }
-      .partner__body { padding: 40px 44px; }
-      .partner__body h2 { margin: 14px 0 10px; }
-      .partner__body > p { margin: 0 0 20px; opacity: 0.92; max-width: 520px; }
-      .partner__points { display: grid; gap: 12px; margin-bottom: 26px; }
-      .partner__points li { list-style: none; display: flex; gap: 11px; align-items: flex-start; font-size: 0.97rem; }
-      .partner__points { padding: 0; margin-top: 0; }
-      .partner__points b { font-weight: 800; }
-      .partner__points span.ico {
-        flex: none; width: 30px; height: 30px; display: grid; place-items: center; font-size: 0.95rem;
-        border-radius: 9px; background: rgba(255, 255, 255, 0.14);
+
+      /* ============ sections ============ */
+      section.block { padding: 92px 0 0; }
+      section.block:last-of-type { padding-bottom: 92px; }
+      .block__head { max-width: 680px; margin-bottom: 44px; }
+
+      /* value prop / synergy */
+      .synergy { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+      .syncard {
+        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l);
+        padding: 34px 34px 36px; box-shadow: var(--shadow); position: relative; overflow: hidden;
       }
-      .partner .eyebrow { color: #fff; background: rgba(255, 255, 255, 0.16); }
-      .partner .btn { background: #fff; color: var(--brand-dark); }
-      .partner__art { position: relative; min-height: 300px; }
-      .partner__art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .syncard::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; }
+      .syncard--tech::before { background: var(--indigo); }
+      .syncard--product::before { background: var(--teal); }
+      .syncard h3 { margin: 0 0 10px; font-size: 1.22rem; letter-spacing: -0.01em; }
+      .syncard p { margin: 0; color: var(--ink-soft); }
+      .synergy__art { grid-column: 1 / -1; margin-top: 6px; }
+      .synergy__art img {
+        width: 100%; max-height: 300px; object-fit: cover;
+        border-radius: var(--radius-l); border: 1px solid var(--line);
+      }
 
-      /* ---------- footer ---------- */
-      footer { padding: 30px 0 38px; color: var(--ink-faint); font-size: 0.85rem; border-top: 1px solid var(--line); margin-top: 26px; }
-      footer .wrap { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-      .foot-brand { display: inline-flex; align-items: center; gap: 8px; }
-      .foot-brand img { width: 22px; height: 22px; opacity: 0.75; }
+      /* services */
+      .paths { display: grid; gap: 40px; }
+      .path__label {
+        display: inline-flex; align-items: center; gap: 10px;
+        font-weight: 800; font-size: 1.05rem; margin-bottom: 18px;
+      }
+      .path__label span.num {
+        display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
+        font-size: 0.8rem; font-weight: 800; color: #fff;
+      }
+      .path--build .num { background: var(--indigo-deep); }
+      .path--advise .num { background: var(--teal); }
+      .cards2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+      .svc {
+        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l);
+        padding: 30px 30px 32px; box-shadow: var(--shadow);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      .svc:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+      .svc__icon {
+        display: grid; place-items: center; width: 46px; height: 46px; border-radius: 13px;
+        margin-bottom: 18px; font-size: 1.3rem;
+      }
+      .path--build .svc__icon { background: rgba(99, 102, 241, 0.1); }
+      .path--advise .svc__icon { background: rgba(20, 184, 166, 0.1); }
+      .svc h4 { margin: 0 0 8px; font-size: 1.1rem; letter-spacing: -0.01em; }
+      .svc p { margin: 0; color: var(--ink-soft); font-size: 0.97rem; }
 
-      /* ---------- reveal animation ---------- */
-      .reveal { opacity: 0; transform: translateY(22px); transition: opacity 0.6s ease, transform 0.6s ease; }
+      /* duo */
+      .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+      .person {
+        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l);
+        padding: 36px; box-shadow: var(--shadow);
+      }
+      .person__head { display: flex; align-items: center; gap: 18px; margin-bottom: 6px; }
+      .person__avatar {
+        flex: none; width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center;
+        color: #fff; font-weight: 800; font-size: 1.25rem; letter-spacing: 0.02em;
+      }
+      .person--mo .person__avatar { background: linear-gradient(135deg, var(--indigo-deep), var(--indigo)); }
+      .person--zahra .person__avatar { background: linear-gradient(135deg, #0d9488, var(--teal)); }
+      .person h3 { margin: 0; font-size: 1.3rem; letter-spacing: -0.01em; }
+      .person__cred { margin: 12px 0 0; color: var(--ink-soft); font-size: 0.88rem; font-weight: 600; line-height: 1.55; }
+      .person__cred strong { color: var(--ink); }
+      .person__bio { color: var(--ink-soft); font-size: 0.97rem; margin: 14px 0 20px; }
+      .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+      .tag {
+        font-size: 0.78rem; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+        border: 1px solid var(--line); background: var(--bg); color: var(--ink-soft);
+      }
+      .person--mo .tag { border-color: rgba(99, 102, 241, 0.25); }
+      .person--zahra .tag { border-color: rgba(20, 184, 166, 0.3); }
+
+      /* process */
+      .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; counter-reset: step; }
+      .step { position: relative; padding-top: 18px; }
+      .step::before {
+        content: ""; position: absolute; top: 0; left: 0; right: -22px; height: 2px;
+        background: var(--line);
+      }
+      .step:last-child::before { right: 0; }
+      .step::after {
+        content: ""; position: absolute; top: -4px; left: 0; width: 10px; height: 10px;
+        border-radius: 50%; background: var(--indigo);
+      }
+      .step__num { font-weight: 800; font-size: 0.8rem; color: var(--indigo-deep); letter-spacing: 0.1em; }
+      .step h4 { margin: 6px 0 8px; font-size: 1.06rem; letter-spacing: -0.01em; }
+      .step p { margin: 0; color: var(--ink-soft); font-size: 0.94rem; }
+
+      /* social impact */
+      .impact { background: var(--surface); border-block: 1px solid var(--line); margin-top: 92px; padding: 92px 0; }
+      .projects { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 44px; }
+      .proj {
+        border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--bg);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      .proj:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+      .proj__img { aspect-ratio: 16 / 10; overflow: hidden; }
+      .proj__img img { width: 100%; height: 100%; object-fit: cover; }
+      .proj__body { padding: 14px 16px 16px; }
+      .proj h4 { margin: 0 0 3px; font-size: 0.98rem; }
+      .proj p { margin: 0; color: var(--ink-soft); font-size: 0.82rem; line-height: 1.5; }
+      .family {
+        margin-top: 34px; padding: 20px 24px; border: 1px dashed var(--line); border-radius: var(--radius);
+        display: flex; gap: 10px 22px; flex-wrap: wrap; align-items: center;
+        color: var(--ink-soft); font-size: 0.92rem;
+      }
+      .family strong { color: var(--ink); }
+      .family a { font-weight: 700; color: var(--indigo-deep); white-space: nowrap; }
+      .family a:hover { text-decoration: underline; }
+
+      /* contact */
+      .contact { color: #e2e8f0; background: var(--slate-950); margin-top: 92px; padding: 92px 0 0; }
+      .contact h2 { color: #f8fafc; }
+      .contact .sub { color: #9fb0ca; }
+      .contact__grid { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 48px; align-items: start; }
+      .contact__meta { display: grid; gap: 16px; padding-top: 8px; }
+      .contact__meta a { color: #c7d2fe; font-weight: 700; }
+      .contact__meta a:hover { text-decoration: underline; }
+      .contact__meta .label { display: block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748b; margin-bottom: 2px; }
+      .contact__cta { margin-top: 30px; }
+
+      footer { border-top: 1px solid rgba(226, 232, 240, 0.12); margin-top: 72px; }
+      footer .wrap {
+        display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+        padding-top: 26px; padding-bottom: 32px; color: #64748b; font-size: 0.85rem;
+      }
+      footer nav a { color: #94a3b8; font-weight: 600; font-size: 0.85rem; padding: 4px 8px; }
+      footer nav a:hover { color: #e2e8f0; }
+      .foot-brand { display: inline-flex; align-items: center; gap: 9px; }
+      .foot-brand img { width: 20px; height: 20px; opacity: 0.8; }
+
+      /* reveal */
+      .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease, transform 0.55s ease; }
       .reveal.is-in { opacity: 1; transform: none; }
       @media (prefers-reduced-motion: reduce) {
         html { scroll-behavior: auto; }
         .reveal { opacity: 1; transform: none; transition: none; }
-        .app, .app__img img, .btn, .app__cta span { transition: none; }
-        .tile { animation: none; }
+        .btn, .svc, .proj { transition: none; }
       }
 
-      @media (max-width: 840px) {
-        .hero__copy { text-align: left; margin-bottom: 28px; }
-        .lede, .cta-row { margin-left: 0; justify-content: flex-start; }
-        .vision__card { grid-template-columns: 1fr; }
-        .vision__art { min-height: 230px; }
-        .vision__body { padding: 26px 24px; }
-        .partner__card { grid-template-columns: 1fr; }
-        .partner__art { min-height: 230px; order: -1; }
-        .partner__body { padding: 28px 24px; }
-        .tile { display: none; }
+      @media (max-width: 920px) {
+        .steps { grid-template-columns: 1fr 1fr; }
+        .step::before { right: 0; }
+        .projects { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 720px) {
+        .synergy, .cards2, .duo, .contact__grid { grid-template-columns: 1fr; }
+        .hero { padding: 56px 0 72px; }
+        nav a.navlink { display: none; }
+        .top__bg { background-position: 20% center; }
+      }
+      @media (max-width: 520px) {
+        .steps, .projects { grid-template-columns: 1fr; }
       }
     </style>
   </head>
   <body>
-    <header>
-      <div class="wrap">
-        <span class="brand"><img class="brand__logo" src="assets/logo.webp" alt="Nemo Apps — the seeker's flask logo" width="40" height="40" /> <span><span class="brand__nemo">Nemo</span>&nbsp;Apps</span></span>
-        <nav>
-          <a href="#impact">Social impact</a>
-          <a href="#apps">Everyday apps</a>
-          <a href="#vision">Why we build</a>
-          <a href="#partner">Work with us</a>
-        </nav>
-      </div>
-    </header>
+    <!-- ============ dark top: header + hero ============ -->
+    <div class="top">
+      <div class="top__bg" aria-hidden="true"></div>
+      <header>
+        <div class="wrap">
+          <a class="brand" href="#top" aria-label="Mahini & Motamedi — home">
+            <img src="assets/logo.webp" alt="" width="36" height="36" />
+            <span class="brand__name">Mahini &amp; Motamedi
+              <span class="brand__tag">AI &amp; Product Studio</span>
+            </span>
+          </a>
+          <nav aria-label="Main">
+            <a class="navlink" href="#services">What We Do</a>
+            <a class="navlink" href="#duo">The Duo</a>
+            <a class="navlink" href="#process">Process</a>
+            <a class="navlink" href="#impact">Social Responsibility</a>
+            <a class="navlink" href="#contact">Contact</a>
+            <a class="btn btn--primary" href="mailto:hello@nemoapps.xyz?subject=Discovery%20Call">Book a Discovery Call</a>
+          </nav>
+        </div>
+      </header>
+
+      <section class="hero" id="top">
+        <div class="wrap">
+          <span class="hero__badge">Boutique AI &amp; Software Studio&nbsp;·&nbsp;Based in Austria</span>
+          <h1>You bring the vision.<br />We build the <span class="accent">intelligent software.</span></h1>
+          <p class="hero__sub">
+            From first concept to production-ready platforms. We combine deep-tech AI
+            architecture with audience-first product strategy to build software that
+            scales and drives measurable business value.
+          </p>
+          <div class="hero__cta">
+            <a class="btn btn--primary" href="mailto:hello@nemoapps.xyz?subject=Discovery%20Session">Schedule a 30-Min Discovery Session</a>
+            <a class="btn btn--outline" href="#why">View Our Approach ↓</a>
+          </div>
+          <ul class="trust">
+            <li>European Standards &amp; GDPR Compliant</li>
+            <li>Deep Academic &amp; Algorithmic Background (ISTA / Sharif)</li>
+            <li>End-to-End Execution: From Strategy to Code</li>
+          </ul>
+        </div>
+      </section>
+    </div>
 
     <main>
-      <!-- ============ hero ============ -->
-      <section class="hero">
-        <div class="wrap">
-          <div class="hero__copy reveal">
-            <span class="tile tile--1"></span>
-            <span class="tile tile--2"></span>
-            <span class="tile tile--3"></span>
-            <span class="tile tile--4"></span>
-            <span class="eyebrow">Builders · AI specialists · Social good first</span>
-            <h1>We build apps for everyday&nbsp;life — <span class="grad">and for a better&nbsp;world.</span></h1>
-            <p class="lede">
-              We're a small team of developers and AI &amp; digital specialists. We turn our own
-              daily needs into focused apps and share them here — and we put our best work into
-              software for social-responsibility projects.
-            </p>
-            <div class="cta-row">
-              <a class="btn btn--primary" href="#impact">Explore social impact ↓</a>
-              <a class="btn btn--ghost" href="#apps">See our apps</a>
-            </div>
-          </div>
-          <div class="hero__art reveal">
-            <img src="assets/hero.webp" alt="Travelers on a hilltop at dawn: a radiant north star pours light into an alchemist's flask, where it turns into hearts, leaves, and coins drifting over a blooming village" width="1280" height="720" fetchpriority="high" />
-          </div>
-        </div>
-      </section>
-
-      <!-- ============ social impact ============ -->
-      <div class="band">
-        <section class="block" id="impact">
-          <div class="wrap">
-            <div class="block__head reveal">
-              <span class="eyebrow eyebrow--coral">Our priority</span>
-              <h2>Social-impact <span class="grad">projects</span></h2>
-              <p class="block__sub">
-                Platforms we design, build, and run for social-responsibility initiatives —
-                from smart recycling to surplus-food rescue and cross-border giving.
-              </p>
-            </div>
-            <div class="apps apps--impact">
-              <a class="app reveal" href="https://bazno.nemoapps.xyz" target="_blank" rel="noopener">
-                <div class="app__img"><img src="assets/app-bazno.webp" alt="Recyclables turning into coins, a heart, and a growing tree" loading="lazy" /></div>
-                <div class="app__body">
-                  <div class="app__top">
-                    <span class="app__name"><span class="app__emoji">♻️</span> Bazno</span>
-                    <span class="tag tag--impact">Impact</span>
-                  </div>
-                  <p class="app__desc">
-                    Smart recycling as social participation: turn your waste into
-                    participation coins, then choose the impact they make (Persian).
-                  </p>
-                  <span class="app__cta">Visit the platform <span>→</span></span>
-                </div>
-              </a>
-
-              <a class="app reveal" href="https://tahdig.club" target="_blank" rel="noopener">
-                <div class="app__img"><img src="assets/app-tahdig.webp" alt="A pot of food and meal boxes being shared between hands" loading="lazy" /></div>
-                <div class="app__body">
-                  <div class="app__top">
-                    <span class="app__name"><span class="app__emoji">🍲</span> Tahdig</span>
-                    <span class="tag tag--impact">Impact</span>
-                  </div>
-                  <p class="app__desc">
-                    A surplus-food donation network: suppliers list extra food and donors
-                    &amp; couriers redistribute it so none goes to waste (Persian).
-                  </p>
-                  <span class="app__cta">Visit the site <span>→</span></span>
-                </div>
-              </a>
-
-              <a class="app reveal" href="https://soroushemehr.com" target="_blank" rel="noopener">
-                <div class="app__img"><img src="assets/app-soroush.webp" alt="Hands giving and receiving a glowing heart" loading="lazy" /></div>
-                <div class="app__body">
-                  <div class="app__top">
-                    <span class="app__name"><span class="app__emoji">🤝</span> Soroush Mehr</span>
-                    <span class="tag tag--impact">Impact</span>
-                  </div>
-                  <p class="app__desc">
-                    A charity platform for collecting donations and showcasing
-                    fundraising projects (Persian).
-                  </p>
-                  <span class="app__cta">Visit the site <span>→</span></span>
-                </div>
-              </a>
-
-              <a class="app reveal" href="https://tolooglobal.org" target="_blank" rel="noopener">
-                <div class="app__img"><img src="assets/app-toloo.webp" alt="Hearts travelling across a globe from one continent to another" loading="lazy" /></div>
-                <div class="app__body">
-                  <div class="app__top">
-                    <span class="app__name"><span class="app__emoji">🌍</span> Toloo Global</span>
-                    <span class="tag tag--impact">Impact</span>
-                  </div>
-                  <p class="app__desc">
-                    International donations for the Toloo Bi-neshanha Society — letting Iranians
-                    abroad support people back home (Persian).
-                  </p>
-                  <span class="app__cta">Visit the site <span>→</span></span>
-                </div>
-              </a>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <!-- ============ everyday apps ============ -->
-      <section class="block" id="apps">
+      <!-- ============ value proposition ============ -->
+      <section class="block" id="why">
         <div class="wrap">
           <div class="block__head reveal">
-            <span class="eyebrow eyebrow--teal">Built for ourselves, shared with you</span>
-            <h2>Apps for <span class="grad">everyday life</span></h2>
-            <p class="block__sub">
-              Our own daily needs, turned into small apps that do one thing well.
-              Free to use — and we're happy to share the code.
+            <span class="kicker">Why us</span>
+            <h2>Full-Spectrum Product Execution</h2>
+            <p class="sub">
+              No bloated agencies. No fragmented freelancers. Just two seasoned partners
+              turning complex challenges into market-ready software.
             </p>
           </div>
-          <div class="apps">
-            <a class="app reveal" href="https://anki.nemoapps.xyz/app" target="_blank" rel="noopener">
-              <div class="app__img"><img src="assets/app-anki.webp" alt="A playful stack of colour-coded language flashcards" loading="lazy" /></div>
-              <div class="app__body">
-                <div class="app__top">
-                  <span class="app__name"><span class="app__emoji">🗂️</span> Nemo Anki</span>
-                  <span class="tag tag--live">Live</span>
-                </div>
-                <p class="app__desc">
-                  Spaced-repetition flashcards for languages — colour-coded German articles,
-                  two-sided cards, photos, book &amp; Anki import, and a writing tutor.
-                </p>
-                <span class="app__cta">Open the app <span>→</span></span>
-              </div>
-            </a>
-
-            <a class="app reveal" href="https://gardening.nemoapps.xyz" target="_blank" rel="noopener">
-              <div class="app__img"><img src="assets/app-gardening.webp" alt="A cozy home garden with planter boxes and a planting calendar" loading="lazy" /></div>
-              <div class="app__body">
-                <div class="app__top">
-                  <span class="app__name"><span class="app__emoji">🌱</span> Nemo Gardening</span>
-                  <span class="tag tag--live">Live</span>
-                </div>
-                <p class="app__desc">
-                  A planting-schedule manager for home gardeners — plan what to plant,
-                  track when to harvest, and keep notes for every plant.
-                </p>
-                <span class="app__cta">Open the app <span>→</span></span>
-              </div>
-            </a>
-
-            <a class="app reveal" href="https://map.nemoapps.xyz/app" target="_blank" rel="noopener">
-              <div class="app__img"><img src="assets/app-map.webp" alt="A world map with pins, travel routes, and pinned photos" loading="lazy" /></div>
-              <div class="app__body">
-                <div class="app__top">
-                  <span class="app__name"><span class="app__emoji">🗺️</span> Nemo Map</span>
-                  <span class="tag tag--live">Live</span>
-                </div>
-                <p class="app__desc">
-                  A personal, map-based travel journal — mark the countries you've visited,
-                  build an album per country, and pin the places you remember.
-                </p>
-                <span class="app__cta">Open the app <span>→</span></span>
-              </div>
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <!-- ============ vision ============ -->
-      <section class="vision" id="vision">
-        <div class="wrap">
-          <div class="vision__card reveal">
-            <div class="vision__art">
-              <img src="assets/vision.webp" alt="A tree of light growing from a laptop at sunrise, bearing a heart, a globe, a leaf, and a coin" loading="lazy" width="960" height="720" />
-            </div>
-            <div class="vision__body">
-              <span class="eyebrow">Our vision</span>
-              <h2>Technology in service of <span class="grad">social good</span></h2>
-              <div class="vision__points">
-                <div class="point">
-                  <span class="point__icon">🤝</span>
-                  <p><strong>Social responsibility comes first.</strong> We develop apps and websites
-                  for social-impact projects, so they can ship software products fast and focus on
-                  their mission — making their work stronger everywhere in the world.</p>
-                </div>
-                <div class="point">
-                  <span class="point__icon">🛠️</span>
-                  <p><strong>We app-ify our own everyday needs.</strong> When a problem shows up in
-                  our daily life, we build a small, focused app for it and put it here for anyone
-                  to use.</p>
-                </div>
-                <div class="point">
-                  <span class="point__icon">💻</span>
-                  <p><strong>Open by nature.</strong> Like one of our apps? Use it — or reach out
-                  and we're happy to share the code with you.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ============ Saadi quote ============ -->
-      <section class="quote">
-        <div class="wrap reveal">
-          <span class="quote__star">✦</span>
-          <blockquote class="quote__text">
-            "Better to set out across the desert than to sit idle —
-            for even if I do not reach my goal, I will have striven as far as I can."
-            <span class="quote__by">— Saadi</span>
-          </blockquote>
-        </div>
-      </section>
-
-      <!-- ============ partner section ============ -->
-      <section class="partner" id="partner">
-        <div class="wrap">
-          <div class="partner__card reveal">
-            <div class="partner__body">
-              <span class="eyebrow">Work with us</span>
-              <h2>Your tech, product &amp; digital partner</h2>
+          <div class="synergy">
+            <article class="syncard syncard--tech reveal">
+              <h3>Deep-Tech &amp; AI Architecture</h3>
               <p>
-                If your work serves a social-responsibility goal, we can walk the road
-                with you — not as a vendor, but as a long-term partner.
+                Robust algorithms, bulletproof system architecture, cutting-edge AI
+                integration, and enterprise-grade performance.
               </p>
-              <ul class="partner__points">
-                <li><span class="ico">🧭</span><span><b>Product partner.</b> From idea to roadmap — we help you shape what to build and why.</span></li>
-                <li><span class="ico">⚗️</span><span><b>Tech partner.</b> Apps, websites, and AI — designed, built, shipped, and maintained.</span></li>
-                <li><span class="ico">🚀</span><span><b>Digital partner.</b> Launch, run, and grow your digital presence with confidence.</span></li>
-              </ul>
-              <a class="btn" href="mailto:hello@nemoapps.xyz">Get in touch ✉️</a>
-            </div>
-            <div class="partner__art">
-              <img src="assets/partner.webp" alt="Two teams on a bridge assembling a glowing app together, with hearts and leaves rising into the sky" loading="lazy" />
+            </article>
+            <article class="syncard syncard--product reveal">
+              <h3>User-Centric Product &amp; Growth</h3>
+              <p>
+                Intuitive UX workflows, product-market validation, viral content
+                strategies, and high-conversion go-to-market execution.
+              </p>
+            </article>
+            <div class="synergy__art reveal">
+              <img src="assets/studio-synergy.webp" alt="Two interlocking forms — precise engineering geometry meeting a flowing product ribbon" loading="lazy" />
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- ============ services ============ -->
+      <section class="block" id="services">
+        <div class="wrap">
+          <div class="block__head reveal">
+            <span class="kicker">What we do</span>
+            <h2>Two ways to work with us</h2>
+            <p class="sub">
+              We build software end-to-end — or advise you before a single line of code
+              is written.
+            </p>
+          </div>
+
+          <div class="paths">
+            <div class="path path--build reveal">
+              <span class="path__label"><span class="num">1</span> We Build — End-to-End Product Engineering</span>
+              <div class="cards2">
+                <article class="svc">
+                  <span class="svc__icon" aria-hidden="true">⚙️</span>
+                  <h4>Custom AI &amp; Software Solutions</h4>
+                  <p>
+                    Full-cycle development of bespoke web platforms, intelligent workflow
+                    automations, and enterprise data tools designed to solve high-friction
+                    bottlenecks.
+                  </p>
+                </article>
+                <article class="svc">
+                  <span class="svc__icon" aria-hidden="true">🚀</span>
+                  <h4>Rapid MVPs &amp; Prototypes</h4>
+                  <p>
+                    Translating ideas into working, investor-ready or market-ready software
+                    in weeks — not months — without accumulating technical debt.
+                  </p>
+                </article>
+              </div>
+            </div>
+
+            <div class="path path--advise reveal">
+              <span class="path__label"><span class="num">2</span> We Advise — Strategic AI &amp; Tech Advisory</span>
+              <div class="cards2">
+                <article class="svc">
+                  <span class="svc__icon" aria-hidden="true">🔍</span>
+                  <h4>AI Feasibility &amp; System Audits</h4>
+                  <p>
+                    Evaluating business workflows to identify high-ROI automation
+                    opportunities and defining the optimal modern tech stack.
+                  </p>
+                </article>
+                <article class="svc">
+                  <span class="svc__icon" aria-hidden="true">🧭</span>
+                  <h4>Product Strategy &amp; Go-To-Market Advisory</h4>
+                  <p>
+                    Mentoring founders and SMEs on product roadmaps, user retention loops,
+                    and growth marketing frameworks before writing a single line of code.
+                  </p>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ the duo ============ -->
+      <section class="block" id="duo">
+        <div class="wrap">
+          <div class="block__head reveal">
+            <span class="kicker">The duo</span>
+            <h2>Behind the Craft</h2>
+            <p class="sub">
+              Two complementary partners — one owns the technology, one owns the product
+              and its audience.
+            </p>
+          </div>
+          <div class="duo">
+            <article class="person person--mo reveal">
+              <div class="person__head">
+                <span class="person__avatar" aria-hidden="true">MM</span>
+                <h3>Dr. Mo Mahini</h3>
+              </div>
+              <p class="person__cred">
+                <strong>Silver Medalist, International Olympiad in Informatics (IOI)</strong> ·
+                Postdoc at ISTA · PhD in Computer Science (Sharif University)
+              </p>
+              <p class="person__bio">
+                Mo shapes the technology roadmap and leads core software architecture,
+                bridging advanced academic computer science with high-impact product
+                engineering. With a background spanning academic research at the Institute
+                of Science and Technology Austria (ISTA) and hands-on industry roles as
+                Solutions Architect, Tech Lead, and TPM in fintech and complex data
+                systems, he guarantees that every solution is resilient, scalable, and
+                algorithmically sound.
+              </p>
+              <div class="tags">
+                <span class="tag">AI &amp; Machine Learning</span>
+                <span class="tag">Cloud Architecture</span>
+                <span class="tag">High-Performance Systems</span>
+                <span class="tag">Fintech &amp; Security</span>
+              </div>
+            </article>
+
+            <article class="person person--zahra reveal">
+              <div class="person__head">
+                <span class="person__avatar" aria-hidden="true">ZM</span>
+                <h3>Zahra Motamedi</h3>
+              </div>
+              <p class="person__cred">
+                <strong>M.Sc. in Marketing Management</strong> ·
+                Digital Creator &amp; Community Strategist
+              </p>
+              <p class="person__bio">
+                Zahra leads product strategy, user adoption, and market readiness, ensuring
+                that powerful engineering connects seamlessly with human needs. Leveraging
+                an M.Sc. in Marketing Management alongside a proven track record building
+                large-scale, highly engaged digital audiences across YouTube and social
+                platforms, she specializes in user-journey architecture, brand positioning,
+                and execution strategies that turn complex tools into beloved everyday
+                software.
+              </p>
+              <div class="tags">
+                <span class="tag">Product Strategy &amp; UX</span>
+                <span class="tag">Growth &amp; Go-To-Market</span>
+                <span class="tag">Audience Engagement</span>
+                <span class="tag">Market Validation</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ process ============ -->
+      <section class="block" id="process">
+        <div class="wrap">
+          <div class="block__head reveal">
+            <span class="kicker">Process</span>
+            <h2>From idea to launch, in four steps</h2>
+          </div>
+          <div class="steps reveal">
+            <div class="step">
+              <span class="step__num">STEP 01</span>
+              <h4>Discover &amp; Map</h4>
+              <p>
+                We deconstruct the idea, validate technical and market feasibility, and
+                draft a crystal-clear feature blueprint.
+              </p>
+            </div>
+            <div class="step">
+              <span class="step__num">STEP 02</span>
+              <h4>Architect &amp; Prototype</h4>
+              <p>
+                Mo structures the core algorithms and data flows while Zahra crafts user
+                journeys and validates interface intuition.
+              </p>
+            </div>
+            <div class="step">
+              <span class="step__num">STEP 03</span>
+              <h4>Agile Build &amp; AI Integration</h4>
+              <p>
+                Clean, test-driven full-stack development with complete GDPR compliance,
+                regular sprints, and zero communication friction.
+              </p>
+            </div>
+            <div class="step">
+              <span class="step__num">STEP 04</span>
+              <h4>Launch, Measure &amp; Iterate</h4>
+              <p>
+                Deploying the software, setting up analytics and feedback funnels, and
+                handing over scalable, fully documented code.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ social responsibility ============ -->
+      <section class="impact" id="impact">
+        <div class="wrap">
+          <div class="block__head reveal">
+            <span class="kicker">Social responsibility</span>
+            <h2>Software for Everyday Life — and a Better World</h2>
+            <p class="sub">
+              We believe technological excellence should foster positive change. Alongside
+              commercial software ventures, we actively dedicate engineering bandwidth and
+              product guidance to impactful social and community initiatives.
+            </p>
+          </div>
+
+          <div class="projects reveal">
+            <a class="proj" href="https://bazno.nemoapps.xyz" target="_blank" rel="noopener">
+              <span class="proj__img"><img src="assets/app-bazno.webp" alt="Recyclables turning into coins and a growing tree" loading="lazy" /></span>
+              <span class="proj__body">
+                <h4>Bazno ♻️</h4>
+                <p>Smart recycling as social participation — waste becomes coins, coins become impact.</p>
+              </span>
+            </a>
+            <a class="proj" href="https://tahdig.club" target="_blank" rel="noopener">
+              <span class="proj__img"><img src="assets/app-tahdig.webp" alt="A pot of food and meal boxes being shared" loading="lazy" /></span>
+              <span class="proj__body">
+                <h4>Tahdig 🍲</h4>
+                <p>A surplus-food donation network — extra food redistributed so none goes to waste.</p>
+              </span>
+            </a>
+            <a class="proj" href="https://soroushemehr.com" target="_blank" rel="noopener">
+              <span class="proj__img"><img src="assets/app-soroush.webp" alt="Hands giving and receiving a glowing heart" loading="lazy" /></span>
+              <span class="proj__body">
+                <h4>Soroush Mehr 🤝</h4>
+                <p>A charity platform for collecting donations and showcasing fundraising projects.</p>
+              </span>
+            </a>
+            <a class="proj" href="https://tolooglobal.org" target="_blank" rel="noopener">
+              <span class="proj__img"><img src="assets/app-toloo.webp" alt="Hearts travelling across a globe between continents" loading="lazy" /></span>
+              <span class="proj__body">
+                <h4>Toloo Global 🌍</h4>
+                <p>International donations — letting people abroad support communities back home.</p>
+              </span>
+            </a>
+          </div>
+
+          <p class="family reveal">
+            <span><strong>We also ship our own products</strong> — the Nemo Apps family, built from our
+            everyday needs and open to everyone:</span>
+            <a href="https://anki.nemoapps.xyz/app" target="_blank" rel="noopener">Nemo Anki →</a>
+            <a href="https://gardening.nemoapps.xyz" target="_blank" rel="noopener">Nemo Gardening →</a>
+            <a href="https://map.nemoapps.xyz/app" target="_blank" rel="noopener">Nemo Map →</a>
+          </p>
+        </div>
+      </section>
+
+      <!-- ============ contact ============ -->
+      <section class="contact" id="contact">
+        <div class="wrap">
+          <div class="contact__grid">
+            <div class="reveal">
+              <span class="kicker" style="color: #a5b4fc">Contact</span>
+              <h2>Have an idea or AI initiative in mind?</h2>
+              <p class="sub">
+                Let's discuss feasibility, architecture, and timeline over a confidential
+                30-minute introductory call.
+              </p>
+              <div class="contact__cta">
+                <a class="btn btn--light" href="mailto:hello@nemoapps.xyz?subject=Discovery%20Call">Schedule a Discovery Call</a>
+              </div>
+            </div>
+            <div class="contact__meta reveal">
+              <div>
+                <span class="label">Direct email</span>
+                <a href="mailto:hello@nemoapps.xyz">hello@nemoapps.xyz</a>
+              </div>
+              <div>
+                <span class="label">Location</span>
+                Lower Austria / Vienna Area<br />Available worldwide, remotely
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer>
+          <div class="wrap">
+            <span class="foot-brand"><img src="assets/logo.webp" alt="" width="20" height="20" /> © <span id="y"></span> Mahini &amp; Motamedi. All rights reserved.</span>
+            <nav aria-label="Legal">
+              <a href="impressum.html">Impressum</a>
+              <a href="datenschutz.html">Datenschutzerklärung</a>
+            </nav>
+          </div>
+        </footer>
       </section>
     </main>
-
-    <footer>
-      <div class="wrap">
-        <span class="foot-brand"><img src="assets/logo.webp" alt="" width="22" height="22" /> © <span id="y"></span> Nemo Apps</span>
-        <span>nemoapps.xyz</span>
-      </div>
-    </footer>
 
     <script>
       document.getElementById("y").textContent = new Date().getFullYear();
       const io = new IntersectionObserver(
         (entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("is-in"); io.unobserve(e.target); } }),
-        { threshold: 0.12 }
+        { threshold: 0.1 }
       );
       document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
     </script>
