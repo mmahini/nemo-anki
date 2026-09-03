@@ -1,3 +1,4 @@
+import base64
 import random
 from datetime import datetime, timedelta, timezone as dt_timezone
 
@@ -22,12 +23,14 @@ from .gemini import (
     conversation_reply,
     conversation_text,
     enrich_card,
+    extract_text_from_image,
     parse_text,
     transcribe_audio,
     writing_check,
     writing_prompt,
     writing_topic,
 )
+from .safe_fetch import ImageFetchError, ImageTooLargeError, UnsafeUrlError, fetch_image_safely, normalize_image
 
 
 class ParseRequestSerializer(serializers.Serializer):
@@ -151,6 +154,90 @@ class EnrichVoiceView(AiQuotaMixin, APIView):
                 "article": result.get("article", "none"),
                 "plural": result.get("plural", ""),
                 "example": result.get("example", ""),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+MAX_IMAGE_DOWNLOAD_BYTES = 10 * 1024 * 1024  # matches MAX_VOICE_BYTES / Telegram's _PHOTO_MAX_BYTES
+
+
+class EnrichImageRequestSerializer(serializers.Serializer):
+    image_url = serializers.URLField(max_length=2000)
+    language = serializers.ChoiceField(choices=["de", "en", ""], required=False, default="")
+    card_type = serializers.ChoiceField(
+        choices=sorted(ALLOWED_TYPES), required=False, default="vocab"
+    )
+    # Language the translation ("back") should be written in.
+    back_language = serializers.CharField(max_length=40, required=False, default="English")
+
+
+class EnrichImageView(AiQuotaMixin, APIView):
+    """Image variant of EnrichView: download a webpage image the Chrome
+    extension's user right-clicked (via apps.imports.safe_fetch, which does
+    the SSRF hardening an arbitrary external URL needs), OCR it, then run the
+    same enrichment as typed/selected text — one HTTP request, one AI quota
+    unit, same as EnrichVoiceView.
+
+    Unlike voice, the image itself is always returned (as a data URL) even
+    when OCR finds no legible text — there's no meaningful "try again" for a
+    fixed URL the way there is for a fresh recording, and the image is still
+    a useful card attachment on its own. The extension holds that data URL
+    client-side and attaches it via the existing CardImageView only once the
+    user actually creates the card (see apps.cards.views.CardImageView) —
+    nothing is written to storage here."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = EnrichImageRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        image_url = serializer.validated_data["image_url"]
+        language = serializer.validated_data["language"]
+        card_type = serializer.validated_data["card_type"]
+        back_language = serializer.validated_data["back_language"]
+
+        try:
+            raw = fetch_image_safely(image_url, max_bytes=MAX_IMAGE_DOWNLOAD_BYTES)
+            normalized, normalized_mime_type, source_mime_type = normalize_image(raw)
+        except ImageTooLargeError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+        except (UnsafeUrlError, ImageFetchError) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        image_data_url = (
+            f"data:{normalized_mime_type};base64,{base64.b64encode(normalized).decode('ascii')}"
+        )
+
+        # OCR runs on the untouched original bytes, not the resized copy
+        # above — resizing is only for what gets stored/previewed, never for
+        # what Gemini reads.
+        transcribed = extract_text_from_image(raw, mime_type=source_mime_type, language=language)
+        text = transcribed.get("text", "")
+        if not text:
+            # No legible text — not a failure. The image is still returned
+            # so the proposal can be filled in by hand with it attached.
+            return Response(
+                {
+                    "front": "", "card_type": card_type, "back": "", "reading": "",
+                    "article": "none", "plural": "", "example": "",
+                    "image_data_url": image_data_url,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        kind = "sentence" if transcribed.get("kind") == "sentence" else card_type
+        result = enrich_card(text, language, kind, back_language)
+        return Response(
+            {
+                "front": text,
+                "card_type": result.get("card_type", kind),
+                "back": result.get("back", ""),
+                "reading": result.get("reading", ""),
+                "article": result.get("article", "none"),
+                "plural": result.get("plural", ""),
+                "example": result.get("example", ""),
+                "image_data_url": image_data_url,
             },
             status=status.HTTP_200_OK,
         )

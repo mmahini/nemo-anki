@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   AuthRequiredError,
+  attachCardImage,
   createCard,
   enrichCard,
+  enrichImage,
   enrichVoice,
   fetchDecks,
   fetchMe,
@@ -11,7 +13,7 @@ import {
 import type { Article, CardType, Deck } from "../lib/types";
 
 type Category = "word" | "sentence";
-type Mode = "text" | "voice";
+type Mode = "text" | "voice" | "image";
 type Status = "loading" | "record" | "transcribing" | "ready" | "signed-out" | "no-decks" | "error";
 
 // EnrichRequestSerializer caps `front` at 500 chars server-side (backend/apps/
@@ -31,8 +33,14 @@ function getCaptureId(): string | null {
   return new URLSearchParams(window.location.search).get("capture");
 }
 
+function getImageCaptureId(): string | null {
+  return new URLSearchParams(window.location.search).get("image");
+}
+
 function getMode(): Mode {
-  return new URLSearchParams(window.location.search).get("mode") === "voice" ? "voice" : "text";
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("image")) return "image";
+  return params.get("mode") === "voice" ? "voice" : "text";
 }
 
 export function Proposal() {
@@ -53,6 +61,8 @@ export function Proposal() {
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+  const [imageAttachFailed, setImageAttachFailed] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -90,6 +100,26 @@ export function Proposal() {
       setCategory(guessedCategory);
     }
 
+    let imageUrl = "";
+    if (mode === "image") {
+      const captureId = getImageCaptureId();
+      if (!captureId) {
+        setStatus("error");
+        setErrorMessage("Nothing was captured — right-click the image again.");
+        return;
+      }
+      const key = `image:${captureId}`;
+      const stored = await chrome.storage.session.get(key);
+      const capture = stored[key] as { imageUrl: string } | undefined;
+      if (!capture?.imageUrl) {
+        setStatus("error");
+        setErrorMessage("This capture expired — right-click the image again.");
+        return;
+      }
+      void chrome.storage.session.remove(key);
+      imageUrl = capture.imageUrl;
+    }
+
     try {
       const [me, deckList] = await Promise.all([fetchMe(), fetchDecks()]);
       const lang = (me.learning_languages[0] as "de" | "en" | undefined) ?? "";
@@ -110,6 +140,30 @@ export function Proposal() {
       if (mode === "voice") {
         // No text yet — wait for a recording instead of enriching immediately.
         setStatus("record");
+        return;
+      }
+
+      if (mode === "image") {
+        const result = await enrichImage({
+          image_url: imageUrl,
+          language: lang,
+          card_type: "vocab",
+          back_language: "English",
+        });
+        setImageDataUrl(result.image_data_url);
+        setFront(result.front);
+        setBack(result.back);
+        setReading(result.reading);
+        setExample(result.example);
+        setArticle(result.article);
+        setPlural(result.plural);
+        if (result.card_type === "sentence") {
+          setCategory("sentence");
+        } else if (result.card_type) {
+          setCategory("word");
+          setWordCardType(result.card_type);
+        }
+        setStatus("ready");
         return;
       }
 
@@ -225,7 +279,7 @@ export function Proposal() {
     setCreating(true);
     setErrorMessage("");
     try {
-      await createCard({
+      const card = await createCard({
         deck: deckId,
         card_type: cardType,
         language,
@@ -237,6 +291,16 @@ export function Proposal() {
         example,
       });
       await chrome.storage.local.set({ [`${LAST_DECK_KEY_PREFIX}${language}`]: deckId });
+      if (imageDataUrl) {
+        // Best-effort: the card is already saved, so a failed attach here
+        // must never undo it or block the success screen — just flag it.
+        try {
+          const blob = await (await fetch(imageDataUrl)).blob();
+          await attachCardImage(card.id, blob);
+        } catch {
+          setImageAttachFailed(true);
+        }
+      }
       setCreated(true);
       setTimeout(() => window.close(), 1200);
     } catch (err) {
@@ -334,7 +398,7 @@ export function Proposal() {
   if (created) {
     return (
       <main className="proposal">
-        <p>Card created ✓</p>
+        <p>Card created ✓{imageAttachFailed ? " — image couldn't be attached" : ""}</p>
       </main>
     );
   }
@@ -343,6 +407,16 @@ export function Proposal() {
     <main className="proposal">
       <h1>Add to Nemo Anki</h1>
       {mode === "voice" && front && <p className="muted">🎤 I heard: "{front}"</p>}
+      {mode === "image" && imageDataUrl && (
+        <>
+          <img src={imageDataUrl} alt="" className="image-preview" />
+          <p className="muted">
+            {front
+              ? `🖼️ I read: "${front}"`
+              : "🖼️ Couldn't read any text in this image — fill in the card yourself."}
+          </p>
+        </>
+      )}
 
       <div className="toggle">
         <button

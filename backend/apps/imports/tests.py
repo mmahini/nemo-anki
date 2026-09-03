@@ -1,5 +1,7 @@
 import base64
-from unittest.mock import Mock, patch
+import io
+import socket
+from unittest.mock import MagicMock, Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -12,6 +14,7 @@ from apps.subscriptions.models import AiUsage
 from apps.subscriptions.plans import TRIAL_DAILY_AI_LIMIT
 
 from .gemini import _clean_conjugations, enrich_card, extract_text_from_image, transcribe_audio
+from .safe_fetch import ImageFetchError, ImageTooLargeError, UnsafeUrlError, fetch_image_safely, normalize_image
 
 User = get_user_model()
 
@@ -207,6 +210,257 @@ class EnrichVoiceViewTests(APITestCase):
 
         self.assertEqual(res.status_code, 429)
         mock_transcribe.assert_not_called()
+
+
+def _addrinfo(ip: str):
+    family = socket.AF_INET6 if ":" in ip else socket.AF_INET
+    sockaddr = (ip, 0, 0, 0) if family == socket.AF_INET6 else (ip, 0)
+    return [(family, socket.SOCK_STREAM, 6, "", sockaddr)]
+
+
+def _mock_response(*, status_code=200, is_redirect=False, headers=None, chunks=None):
+    resp = MagicMock()
+    resp.__enter__.return_value = resp
+    resp.__exit__.return_value = False
+    resp.status_code = status_code
+    resp.is_redirect = is_redirect
+    resp.ok = 200 <= status_code < 400
+    resp.headers = headers or {}
+    resp.iter_content = lambda chunk_size=None: iter(chunks or [])
+    return resp
+
+
+class FetchImageSafelyTests(TestCase):
+    """fetch_image_safely: the SSRF checks a trusted-source fetch (apps.cards
+    .image_search, which only ever fetches Openverse's own API results)
+    doesn't need, since this one downloads whatever URL the Chrome
+    extension's user right-clicked on some arbitrary webpage."""
+
+    def test_rejects_non_http_scheme(self):
+        with self.assertRaises(UnsafeUrlError):
+            fetch_image_safely("file:///etc/passwd", max_bytes=1000)
+
+    def test_rejects_url_with_no_host(self):
+        with self.assertRaises(UnsafeUrlError):
+            fetch_image_safely("http:///path", max_bytes=1000)
+
+    @patch("apps.imports.safe_fetch.socket.getaddrinfo")
+    def test_rejects_loopback_address(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = _addrinfo("127.0.0.1")
+        with self.assertRaises(UnsafeUrlError):
+            fetch_image_safely("http://localhost/image.jpg", max_bytes=1000)
+
+    @patch("apps.imports.safe_fetch.socket.getaddrinfo")
+    def test_rejects_link_local_metadata_address(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = _addrinfo("169.254.169.254")
+        with self.assertRaises(UnsafeUrlError):
+            fetch_image_safely("http://169.254.169.254/latest/meta-data/", max_bytes=1000)
+
+    @patch("apps.imports.safe_fetch.socket.getaddrinfo")
+    def test_rejects_private_rfc1918_address(self, mock_getaddrinfo):
+        mock_getaddrinfo.return_value = _addrinfo("10.0.0.5")
+        with self.assertRaises(UnsafeUrlError):
+            fetch_image_safely("http://internal.example/x.jpg", max_bytes=1000)
+
+    @patch("apps.imports.safe_fetch.socket.getaddrinfo")
+    def test_unresolvable_host_is_rejected(self, mock_getaddrinfo):
+        mock_getaddrinfo.side_effect = socket.gaierror("no such host")
+        with self.assertRaises(UnsafeUrlError):
+            fetch_image_safely("http://does-not-exist.invalid/x.jpg", max_bytes=1000)
+
+    @patch("apps.imports.safe_fetch.requests.get")
+    @patch("apps.imports.safe_fetch.socket.getaddrinfo")
+    def test_rejects_redirect_to_private_address(self, mock_getaddrinfo, mock_get):
+        # First hop resolves public; the redirect target resolves internal —
+        # both hops must be checked, not just the URL the caller passed in.
+        mock_getaddrinfo.side_effect = [_addrinfo("93.184.216.34"), _addrinfo("127.0.0.1")]
+        mock_get.return_value = _mock_response(
+            status_code=302, is_redirect=True, headers={"Location": "http://internal.example/x.jpg"}
+        )
+        with self.assertRaises(UnsafeUrlError):
+            fetch_image_safely("http://public.example/x.jpg", max_bytes=1000)
+
+    @patch("apps.imports.safe_fetch.requests.get")
+    @patch("apps.imports.safe_fetch.socket.getaddrinfo")
+    def test_follows_redirect_to_public_address(self, mock_getaddrinfo, mock_get):
+        mock_getaddrinfo.side_effect = [_addrinfo("93.184.216.34"), _addrinfo("93.184.216.35")]
+        redirect = _mock_response(
+            status_code=302, is_redirect=True, headers={"Location": "http://public2.example/x.jpg"}
+        )
+        final = _mock_response(status_code=200, chunks=[b"abc"])
+        mock_get.side_effect = [redirect, final]
+
+        data = fetch_image_safely("http://public.example/x.jpg", max_bytes=1000)
+
+        self.assertEqual(data, b"abc")
+
+    @patch("apps.imports.safe_fetch.requests.get")
+    @patch("apps.imports.safe_fetch.socket.getaddrinfo")
+    def test_oversized_download_is_rejected(self, mock_getaddrinfo, mock_get):
+        mock_getaddrinfo.return_value = _addrinfo("93.184.216.34")
+        mock_get.return_value = _mock_response(status_code=200, chunks=[b"x" * 2000])
+
+        with self.assertRaises(ImageTooLargeError):
+            fetch_image_safely("http://public.example/x.jpg", max_bytes=1000)
+
+    def test_normalize_rejects_non_image_bytes(self):
+        with self.assertRaises(ImageFetchError):
+            normalize_image(b"not an image")
+
+    def test_normalize_returns_a_capped_jpeg(self):
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (10, 10), "red").save(buf, "PNG")
+
+        data, mime_type, source_mime_type = normalize_image(buf.getvalue())
+
+        self.assertEqual(mime_type, "image/jpeg")
+        self.assertEqual(source_mime_type, "image/png")
+        self.assertTrue(data.startswith(b"\xff\xd8"))  # JPEG magic bytes
+
+
+class EnrichImageViewTests(APITestCase):
+    """POST /api/import/enrich-image/ — download a webpage image, OCR it,
+    then enrich it through the same pipeline as typed/selected text. Mirrors
+    EnrichVoiceViewTests' structure. The SSRF/format checks themselves are
+    covered by FetchImageSafelyTests above — this class only checks the
+    view's own composition (quota, error-status mapping, response shape)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="learner@example.com")
+        self.client.force_authenticate(self.user)
+        self.url = reverse("import-enrich-image")
+
+    def _post(self, **overrides):
+        payload = {"image_url": "https://example.com/photo.jpg", "language": "de"}
+        payload.update(overrides)
+        return self.client.post(self.url, payload, format="json")
+
+    def test_requires_authentication(self):
+        self.client.force_authenticate(None)
+        res = self._post()
+        self.assertEqual(res.status_code, 401)
+
+    @patch("apps.imports.views.normalize_image")
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_unsafe_url_returns_400(self, mock_fetch, mock_normalize):
+        mock_fetch.side_effect = UnsafeUrlError("blocked host")
+
+        res = self._post()
+
+        self.assertEqual(res.status_code, 400)
+        mock_normalize.assert_not_called()
+
+    @patch("apps.imports.views.normalize_image")
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_oversized_image_returns_413(self, mock_fetch, mock_normalize):
+        mock_fetch.side_effect = ImageTooLargeError("too big")
+
+        res = self._post()
+
+        self.assertEqual(res.status_code, 413)
+        mock_normalize.assert_not_called()
+
+    @patch("apps.imports.views.normalize_image")
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_invalid_image_bytes_returns_400(self, mock_fetch, mock_normalize):
+        mock_fetch.return_value = b"raw"
+        mock_normalize.side_effect = ImageFetchError("not an image")
+
+        res = self._post()
+
+        self.assertEqual(res.status_code, 400)
+
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.extract_text_from_image")
+    @patch("apps.imports.views.normalize_image")
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_empty_ocr_returns_empty_proposal_with_image(
+        self, mock_fetch, mock_normalize, mock_extract, mock_enrich
+    ):
+        mock_fetch.return_value = b"raw-bytes"
+        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg", "image/png")
+        mock_extract.return_value = {"text": "", "kind": "word"}
+
+        res = self._post()
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["front"], "")
+        self.assertEqual(
+            res.data["image_data_url"],
+            f"data:image/jpeg;base64,{base64.b64encode(b'jpeg-bytes').decode('ascii')}",
+        )
+        mock_enrich.assert_not_called()
+
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.extract_text_from_image")
+    @patch("apps.imports.views.normalize_image")
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_successful_ocr_flows_into_enrichment(
+        self, mock_fetch, mock_normalize, mock_extract, mock_enrich
+    ):
+        mock_fetch.return_value = b"raw-bytes"
+        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg", "image/png")
+        mock_extract.return_value = {"text": "Haus", "kind": "word"}
+        mock_enrich.return_value = {
+            "card_type": "vocab", "back": "house", "reading": "", "article": "das",
+            "plural": "Häuser", "example": "Das ist mein Haus.",
+        }
+
+        res = self._post(language="de", back_language="English")
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["front"], "Haus")
+        self.assertEqual(res.data["back"], "house")
+        self.assertIn("image_data_url", res.data)
+        # OCR runs on the raw downloaded bytes (and the source format's mime
+        # type), not the resized/JPEG-normalized copy — the resize is only
+        # for what gets stored/previewed.
+        mock_extract.assert_called_once_with(b"raw-bytes", mime_type="image/png", language="de")
+        # kind falls back to the request's card_type ("vocab", the default)
+        # when OCR's own "kind" isn't "sentence" — same as EnrichVoiceView.
+        mock_enrich.assert_called_once_with("Haus", "de", "vocab", "English")
+
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.extract_text_from_image")
+    @patch("apps.imports.views.normalize_image")
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_quota_consumed_exactly_once(self, mock_fetch, mock_normalize, mock_extract, mock_enrich):
+        mock_fetch.return_value = b"raw-bytes"
+        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg", "image/png")
+        mock_extract.return_value = {"text": "Haus", "kind": "word"}
+        mock_enrich.return_value = {
+            "card_type": "vocab", "back": "house", "reading": "", "article": "none",
+            "plural": "", "example": "",
+        }
+
+        res = self._post()
+
+        self.assertEqual(res.status_code, 200)
+        usage = AiUsage.objects.get(user=self.user, day=timezone.now().date())
+        self.assertEqual(usage.count, 1)
+
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_quota_still_consumed_when_url_is_blocked(self, mock_fetch):
+        # AiQuotaMixin.initial() fires before post()'s body runs — matches
+        # EnrichVoiceView's existing oversized-audio precedent, not a new
+        # behavior introduced here.
+        mock_fetch.side_effect = UnsafeUrlError("blocked host")
+
+        self._post()
+
+        usage = AiUsage.objects.get(user=self.user, day=timezone.now().date())
+        self.assertEqual(usage.count, 1)
+
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_returns_429_once_quota_exhausted(self, mock_fetch):
+        AiUsage.objects.create(user=self.user, day=timezone.now().date(), count=TRIAL_DAILY_AI_LIMIT)
+
+        res = self._post()
+
+        self.assertEqual(res.status_code, 429)
+        mock_fetch.assert_not_called()
 
 
 @override_settings(GEMINI_API_KEY="test-key")
