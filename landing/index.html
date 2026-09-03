@@ -3,19 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mahini &amp; Motemani — AI &amp; Product Studio</title>
+    <title>Motemani &amp; Mahini — AI &amp; Product Studio</title>
     <meta
       name="description"
       content="Boutique AI & software studio based in Austria. From first concept to production-ready platforms: deep-tech AI architecture combined with audience-first product strategy. GDPR-compliant, end-to-end execution."
     />
     <link rel="icon" type="image/png" href="assets/favicon.png" />
-    <meta property="og:title" content="Mahini & Motemani — AI & Product Studio" />
+    <meta property="og:title" content="Motemani & Mahini — AI & Product Studio" />
     <meta property="og:description" content="You bring the vision. We build the intelligent software. Boutique AI & product studio based in Austria — from strategy to production-ready code." />
     <meta property="og:image" content="https://nemoapps.xyz/assets/og.jpg" />
     <meta property="og:url" content="https://nemoapps.xyz" />
     <meta property="og:type" content="website" />
     <style>
-      /* ============ Mahini & Motemani — studio design system ============
+      /* ============ Motemani & Mahini — studio design system ============
          Premium B2B one-pager: slate neutrals, high whitespace,
          indigo/teal accents used sparingly. Fonts are self-hosted
          (GDPR: no requests to Google servers). */
@@ -249,14 +249,14 @@
       .proj__body { padding: 14px 16px 16px; }
       .proj h4 { margin: 0 0 3px; font-size: 0.98rem; }
       .proj p { margin: 0; color: var(--ink-soft); font-size: 0.82rem; line-height: 1.5; }
-      .family {
-        margin-top: 34px; padding: 20px 24px; border: 1px dashed var(--line); border-radius: var(--radius);
-        display: flex; gap: 10px 22px; flex-wrap: wrap; align-items: center;
-        color: var(--ink-soft); font-size: 0.92rem;
+      .grouphead {
+        display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+        margin: 0 0 18px; font-size: 1.12rem; font-weight: 800; letter-spacing: -0.01em;
       }
-      .family strong { color: var(--ink); }
-      .family a { font-weight: 700; color: var(--indigo-deep); white-space: nowrap; }
-      .family a:hover { text-decoration: underline; }
+      .grouphead small { font-weight: 500; font-size: 0.9rem; color: var(--ink-faint); }
+      .grouphead--apps { margin-top: 52px; }
+      .projects--apps { grid-template-columns: repeat(3, 1fr); margin-top: 0; }
+      .proj__cta { display: inline-block; margin-top: 8px; font-weight: 700; font-size: 0.84rem; color: var(--indigo-deep); }
 
       /* contact */
       .contact { color: #e2e8f0; background: var(--slate-950); margin-top: 92px; padding: 92px 0 0; }
@@ -291,7 +291,7 @@
       @media (max-width: 920px) {
         .steps { grid-template-columns: 1fr 1fr; }
         .step::before { right: 0; }
-        .projects { grid-template-columns: 1fr 1fr; }
+        .projects, .projects--apps { grid-template-columns: 1fr 1fr; }
       }
       @media (max-width: 720px) {
         .synergy, .cards2, .duo, .contact__grid { grid-template-columns: 1fr; }
@@ -300,7 +300,7 @@
         .top__bg { background-position: 20% center; }
       }
       @media (max-width: 520px) {
-        .steps, .projects { grid-template-columns: 1fr; }
+        .steps, .projects, .projects--apps { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -310,9 +310,9 @@
       <div class="top__bg" aria-hidden="true"></div>
       <header>
         <div class="wrap">
-          <a class="brand" href="#top" aria-label="Mahini & Motemani — home">
+          <a class="brand" href="#top" aria-label="Motemani & Mahini — home">
             <img src="assets/logo.webp" alt="" width="36" height="36" />
-            <span class="brand__name">Mahini &amp; Motemani
+            <span class="brand__name">Motemani &amp; Mahini
               <span class="brand__tag">AI &amp; Product Studio</span>
             </span>
           </a>
@@ -456,32 +456,6 @@
             </p>
           </div>
           <div class="duo">
-            <article class="person person--mo reveal">
-              <div class="person__head">
-                <span class="person__avatar" aria-hidden="true">MM</span>
-                <h3>Dr. Mo Mahini</h3>
-              </div>
-              <p class="person__cred">
-                <strong>Silver Medalist, International Olympiad in Informatics (IOI)</strong> ·
-                Postdoc at ISTA · PhD in Computer Science (Sharif University)
-              </p>
-              <p class="person__bio">
-                Mo shapes the technology roadmap and leads core software architecture,
-                bridging advanced academic computer science with high-impact product
-                engineering. With a background spanning academic research at the Institute
-                of Science and Technology Austria (ISTA) and hands-on industry roles as
-                Solutions Architect, Tech Lead, and TPM in fintech and complex data
-                systems, he guarantees that every solution is resilient, scalable, and
-                algorithmically sound.
-              </p>
-              <div class="tags">
-                <span class="tag">AI &amp; Machine Learning</span>
-                <span class="tag">Cloud Architecture</span>
-                <span class="tag">High-Performance Systems</span>
-                <span class="tag">Fintech &amp; Security</span>
-              </div>
-            </article>
-
             <article class="person person--zahra reveal">
               <div class="person__head">
                 <span class="person__avatar" aria-hidden="true">ZM</span>
@@ -505,6 +479,32 @@
                 <span class="tag">Growth &amp; Go-To-Market</span>
                 <span class="tag">Audience Engagement</span>
                 <span class="tag">Market Validation</span>
+              </div>
+            </article>
+
+            <article class="person person--mo reveal">
+              <div class="person__head">
+                <span class="person__avatar" aria-hidden="true">MM</span>
+                <h3>Dr. Mo Mahini</h3>
+              </div>
+              <p class="person__cred">
+                <strong>Silver Medalist, International Olympiad in Informatics (IOI)</strong> ·
+                Postdoc at ISTA · PhD in Computer Science (Sharif University)
+              </p>
+              <p class="person__bio">
+                Mo shapes the technology roadmap and leads core software architecture,
+                bridging advanced academic computer science with high-impact product
+                engineering. With a background spanning academic research at the Institute
+                of Science and Technology Austria (ISTA) and hands-on industry roles as
+                Solutions Architect, Tech Lead, and TPM in fintech and complex data
+                systems, he guarantees that every solution is resilient, scalable, and
+                algorithmically sound.
+              </p>
+              <div class="tags">
+                <span class="tag">AI &amp; Machine Learning</span>
+                <span class="tag">Cloud Architecture</span>
+                <span class="tag">High-Performance Systems</span>
+                <span class="tag">Fintech &amp; Security</span>
               </div>
             </article>
           </div>
@@ -568,6 +568,7 @@
             </p>
           </div>
 
+          <h3 class="grouphead reveal">Social-impact projects <small>built and run for community initiatives</small></h3>
           <div class="projects reveal">
             <a class="proj" href="https://bazno.nemoapps.xyz" target="_blank" rel="noopener">
               <span class="proj__img"><img src="assets/app-bazno.webp" alt="Recyclables turning into coins and a growing tree" loading="lazy" /></span>
@@ -599,13 +600,33 @@
             </a>
           </div>
 
-          <p class="family reveal">
-            <span><strong>We also ship our own products</strong> — the Nemo Apps family, built from our
-            everyday needs and open to everyone:</span>
-            <a href="https://anki.nemoapps.xyz/app" target="_blank" rel="noopener">Nemo Anki →</a>
-            <a href="https://gardening.nemoapps.xyz" target="_blank" rel="noopener">Nemo Gardening →</a>
-            <a href="https://map.nemoapps.xyz/app" target="_blank" rel="noopener">Nemo Map →</a>
-          </p>
+          <h3 class="grouphead grouphead--apps reveal">Everyday apps — the Nemo Apps family <small>built from our own everyday needs, open to everyone</small></h3>
+          <div class="projects projects--apps reveal">
+            <a class="proj" href="https://anki.nemoapps.xyz/app" target="_blank" rel="noopener">
+              <span class="proj__img"><img src="assets/app-anki.webp" alt="A playful stack of colour-coded language flashcards" loading="lazy" /></span>
+              <span class="proj__body">
+                <h4>Nemo Anki 🗂️</h4>
+                <p>AI-powered spaced-repetition flashcards for languages — books, writing practice, and an Instagram-style Reels feed for learners.</p>
+                <span class="proj__cta">Open the app →</span>
+              </span>
+            </a>
+            <a class="proj" href="https://gardening.nemoapps.xyz" target="_blank" rel="noopener">
+              <span class="proj__img"><img src="assets/app-gardening.webp" alt="A cozy home garden with planter boxes and a planting calendar" loading="lazy" /></span>
+              <span class="proj__body">
+                <h4>Nemo Gardening 🌱</h4>
+                <p>A planting-schedule manager for home gardeners — plan what to plant, track harvests, keep notes per plant.</p>
+                <span class="proj__cta">Open the app →</span>
+              </span>
+            </a>
+            <a class="proj" href="https://map.nemoapps.xyz/app" target="_blank" rel="noopener">
+              <span class="proj__img"><img src="assets/app-map.webp" alt="A world map with pins, travel routes, and pinned photos" loading="lazy" /></span>
+              <span class="proj__body">
+                <h4>Nemo Map 🗺️</h4>
+                <p>A personal, map-based travel journal — mark countries, build albums, and pin the places you remember.</p>
+                <span class="proj__cta">Open the app →</span>
+              </span>
+            </a>
+          </div>
         </div>
       </section>
 
@@ -639,7 +660,7 @@
 
         <footer>
           <div class="wrap">
-            <span class="foot-brand"><img src="assets/logo.webp" alt="" width="20" height="20" /> © <span id="y"></span> Mahini &amp; Motemani. All rights reserved.</span>
+            <span class="foot-brand"><img src="assets/logo.webp" alt="" width="20" height="20" /> © <span id="y"></span> Motemani &amp; Mahini. All rights reserved.</span>
             <nav aria-label="Legal">
               <a href="impressum.html">Impressum</a>
               <a href="datenschutz.html">Datenschutzerklärung</a>
