@@ -59,18 +59,26 @@ function hasWebSpeech(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
 
+/** Normalizes a language value to its bare primary subtag — trims whitespace,
+ * lowercases, and drops any region/script subtag ("DE", "de ", "de-DE" all
+ * become "de"). Generic across every language the app supports (lib/
+ * languages.ts) — no per-language list lives here. */
+function normalizeLang(lang: string): string {
+  return (lang || "").trim().toLowerCase().split("-")[0];
+}
+
 /** BCP-47 language tag for Web Speech APIs (both synthesis and recognition). */
 export function bcp47(lang: string): string {
-  if (lang === "de") return "de-DE";
-  if (lang === "en") return "en-US";
-  return "";
+  const code = normalizeLang(lang);
+  if (!code) return "";
+  if (code === "en") return "en-US";
+  if (code === "de") return "de-DE";
+  return code;
 }
 
 /** Language code for Google Translate TTS (`tl` param). */
 function ttsLang(lang: string): string {
-  if (lang === "de") return "de";
-  if (lang === "en") return "en";
-  return lang || "";
+  return normalizeLang(lang);
 }
 
 function googleTtsUrl(text: string, tl: string): string {
