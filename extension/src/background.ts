@@ -1,6 +1,7 @@
-import type { PendingCapture } from "./lib/types";
+import type { PendingCapture, PendingImageCapture } from "./lib/types";
 
 const MENU_ID = "nemo-anki-add-selection";
+const IMAGE_MENU_ID = "nemo-anki-add-image";
 const PROPOSAL_WINDOW_WIDTH = 420;
 const PROPOSAL_WINDOW_HEIGHT = 600;
 
@@ -10,9 +11,19 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "Add to Nemo Anki",
     contexts: ["selection"],
   });
+  chrome.contextMenus.create({
+    id: IMAGE_MENU_ID,
+    title: "Add image to Nemo Anki",
+    contexts: ["image"],
+  });
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === IMAGE_MENU_ID) {
+    if (!info.srcUrl) return;
+    void openImageProposalWindow(info.srcUrl, tab);
+    return;
+  }
   if (info.menuItemId !== MENU_ID) return;
   const text = (info.selectionText ?? "").trim();
   if (!text) return;
@@ -50,6 +61,24 @@ async function openProposalWindow(text: string, tab?: chrome.tabs.Tab): Promise<
 
   await chrome.windows.create({
     url: chrome.runtime.getURL(`proposal.html?capture=${capture.id}`),
+    type: "popup",
+    width: PROPOSAL_WINDOW_WIDTH,
+    height: PROPOSAL_WINDOW_HEIGHT,
+  });
+}
+
+async function openImageProposalWindow(imageUrl: string, tab?: chrome.tabs.Tab): Promise<void> {
+  const capture: PendingImageCapture = {
+    id: crypto.randomUUID(),
+    imageUrl,
+    sourceUrl: tab?.url ?? "",
+    sourceTitle: tab?.title ?? "",
+    createdAt: Date.now(),
+  };
+  await chrome.storage.session.set({ [`image:${capture.id}`]: capture });
+
+  await chrome.windows.create({
+    url: chrome.runtime.getURL(`proposal.html?image=${capture.id}`),
     type: "popup",
     width: PROPOSAL_WINDOW_WIDTH,
     height: PROPOSAL_WINDOW_HEIGHT,

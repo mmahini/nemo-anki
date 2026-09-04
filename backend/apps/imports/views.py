@@ -1,4 +1,6 @@
+import base64
 import random
+import time
 from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.core.files.base import ContentFile
@@ -22,12 +24,14 @@ from .gemini import (
     conversation_reply,
     conversation_text,
     enrich_card,
+    extract_text_from_image,
     parse_text,
     transcribe_audio,
     writing_check,
     writing_prompt,
     writing_topic,
 )
+from .safe_fetch import ImageFetchError, ImageTooLargeError, UnsafeUrlError, fetch_image_safely, normalize_image
 
 
 class ParseRequestSerializer(serializers.Serializer):
@@ -151,6 +155,125 @@ class EnrichVoiceView(AiQuotaMixin, APIView):
                 "article": result.get("article", "none"),
                 "plural": result.get("plural", ""),
                 "example": result.get("example", ""),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+MAX_IMAGE_DOWNLOAD_BYTES = 10 * 1024 * 1024  # matches MAX_VOICE_BYTES / Telegram's _PHOTO_MAX_BYTES
+
+# Bounded retry for a transient Gemini failure (e.g. 503) — this blocks a
+# synchronous popup the user is staring at, so the budget stays small: 3
+# attempts total, ~2s worst case added latency. A 429 (rate limited) is
+# never retried here — that means "slow down," not "try again in a second."
+_OCR_RETRY_BACKOFF_SECONDS = (0.5, 1.5)
+
+
+def _ocr_with_retry(image_bytes: bytes, mime_type: str, language: str) -> dict:
+    """Calls extract_text_from_image, retrying only on a retryable failure
+    (no HTTP status, i.e. a network/timeout error, or a 5xx) — never on a
+    429. See extract_text_from_image's "ok"/"status_code" fields."""
+    result = extract_text_from_image(image_bytes, mime_type=mime_type, language=language)
+    for backoff in _OCR_RETRY_BACKOFF_SECONDS:
+        if result.get("ok"):
+            return result
+        status_code = result.get("status_code")
+        retryable = status_code is None or status_code >= 500
+        if not retryable:
+            return result
+        time.sleep(backoff)
+        result = extract_text_from_image(image_bytes, mime_type=mime_type, language=language)
+    return result
+
+
+class EnrichImageRequestSerializer(serializers.Serializer):
+    image_url = serializers.URLField(max_length=2000)
+    language = serializers.ChoiceField(choices=["de", "en", ""], required=False, default="")
+    card_type = serializers.ChoiceField(
+        choices=sorted(ALLOWED_TYPES), required=False, default="vocab"
+    )
+    # Language the translation ("back") should be written in.
+    back_language = serializers.CharField(max_length=40, required=False, default="English")
+
+
+class EnrichImageView(AiQuotaMixin, APIView):
+    """Image variant of EnrichView: download a webpage image the Chrome
+    extension's user right-clicked (via apps.imports.safe_fetch, which does
+    the SSRF hardening an arbitrary external URL needs), OCR it, then run the
+    same enrichment as typed/selected text — one HTTP request, one AI quota
+    unit, same as EnrichVoiceView.
+
+    Unlike voice, the image itself is always returned (as a data URL) even
+    when OCR finds no legible text — there's no meaningful "try again" for a
+    fixed URL the way there is for a fresh recording, and the image is still
+    a useful card attachment on its own. The extension holds that data URL
+    client-side and attaches it via the existing CardImageView only once the
+    user actually creates the card (see apps.cards.views.CardImageView) —
+    nothing is written to storage here.
+
+    The OCR step (_ocr_with_retry) gets a small bounded retry for a
+    transient Gemini failure (e.g. a 503) rather than immediately degrading
+    to an empty proposal — response body still has "ocr_failed" so the
+    client can tell "Gemini said there's no text" from "Gemini's call kept
+    failing" apart, without a different response shape either way."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = EnrichImageRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        image_url = serializer.validated_data["image_url"]
+        language = serializer.validated_data["language"]
+        card_type = serializer.validated_data["card_type"]
+        back_language = serializer.validated_data["back_language"]
+
+        try:
+            raw = fetch_image_safely(image_url, max_bytes=MAX_IMAGE_DOWNLOAD_BYTES)
+            normalized, normalized_mime_type = normalize_image(raw)
+        except ImageTooLargeError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+        except (UnsafeUrlError, ImageFetchError) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        image_data_url = (
+            f"data:{normalized_mime_type};base64,{base64.b64encode(normalized).decode('ascii')}"
+        )
+
+        # OCR runs on the same normalized bytes used for storage/preview —
+        # CARD_IMAGE_MAX was chosen to stay legible for OCR, so the original
+        # (possibly much larger, more token-expensive) bytes buy no accuracy.
+        transcribed = _ocr_with_retry(normalized, normalized_mime_type, language)
+        text = transcribed.get("text", "")
+        if not text:
+            # No legible text — not necessarily a failure (Gemini may have
+            # genuinely found nothing) but could be a Gemini outage that
+            # survived the retries above; "ocr_failed" lets the caller say
+            # which, without needing a different response shape either way.
+            # The image is still returned so the proposal can be filled in
+            # by hand with it attached.
+            return Response(
+                {
+                    "front": "", "card_type": card_type, "back": "", "reading": "",
+                    "article": "none", "plural": "", "example": "",
+                    "image_data_url": image_data_url,
+                    "ocr_failed": not transcribed.get("ok", True),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        kind = "sentence" if transcribed.get("kind") == "sentence" else card_type
+        result = enrich_card(text, language, kind, back_language)
+        return Response(
+            {
+                "front": text,
+                "card_type": result.get("card_type", kind),
+                "back": result.get("back", ""),
+                "reading": result.get("reading", ""),
+                "article": result.get("article", "none"),
+                "plural": result.get("plural", ""),
+                "example": result.get("example", ""),
+                "image_data_url": image_data_url,
+                "ocr_failed": False,
             },
             status=status.HTTP_200_OK,
         )

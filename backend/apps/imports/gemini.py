@@ -656,16 +656,22 @@ sentence or passage. If the image contains no readable text, return \
 def extract_text_from_image(image_bytes: bytes, mime_type: str = "image/jpeg", language: str = "") -> dict:
     """Extract the text in a photo (e.g. a Telegram photo message) into what's
     written, ready to drive the word/sentence card lookup. Returns
-    {"text": str, "kind": "word"|"sentence"}; on failure (no API key, no image,
-    network/parse error) it degrades to {"text": "", "kind": "word"} so the
-    caller can fall back to the typed-text path.
+    {"text": str, "kind": "word"|"sentence", "ok": bool, "status_code": int|None};
+    on failure (no API key, no image, network/parse error) "text"/"kind"
+    degrade to ""/"word" exactly as before, so the caller can fall back to
+    the typed-text path — "ok"/"status_code" are additive, existing callers
+    reading only "text"/"kind" (e.g. the Telegram bot) are unaffected.
+    "ok" is True whenever Gemini was actually reached and answered, even if
+    it reported no text; False when the call itself failed. "status_code" is
+    the HTTP status when the failure was an HTTP error response (e.g. a
+    caller may want to retry a 503 but not a 429), None otherwise.
 
     The bytes are sent to Gemini directly via inline_data — the same pattern
     transcribe_audio uses for voice, so there's no separate OCR service or
     image preprocessing step to install or run. mime_type must match the
     source container (image/jpeg for Telegram photos)."""
     if not image_bytes or not settings.GEMINI_API_KEY:
-        return {"text": "", "kind": "word"}
+        return {"text": "", "kind": "word", "ok": False, "status_code": None}
     prompt = _IMAGE_OCR_PROMPT.format(
         language_name=_LANG_NAMES.get(language, "the target language")
     )
@@ -697,10 +703,14 @@ def extract_text_from_image(image_bytes: bytes, mime_type: str = "image/jpeg", l
         obj = _extract_json_object(raw)
         text = str(obj.get("text", "")).strip()
         kind = "sentence" if obj.get("kind") == "sentence" else "word"
-        return {"text": text, "kind": kind}
+        return {"text": text, "kind": kind, "ok": True, "status_code": res.status_code}
+    except requests.HTTPError as exc:
+        logger.exception("Gemini image OCR failed")
+        status_code = exc.response.status_code if exc.response is not None else None
+        return {"text": "", "kind": "word", "ok": False, "status_code": status_code}
     except Exception:  # noqa: BLE001 — a Gemini hiccup degrades to the typed path
         logger.exception("Gemini image OCR failed")
-        return {"text": "", "kind": "word"}
+        return {"text": "", "kind": "word", "ok": False, "status_code": None}
 
 
 def writing_topic(language: str) -> dict:

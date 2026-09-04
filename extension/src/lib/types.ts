@@ -64,6 +64,27 @@ export type EnrichVoicePayload = {
  * already know what "front" is before this call returns. */
 export type EnrichVoiceResult = EnrichResult & { front: string };
 
+export type EnrichImagePayload = {
+  image_url: string;
+  language?: "de" | "en" | "";
+  card_type?: CardType;
+  back_language?: string;
+};
+
+/** Response shape from POST /api/import/enrich-image/ — EnrichResult plus the
+ * OCR'd transcript (like voice) and a data URL of the backend-downloaded,
+ * size-capped source image. The proposal window holds onto that data URL and
+ * attaches it to the card (via CardImageView) only once the user actually
+ * creates it — nothing is persisted before that. `ocr_failed` distinguishes
+ * "Gemini genuinely found no text" (false) from "Gemini's call kept failing
+ * even after a retry" (true) — front is "" either way, only the caption
+ * shown to the user differs. */
+export type EnrichImageResult = EnrichResult & {
+  front: string;
+  image_data_url: string;
+  ocr_failed: boolean;
+};
+
 export type CreateCardPayload = {
   deck: number;
   card_type: CardType;
@@ -89,6 +110,16 @@ export type Card = {
 export type PendingCapture = {
   id: string;
   text: string;
+  sourceUrl: string;
+  sourceTitle: string;
+  createdAt: number;
+};
+
+/** Same handoff as PendingCapture, but for the image context menu — carries
+ * the clicked image's source URL instead of selected text. */
+export type PendingImageCapture = {
+  id: string;
+  imageUrl: string;
   sourceUrl: string;
   sourceTitle: string;
   createdAt: number;

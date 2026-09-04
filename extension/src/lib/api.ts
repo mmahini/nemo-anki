@@ -4,6 +4,8 @@ import type {
   Card,
   CreateCardPayload,
   Deck,
+  EnrichImagePayload,
+  EnrichImageResult,
   EnrichPayload,
   EnrichResult,
   EnrichVoicePayload,
@@ -153,6 +155,29 @@ export function enrichVoice(payload: EnrichVoicePayload) {
   });
 }
 
+/** Image variant: downloads and OCRs a webpage image server-side (SSRF-
+ * checked — see backend/apps/imports/safe_fetch.py) and enriches it in one
+ * request, so it consumes one AI quota unit — same shape as enrichVoice. */
+export function enrichImage(payload: EnrichImagePayload) {
+  return request<EnrichImageResult>("/api/import/enrich-image/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createCard(payload: CreateCardPayload) {
   return request<Card>("/api/cards/", { method: "POST", body: JSON.stringify(payload) });
+}
+
+/** Attaches an image to an already-created card (apps.cards.views
+ * .CardImageView) — used right after createCard() to persist an image-mode
+ * proposal's source image, since that endpoint only ever operates on a card
+ * that already exists. */
+export function attachCardImage(cardId: number, image: Blob) {
+  const form = new FormData();
+  form.append("image", image, "image.jpg");
+  return request<{ id: number; url: string }>(`/api/cards/${cardId}/images/`, {
+    method: "POST",
+    body: form,
+  });
 }
