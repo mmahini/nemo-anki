@@ -3,6 +3,7 @@ import io
 import socket
 from unittest.mock import MagicMock, Mock, patch
 
+import requests
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -20,7 +21,7 @@ User = get_user_model()
 
 
 def _gemini_response(text):
-    return Mock(json=lambda: {"candidates": [{"content": {"parts": [{"text": text}]}}]})
+    return Mock(status_code=200, json=lambda: {"candidates": [{"content": {"parts": [{"text": text}]}}]})
 
 
 @override_settings(GEMINI_API_KEY="test-key")
@@ -313,10 +314,9 @@ class FetchImageSafelyTests(TestCase):
         buf = io.BytesIO()
         Image.new("RGB", (10, 10), "red").save(buf, "PNG")
 
-        data, mime_type, source_mime_type = normalize_image(buf.getvalue())
+        data, mime_type = normalize_image(buf.getvalue())
 
         self.assertEqual(mime_type, "image/jpeg")
-        self.assertEqual(source_mime_type, "image/png")
         self.assertTrue(data.startswith(b"\xff\xd8"))  # JPEG magic bytes
 
 
@@ -380,8 +380,8 @@ class EnrichImageViewTests(APITestCase):
         self, mock_fetch, mock_normalize, mock_extract, mock_enrich
     ):
         mock_fetch.return_value = b"raw-bytes"
-        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg", "image/png")
-        mock_extract.return_value = {"text": "", "kind": "word"}
+        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg")
+        mock_extract.return_value = {"text": "", "kind": "word", "ok": True, "status_code": 200}
 
         res = self._post()
 
@@ -391,6 +391,8 @@ class EnrichImageViewTests(APITestCase):
             res.data["image_data_url"],
             f"data:image/jpeg;base64,{base64.b64encode(b'jpeg-bytes').decode('ascii')}",
         )
+        # Gemini genuinely ran and reported no text — not a service failure.
+        self.assertFalse(res.data["ocr_failed"])
         mock_enrich.assert_not_called()
 
     @patch("apps.imports.views.enrich_card")
@@ -401,8 +403,8 @@ class EnrichImageViewTests(APITestCase):
         self, mock_fetch, mock_normalize, mock_extract, mock_enrich
     ):
         mock_fetch.return_value = b"raw-bytes"
-        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg", "image/png")
-        mock_extract.return_value = {"text": "Haus", "kind": "word"}
+        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg")
+        mock_extract.return_value = {"text": "Haus", "kind": "word", "ok": True, "status_code": 200}
         mock_enrich.return_value = {
             "card_type": "vocab", "back": "house", "reading": "", "article": "das",
             "plural": "Häuser", "example": "Das ist mein Haus.",
@@ -414,10 +416,10 @@ class EnrichImageViewTests(APITestCase):
         self.assertEqual(res.data["front"], "Haus")
         self.assertEqual(res.data["back"], "house")
         self.assertIn("image_data_url", res.data)
-        # OCR runs on the raw downloaded bytes (and the source format's mime
-        # type), not the resized/JPEG-normalized copy — the resize is only
-        # for what gets stored/previewed.
-        mock_extract.assert_called_once_with(b"raw-bytes", mime_type="image/png", language="de")
+        self.assertFalse(res.data["ocr_failed"])
+        # OCR runs on the normalized (already size-capped) bytes, the same
+        # ones returned/stored — not the raw download.
+        mock_extract.assert_called_once_with(b"jpeg-bytes", mime_type="image/jpeg", language="de")
         # kind falls back to the request's card_type ("vocab", the default)
         # when OCR's own "kind" isn't "sentence" — same as EnrichVoiceView.
         mock_enrich.assert_called_once_with("Haus", "de", "vocab", "English")
@@ -428,8 +430,8 @@ class EnrichImageViewTests(APITestCase):
     @patch("apps.imports.views.fetch_image_safely")
     def test_quota_consumed_exactly_once(self, mock_fetch, mock_normalize, mock_extract, mock_enrich):
         mock_fetch.return_value = b"raw-bytes"
-        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg", "image/png")
-        mock_extract.return_value = {"text": "Haus", "kind": "word"}
+        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg")
+        mock_extract.return_value = {"text": "Haus", "kind": "word", "ok": True, "status_code": 200}
         mock_enrich.return_value = {
             "card_type": "vocab", "back": "house", "reading": "", "article": "none",
             "plural": "", "example": "",
@@ -462,13 +464,89 @@ class EnrichImageViewTests(APITestCase):
         self.assertEqual(res.status_code, 429)
         mock_fetch.assert_not_called()
 
+    @patch("apps.imports.views.time.sleep")
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.extract_text_from_image")
+    @patch("apps.imports.views.normalize_image")
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_ocr_retries_on_503_and_succeeds(
+        self, mock_fetch, mock_normalize, mock_extract, mock_enrich, mock_sleep
+    ):
+        mock_fetch.return_value = b"raw-bytes"
+        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg")
+        mock_extract.side_effect = [
+            {"text": "", "kind": "word", "ok": False, "status_code": 503},
+            {"text": "Haus", "kind": "word", "ok": True, "status_code": 200},
+        ]
+        mock_enrich.return_value = {
+            "card_type": "vocab", "back": "house", "reading": "", "article": "none",
+            "plural": "", "example": "",
+        }
+
+        res = self._post()
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["front"], "Haus")
+        self.assertFalse(res.data["ocr_failed"])
+        self.assertEqual(mock_extract.call_count, 2)
+        mock_sleep.assert_called_once_with(0.5)
+
+    @patch("apps.imports.views.time.sleep")
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.extract_text_from_image")
+    @patch("apps.imports.views.normalize_image")
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_ocr_gives_up_after_exhausting_retries(
+        self, mock_fetch, mock_normalize, mock_extract, mock_enrich, mock_sleep
+    ):
+        mock_fetch.return_value = b"raw-bytes"
+        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg")
+        mock_extract.return_value = {"text": "", "kind": "word", "ok": False, "status_code": 503}
+
+        res = self._post()
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["front"], "")
+        # Distinguishes "Gemini said there's no text" from "Gemini's call
+        # kept failing" — same graceful, still-200, image-still-attached
+        # shape either way, just an honest flag for the caption.
+        self.assertTrue(res.data["ocr_failed"])
+        # 3 attempts total (1 original + 2 retries), matching the two-entry
+        # backoff schedule.
+        self.assertEqual(mock_extract.call_count, 3)
+        self.assertEqual([c.args[0] for c in mock_sleep.call_args_list], [0.5, 1.5])
+        mock_enrich.assert_not_called()
+
+    @patch("apps.imports.views.time.sleep")
+    @patch("apps.imports.views.enrich_card")
+    @patch("apps.imports.views.extract_text_from_image")
+    @patch("apps.imports.views.normalize_image")
+    @patch("apps.imports.views.fetch_image_safely")
+    def test_ocr_429_is_not_retried(self, mock_fetch, mock_normalize, mock_extract, mock_enrich, mock_sleep):
+        mock_fetch.return_value = b"raw-bytes"
+        mock_normalize.return_value = (b"jpeg-bytes", "image/jpeg")
+        mock_extract.return_value = {"text": "", "kind": "word", "ok": False, "status_code": 429}
+
+        res = self._post()
+
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data["ocr_failed"])
+        # 429 means "slow down," not "try again in half a second" — a
+        # single attempt, no sleep, no retry.
+        mock_extract.assert_called_once()
+        mock_sleep.assert_not_called()
+        mock_enrich.assert_not_called()
+
 
 @override_settings(GEMINI_API_KEY="test-key")
 class ExtractTextFromImageTests(TestCase):
     """extract_text_from_image: photo bytes are sent to Gemini via inline_data
     (no separate OCR service or preprocessing step) and the parsed text/kind
-    drive the Telegram photo lookup; every failure mode degrades to
-    {"text": "", "kind": "word"}."""
+    drive the Telegram photo lookup; every failure mode degrades "text"/
+    "kind" to ""/"word" exactly as before. "ok"/"status_code" are additive —
+    Telegram's own callers only read "text"/"kind" and are unaffected; they
+    exist so a caller like EnrichImageView can tell a genuine "no text found"
+    apart from "the Gemini call itself failed" and decide whether to retry."""
 
     @patch("requests.post")
     def test_posts_inline_image_and_parses_word(self, mock_post):
@@ -476,7 +554,7 @@ class ExtractTextFromImageTests(TestCase):
 
         result = extract_text_from_image(b"\x00image", mime_type="image/jpeg", language="de")
 
-        self.assertEqual(result, {"text": "Haus", "kind": "word"})
+        self.assertEqual(result, {"text": "Haus", "kind": "word", "ok": True, "status_code": 200})
         mock_post.assert_called_once()
         args, kwargs = mock_post.call_args
         self.assertIn("test-key", args[0])
@@ -493,30 +571,67 @@ class ExtractTextFromImageTests(TestCase):
 
         result = extract_text_from_image(b"image", mime_type="image/jpeg")
 
-        self.assertEqual(result, {"text": "Ich gehe ins Kino.", "kind": "sentence"})
+        self.assertEqual(
+            result, {"text": "Ich gehe ins Kino.", "kind": "sentence", "ok": True, "status_code": 200}
+        )
 
     @patch("requests.post")
     def test_skips_the_call_when_unconfigured(self, mock_post):
         with self.settings(GEMINI_API_KEY=""):
-            self.assertEqual(extract_text_from_image(b"image"), {"text": "", "kind": "word"})
+            self.assertEqual(
+                extract_text_from_image(b"image"),
+                {"text": "", "kind": "word", "ok": False, "status_code": None},
+            )
         mock_post.assert_not_called()
 
     @patch("requests.post")
     def test_skips_the_call_without_image(self, mock_post):
-        self.assertEqual(extract_text_from_image(b""), {"text": "", "kind": "word"})
+        self.assertEqual(
+            extract_text_from_image(b""), {"text": "", "kind": "word", "ok": False, "status_code": None}
+        )
         mock_post.assert_not_called()
 
     @patch("requests.post")
     def test_network_failure_degrades_to_empty(self, mock_post):
         mock_post.side_effect = Exception("timeout")
 
-        self.assertEqual(extract_text_from_image(b"image"), {"text": "", "kind": "word"})
+        self.assertEqual(
+            extract_text_from_image(b"image"), {"text": "", "kind": "word", "ok": False, "status_code": None}
+        )
 
     @patch("requests.post")
     def test_missing_text_field_degrades_to_empty(self, mock_post):
+        # _extract_json_object degrades unparseable content to {} rather than
+        # raising, so this is Gemini genuinely answering with nothing usable
+        # — "ok" is True (a completed round-trip), not a call failure.
         mock_post.return_value = _gemini_response("not json at all")
 
-        self.assertEqual(extract_text_from_image(b"image"), {"text": "", "kind": "word"})
+        self.assertEqual(
+            extract_text_from_image(b"image"), {"text": "", "kind": "word", "ok": True, "status_code": 200}
+        )
+
+    @patch("requests.post")
+    def test_http_error_reports_status_code(self, mock_post):
+        # A real HTTPError (e.g. from res.raise_for_status()) carries its
+        # response's status code through — this is what a caller like
+        # EnrichImageView's retry loop keys its retry-or-not decision on.
+        response = Mock(status_code=503)
+        response.raise_for_status.side_effect = requests.HTTPError(response=response)
+        mock_post.return_value = response
+
+        result = extract_text_from_image(b"image")
+
+        self.assertEqual(result, {"text": "", "kind": "word", "ok": False, "status_code": 503})
+
+    @patch("requests.post")
+    def test_http_error_429_reports_status_code(self, mock_post):
+        response = Mock(status_code=429)
+        response.raise_for_status.side_effect = requests.HTTPError(response=response)
+        mock_post.return_value = response
+
+        result = extract_text_from_image(b"image")
+
+        self.assertEqual(result, {"text": "", "kind": "word", "ok": False, "status_code": 429})
 
 
 class CleanConjugationsTests(TestCase):

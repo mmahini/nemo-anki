@@ -75,8 +75,15 @@ export type EnrichImagePayload = {
  * OCR'd transcript (like voice) and a data URL of the backend-downloaded,
  * size-capped source image. The proposal window holds onto that data URL and
  * attaches it to the card (via CardImageView) only once the user actually
- * creates it — nothing is persisted before that. */
-export type EnrichImageResult = EnrichResult & { front: string; image_data_url: string };
+ * creates it — nothing is persisted before that. `ocr_failed` distinguishes
+ * "Gemini genuinely found no text" (false) from "Gemini's call kept failing
+ * even after a retry" (true) — front is "" either way, only the caption
+ * shown to the user differs. */
+export type EnrichImageResult = EnrichResult & {
+  front: string;
+  image_data_url: string;
+  ocr_failed: boolean;
+};
 
 export type CreateCardPayload = {
   deck: number;

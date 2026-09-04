@@ -62,6 +62,7 @@ export function Proposal() {
   const [created, setCreated] = useState(false);
   const [recording, setRecording] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+  const [ocrFailed, setOcrFailed] = useState(false);
   const [imageAttachFailed, setImageAttachFailed] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -151,6 +152,7 @@ export function Proposal() {
           back_language: "English",
         });
         setImageDataUrl(result.image_data_url);
+        setOcrFailed(result.ocr_failed);
         setFront(result.front);
         setBack(result.back);
         setReading(result.reading);
@@ -413,7 +415,9 @@ export function Proposal() {
           <p className="muted">
             {front
               ? `🖼️ I read: "${front}"`
-              : "🖼️ Couldn't read any text in this image — fill in the card yourself."}
+              : ocrFailed
+                ? "🖼️ OCR is temporarily unavailable — fill in the card yourself."
+                : "🖼️ Couldn't read any text in this image — fill in the card yourself."}
           </p>
         </>
       )}

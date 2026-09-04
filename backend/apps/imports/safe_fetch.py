@@ -23,10 +23,6 @@ from PIL import Image
 _UA = {"User-Agent": "nemo-anki/1.0 (language study app)"}
 CARD_IMAGE_MAX = (1600, 1600)  # legible enough for OCR text, unlike image_search's 320x320 icon thumbnails
 _MAX_REDIRECTS = 5
-_FORMAT_MIME_TYPES = {
-    "JPEG": "image/jpeg", "PNG": "image/png", "GIF": "image/gif",
-    "WEBP": "image/webp", "BMP": "image/bmp", "TIFF": "image/tiff",
-}
 
 
 class UnsafeUrlError(ValueError):
@@ -95,22 +91,22 @@ def fetch_image_safely(url: str, *, max_bytes: int, timeout: float = 10) -> byte
     raise ImageFetchError("Too many redirects")
 
 
-def normalize_image(data: bytes) -> tuple[bytes, str, str]:
+def normalize_image(data: bytes) -> tuple[bytes, str]:
     """Decode `data` with Pillow — the real format check, since Content-Type
-    is never trusted — and re-encode as a size-capped JPEG for storage/
-    preview. Returns (jpeg_bytes, "image/jpeg", source_mime_type); the third
-    value is the *original* format's mime type, for OCR to run against the
-    untouched bytes so the size-capping above never costs Gemini legibility.
-    Raises ImageFetchError if the bytes aren't a real image."""
+    is never trusted — and re-encode as a size-capped JPEG. Returns
+    (jpeg_bytes, "image/jpeg"). This is also what OCR runs against (not the
+    original bytes): CARD_IMAGE_MAX was chosen specifically to stay legible
+    for OCR, so there's no accuracy reason to send Gemini the (possibly much
+    larger, more token-expensive) original. Raises ImageFetchError if the
+    bytes aren't a real image."""
     try:
         Image.open(io.BytesIO(data)).verify()
         im = Image.open(io.BytesIO(data))  # verify() consumes the parser; reopen to actually use it
-        source_mime_type = _FORMAT_MIME_TYPES.get(im.format or "", "image/jpeg")
         im.thumbnail(CARD_IMAGE_MAX)
         if im.mode not in ("RGB", "L"):
             im = im.convert("RGB")
         out = io.BytesIO()
         im.save(out, "JPEG", quality=85)
-        return out.getvalue(), "image/jpeg", source_mime_type
+        return out.getvalue(), "image/jpeg"
     except Exception as exc:  # noqa: BLE001 - any decode failure means "not a real image"
         raise ImageFetchError("That doesn't look like a valid image") from exc

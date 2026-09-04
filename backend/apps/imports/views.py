@@ -1,5 +1,6 @@
 import base64
 import random
+import time
 from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.core.files.base import ContentFile
@@ -161,6 +162,29 @@ class EnrichVoiceView(AiQuotaMixin, APIView):
 
 MAX_IMAGE_DOWNLOAD_BYTES = 10 * 1024 * 1024  # matches MAX_VOICE_BYTES / Telegram's _PHOTO_MAX_BYTES
 
+# Bounded retry for a transient Gemini failure (e.g. 503) — this blocks a
+# synchronous popup the user is staring at, so the budget stays small: 3
+# attempts total, ~2s worst case added latency. A 429 (rate limited) is
+# never retried here — that means "slow down," not "try again in a second."
+_OCR_RETRY_BACKOFF_SECONDS = (0.5, 1.5)
+
+
+def _ocr_with_retry(image_bytes: bytes, mime_type: str, language: str) -> dict:
+    """Calls extract_text_from_image, retrying only on a retryable failure
+    (no HTTP status, i.e. a network/timeout error, or a 5xx) — never on a
+    429. See extract_text_from_image's "ok"/"status_code" fields."""
+    result = extract_text_from_image(image_bytes, mime_type=mime_type, language=language)
+    for backoff in _OCR_RETRY_BACKOFF_SECONDS:
+        if result.get("ok"):
+            return result
+        status_code = result.get("status_code")
+        retryable = status_code is None or status_code >= 500
+        if not retryable:
+            return result
+        time.sleep(backoff)
+        result = extract_text_from_image(image_bytes, mime_type=mime_type, language=language)
+    return result
+
 
 class EnrichImageRequestSerializer(serializers.Serializer):
     image_url = serializers.URLField(max_length=2000)
@@ -185,7 +209,13 @@ class EnrichImageView(AiQuotaMixin, APIView):
     a useful card attachment on its own. The extension holds that data URL
     client-side and attaches it via the existing CardImageView only once the
     user actually creates the card (see apps.cards.views.CardImageView) —
-    nothing is written to storage here."""
+    nothing is written to storage here.
+
+    The OCR step (_ocr_with_retry) gets a small bounded retry for a
+    transient Gemini failure (e.g. a 503) rather than immediately degrading
+    to an empty proposal — response body still has "ocr_failed" so the
+    client can tell "Gemini said there's no text" from "Gemini's call kept
+    failing" apart, without a different response shape either way."""
 
     permission_classes = [IsAuthenticated]
 
@@ -199,7 +229,7 @@ class EnrichImageView(AiQuotaMixin, APIView):
 
         try:
             raw = fetch_image_safely(image_url, max_bytes=MAX_IMAGE_DOWNLOAD_BYTES)
-            normalized, normalized_mime_type, source_mime_type = normalize_image(raw)
+            normalized, normalized_mime_type = normalize_image(raw)
         except ImageTooLargeError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
         except (UnsafeUrlError, ImageFetchError) as exc:
@@ -209,19 +239,24 @@ class EnrichImageView(AiQuotaMixin, APIView):
             f"data:{normalized_mime_type};base64,{base64.b64encode(normalized).decode('ascii')}"
         )
 
-        # OCR runs on the untouched original bytes, not the resized copy
-        # above — resizing is only for what gets stored/previewed, never for
-        # what Gemini reads.
-        transcribed = extract_text_from_image(raw, mime_type=source_mime_type, language=language)
+        # OCR runs on the same normalized bytes used for storage/preview —
+        # CARD_IMAGE_MAX was chosen to stay legible for OCR, so the original
+        # (possibly much larger, more token-expensive) bytes buy no accuracy.
+        transcribed = _ocr_with_retry(normalized, normalized_mime_type, language)
         text = transcribed.get("text", "")
         if not text:
-            # No legible text — not a failure. The image is still returned
-            # so the proposal can be filled in by hand with it attached.
+            # No legible text — not necessarily a failure (Gemini may have
+            # genuinely found nothing) but could be a Gemini outage that
+            # survived the retries above; "ocr_failed" lets the caller say
+            # which, without needing a different response shape either way.
+            # The image is still returned so the proposal can be filled in
+            # by hand with it attached.
             return Response(
                 {
                     "front": "", "card_type": card_type, "back": "", "reading": "",
                     "article": "none", "plural": "", "example": "",
                     "image_data_url": image_data_url,
+                    "ocr_failed": not transcribed.get("ok", True),
                 },
                 status=status.HTTP_200_OK,
             )
@@ -238,6 +273,7 @@ class EnrichImageView(AiQuotaMixin, APIView):
                 "plural": result.get("plural", ""),
                 "example": result.get("example", ""),
                 "image_data_url": image_data_url,
+                "ocr_failed": False,
             },
             status=status.HTTP_200_OK,
         )
