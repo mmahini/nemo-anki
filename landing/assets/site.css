@@ -288,8 +288,9 @@ footer nav a:hover { color: #e2e8f0; }
   .synergy, .cards2, .duo, .contact__grid { grid-template-columns: 1fr; }
   .hero { padding: 56px 0 72px; }
   nav a.navlink { display: none; }
-  /* keep the About page reachable on mobile — it is a real page, not an anchor */
-  nav a.navlink[href$="about.html"] { display: inline-flex; }
+  /* keep the About page and the social-impact anchor reachable on mobile */
+  nav a.navlink[href$="about.html"],
+  nav a.navlink--accent { display: inline-flex; }
   .top__bg { background-position: 20% center; }
 }
 @media (max-width: 520px) {
@@ -311,3 +312,25 @@ footer nav a:hover { color: #e2e8f0; }
 .about-values p { margin: 0; color: var(--ink-soft); }
 .about-values a { font-weight: 700; color: var(--indigo-deep); }
 .about-values a:hover { text-decoration: underline; }
+
+/* social-impact emphasis */
+.navlink--accent { color: #a5b4fc; }
+.navlink--accent::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--teal); margin-right: 7px; vertical-align: 1px;
+}
+.sr-callout {
+  display: flex; gap: 18px; align-items: flex-start; margin-top: 40px;
+  padding: 26px 30px; border-radius: var(--radius-l);
+  background: linear-gradient(120deg, rgba(20, 184, 166, 0.09), rgba(99, 102, 241, 0.07));
+  border: 1px solid rgba(20, 184, 166, 0.28);
+}
+.sr-callout__icon {
+  flex: none; display: grid; place-items: center; width: 46px; height: 46px;
+  border-radius: 14px; background: var(--surface); font-size: 1.35rem;
+}
+.sr-callout h4 { margin: 0 0 6px; font-size: 1.08rem; letter-spacing: -0.01em; }
+.sr-callout p { margin: 0; color: var(--ink-soft); font-size: 0.97rem; }
+.sr-callout a { font-weight: 700; color: var(--indigo-deep); }
+.sr-callout a:hover { text-decoration: underline; }
+@media (max-width: 560px) { .sr-callout { flex-direction: column; gap: 14px; padding: 24px; } }
