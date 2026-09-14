@@ -1,0 +1,329 @@
+<!doctype html>
+<!--
+  ============================================================================
+  PRIVATE / UNLISTED SECTION — /psychology
+  ----------------------------------------------------------------------------
+  این بخش عمداً «لینک‌نشده» است. هیچ لینک یا اشاره‌ای به آن نباید در
+  index.html ، about.html ، impressum.html یا هر جای دیگر لندینگ
+  nemowise.com اضافه شود. دسترسی فقط از طریق داشتن آدرس مستقیم است.
+
+  This section is intentionally unlisted. Do NOT add a link to it — or any
+  mention of it — from the main nemowise.com landing (index.html, about.html,
+  the nav, the footer, sitemaps or OG metadata). Access is by direct URL only.
+  Reinforced by: <meta name="robots" content="noindex,nofollow"> on every page
+  here, plus `Disallow: /psychology/` in ../robots.txt.
+  See ./README.md before changing anything in this folder.
+  ============================================================================
+-->
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
+    <title>تمرین‌ها و آزمون‌ها | Nemo Wise</title>
+    <meta
+      name="description"
+      content="مجموعه‌ای خصوصی از آزمون‌ها و تمرین‌های خودشناسی. همه‌چیز آفلاین اجرا می‌شود و پاسخ‌ها فقط روی همین دستگاه می‌مانند."
+    />
+    <link rel="icon" type="image/png" href="../assets/favicon.png" />
+    <style>
+      /* arabic */
+      @font-face {
+        font-family: "Vazirmatn";
+        font-style: normal;
+        font-weight: 300 700;
+        font-display: swap;
+        src: url("fonts/vazirmatn-arabic.woff2") format("woff2");
+        unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1,
+          U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74,
+          U+FE76-FEFC;
+      }
+      /* latin-ext */
+      @font-face {
+        font-family: "Vazirmatn";
+        font-style: normal;
+        font-weight: 300 700;
+        font-display: swap;
+        src: url("fonts/vazirmatn-latin-ext.woff2") format("woff2");
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+          U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+          U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+      /* latin */
+      @font-face {
+        font-family: "Vazirmatn";
+        font-style: normal;
+        font-weight: 300 700;
+        font-display: swap;
+        src: url("fonts/vazirmatn-latin.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+          U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+          U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: #f7f7f5;
+        color: #1c1b1b;
+        font-family: "Vazirmatn", "IRANSansX", Tahoma, ui-sans-serif, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+        position: relative;
+        overflow-x: hidden;
+      }
+      .glow {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .glow--warm {
+        top: -160px; inset-inline-end: -120px;
+        width: 560px; height: 560px; opacity: 0.5;
+        background: radial-gradient(circle, #e9c7b6 0%, rgba(233, 199, 182, 0) 70%);
+      }
+      .glow--cool {
+        top: 420px; inset-inline-start: -180px;
+        width: 620px; height: 620px; opacity: 0.42;
+        background: radial-gradient(circle, #b9d7d6 0%, rgba(185, 215, 214, 0) 70%);
+      }
+      .wrap {
+        position: relative;
+        z-index: 1;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0 clamp(16px, 4vw, 32px) 120px;
+      }
+      header.bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        flex-wrap: wrap;
+        padding: 32px 0 0;
+      }
+      .mark { display: flex; align-items: center; gap: 10px; }
+      .mark__dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: #1c1b1b; display: block;
+      }
+      .mark__name {
+        font-size: 13px; font-weight: 500; letter-spacing: 0.12em;
+        text-transform: uppercase; color: #444748;
+      }
+      .bar__right { font-size: 12px; color: #747878; letter-spacing: 0.12em; }
+
+      .intro { margin-top: clamp(48px, 9vw, 96px); }
+      .eyebrow {
+        font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase;
+        color: #8a8d8d; margin: 0 0 18px;
+      }
+      h1 {
+        margin: 0;
+        font-size: clamp(30px, 7vw, 52px);
+        line-height: 1.14;
+        letter-spacing: -0.02em;
+        font-weight: 600;
+        max-width: 18ch;
+        text-wrap: pretty;
+      }
+      .lede {
+        margin: 24px 0 0;
+        font-size: clamp(16px, 2.2vw, 19px);
+        line-height: 1.85;
+        color: #45484a;
+        max-width: 62ch;
+        font-weight: 300;
+      }
+      .notice {
+        margin-top: 36px;
+        display: inline-flex;
+        align-items: flex-start;
+        gap: 10px;
+        max-width: 62ch;
+        padding: 14px 18px;
+        border: 1px solid #e3e1db;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.6);
+        font-size: 14px;
+        line-height: 1.8;
+        color: #5b5e5f;
+      }
+      .notice b { font-weight: 600; color: #1c1b1b; }
+
+      h2.section {
+        margin: clamp(56px, 8vw, 88px) 0 0;
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #8a8d8d;
+      }
+      .grid {
+        margin-top: 22px;
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      }
+      a.card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        background: #fff;
+        border: 1px solid #eceae4;
+        border-radius: 20px;
+        padding: 28px;
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease,
+          border-color 0.25s ease;
+      }
+      a.card:hover, a.card:focus-visible {
+        transform: translateY(-3px);
+        box-shadow: 0 18px 40px rgba(28, 27, 27, 0.08);
+        border-color: #ddd9d0;
+        outline: none;
+      }
+      .card__kind {
+        font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+        color: #8a8d8d;
+      }
+      .card h3 {
+        margin: 12px 0 0;
+        font-size: 22px;
+        font-weight: 600;
+        line-height: 1.4;
+        letter-spacing: -0.01em;
+      }
+      .card__en { font-size: 13px; color: #8a8d8d; margin: 6px 0 0; direction: ltr; text-align: right; }
+      .card p.desc {
+        margin: 14px 0 0;
+        font-size: 15px;
+        line-height: 1.85;
+        color: #55585a;
+        font-weight: 300;
+      }
+      .meta {
+        margin: 20px 0 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .meta li {
+        font-size: 12px;
+        color: #5f6263;
+        background: #f4f2ee;
+        border-radius: 999px;
+        padding: 5px 12px;
+      }
+      .card__go {
+        margin: 22px 0 0;
+        font-size: 14px;
+        font-weight: 500;
+        color: #1c1b1b;
+      }
+      .card__go span { transition: margin 0.2s ease; display: inline-block; }
+      a.card:hover .card__go span { margin-inline-start: 6px; }
+
+      .soon {
+        border: 1px dashed #dedbd3;
+        border-radius: 20px;
+        padding: 28px;
+        color: #8a8d8d;
+        font-size: 14px;
+        line-height: 1.9;
+        font-weight: 300;
+        background: transparent;
+      }
+      .soon b { display: block; color: #5b5e5f; font-weight: 500; margin-bottom: 8px; font-size: 15px; }
+
+      footer.foot {
+        margin-top: clamp(64px, 9vw, 104px);
+        padding-top: 28px;
+        border-top: 1px solid #e6e3dc;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 24px;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 13px;
+        color: #8a8d8d;
+      }
+      footer.foot a { color: #5b5e5f; text-decoration: none; }
+      footer.foot a:hover { color: #1c1b1b; }
+
+      @media (prefers-reduced-motion: reduce) {
+        a.card { transition: none; }
+        a.card:hover { transform: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="glow glow--warm" aria-hidden="true"></div>
+    <div class="glow glow--cool" aria-hidden="true"></div>
+
+    <div class="wrap">
+      <header class="bar">
+        <div class="mark">
+          <span class="mark__dot" aria-hidden="true"></span>
+          <span class="mark__name">Nemo Wise · تمرین‌ها</span>
+        </div>
+        <span class="bar__right">صفحهٔ خصوصی · فهرست‌نشده</span>
+      </header>
+
+      <section class="intro">
+        <p class="eyebrow">خودشناسی کاربردی</p>
+        <h1>آزمون‌ها و تمرین‌های خودشناسی</h1>
+        <p class="lede">
+          مجموعه‌ای کوچک و بی‌سروصدا از پرسش‌نامه‌ها و تمرین‌های روان‌شناختی، با ترجمه و
+          نمره‌گذاری فارسی. هر آزمون یک صفحهٔ مستقل است که کامل در مرورگر خودتان اجرا می‌شود؛
+          نه حسابی لازم است، نه پاسخی به جایی فرستاده می‌شود.
+        </p>
+        <p class="notice">
+          <span aria-hidden="true">🔒</span>
+          <span>
+            <b>این بخش لینک عمومی ندارد.</b>
+            از هیچ‌جای سایت اصلی به این صفحه لینک داده نشده و در موتورهای جست‌وجو هم
+            نمایه نمی‌شود. فقط کسی که آدرس را دارد می‌تواند واردش شود. پاسخ‌های شما در
+            حافظهٔ محلی مرورگر (localStorage) می‌ماند و به هیچ سروری ارسال نمی‌شود.
+          </span>
+        </p>
+      </section>
+
+      <h2 class="section">آزمون‌های موجود</h2>
+      <div class="grid">
+        <a class="card" href="pearson-archetype/">
+          <span class="card__kind">پرسش‌نامه · آرکتایپ</span>
+          <h3>پرسش‌نامهٔ «اِی» — آزمون ۱۲ آرکتایپ پیرسن</h3>
+          <p class="card__en">Pearson · Heroic Myth Index (HMI)</p>
+          <p class="desc">
+            شاخص اسطورهٔ قهرمانی کارول پیرسن: ۷۲ عبارت که وزن دوازده آرکتایپ درونی — از
+            معصوم و یتیم تا فرزانه و دلقک — و جایگاه شما را روی شش دوگانهٔ آرکتایپی مشخص
+            می‌کند. نتیجه با نمودار عنکبوتی، رتبه‌بندی و تفسیر هر دوگانه نمایش داده می‌شود.
+          </p>
+          <ul class="meta">
+            <li>۷۲ عبارت</li>
+            <li>۱۰ تا ۱۵ دقیقه</li>
+            <li>۱۲ آرکتایپ</li>
+            <li>کاملاً آفلاین</li>
+            <li>قابل چاپ</li>
+          </ul>
+          <p class="card__go">شروع آزمون <span aria-hidden="true">←</span></p>
+        </a>
+
+        <div class="soon">
+          <b>به‌زودی</b>
+          آزمون‌ها و تمرین‌های بعدی همین‌جا اضافه می‌شوند. هر مورد یک پوشهٔ مستقل زیر
+          <code>/psychology/</code> است و کارت آن به همین فهرست افزوده می‌شود.
+        </div>
+      </div>
+
+      <footer class="foot">
+        <span>ساخته‌شده در Nemo&nbsp;Wise — بخش خصوصی، بدون لینک عمومی.</span>
+        <span><a href="https://nemowise.com">nemowise.com</a></span>
+      </footer>
+    </div>
+  </body>
+</html>

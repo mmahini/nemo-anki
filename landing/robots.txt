@@ -1,0 +1,7 @@
+# nemowise.com
+
+User-agent: *
+Allow: /
+
+# Private, unlisted section — no public link anywhere on the landing.
+Disallow: /psychology/

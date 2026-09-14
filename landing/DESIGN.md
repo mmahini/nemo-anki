@@ -71,3 +71,16 @@ Gemini and compressed to WebP (`cwebp -resize 1280 0 -q 82`).
 Reveal-on-scroll: fade + 22px rise, 0.6s ease, once per element.
 Hover: cards lift −4px with `--shadow-lift`; images scale 1.045 over 0.35s.
 All motion is disabled under `prefers-reduced-motion: reduce`.
+
+## Private section: `/psychology`
+
+`psychology/` holds unlisted Persian self-knowledge tests and exercises, in a
+separate quiet aesthetic (paper `#f7f7f5`, ink `#1c1b1b`, self-hosted Vazirmatn,
+RTL) rather than the studio's indigo system — the two are deliberately not
+related visually.
+
+**It must never be linked from the landing.** No nav item, no footer entry, no
+mention in copy or metadata anywhere in `index.html`, `about.html`,
+`impressum.html` or `datenschutz.html`. Access is by direct URL only, backed by
+`noindex` on each page and `Disallow: /psychology/` in `robots.txt`.
+Details and the rationale: `psychology/README.md`.
