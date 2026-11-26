@@ -11,7 +11,7 @@ class DeckConfigSerializer(serializers.ModelSerializer):
 
 
 class DeckSerializer(serializers.ModelSerializer):
-    full_name = serializers.CharField(read_only=True)
+    full_name = serializers.SerializerMethodField()
     # Study counts injected by the view (avoids N+1 in the serializer).
     counts = serializers.SerializerMethodField()
     is_owner = serializers.SerializerMethodField()
@@ -39,6 +39,10 @@ class DeckSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "full_name", "created_at"]
         extra_kwargs = {"config": {"required": False}}
 
+    def get_full_name(self, obj) -> str:
+        # Precomputed by DeckListView for the whole tree; walks parents otherwise.
+        return getattr(obj, "_full_name", None) or obj.full_name
+
     def get_counts(self, obj) -> dict:
         return getattr(obj, "_counts", {"new": 0, "learning": 0, "due": 0, "total": 0})
 
@@ -53,10 +57,17 @@ class DeckSerializer(serializers.ModelSerializer):
     def get_shared_with(self, obj) -> list[str]:
         # Only the owner sees who it's shared with.
         if self.get_is_owner(obj):
-            return [s.user.email for s in obj.shares.select_related("user").all()]
+            # Honour a view's prefetch_related("shares__user") when present.
+            if "shares" in getattr(obj, "_prefetched_objects_cache", {}):
+                shares = obj.shares.all()
+            else:
+                shares = obj.shares.select_related("user")
+            return [s.user.email for s in shares]
         return []
 
     def get_card_count(self, obj) -> int:
+        if hasattr(obj, "_card_count"):
+            return obj._card_count
         from apps.cards.models import Card
 
         return Card.objects.filter(deck_id__in=obj.descendant_ids(), direction="forward").count()

@@ -37,6 +37,11 @@ export default function Study() {
   const [canUndo, setCanUndo] = useState(false);
   const [cardBusy, setCardBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  // Answers are sent in the background so the next card shows instantly
+  // instead of waiting on a server round trip. They're chained so they land
+  // in order, and undo / refills wait for the chain to drain first.
+  const [inFlight, setInFlight] = useState(0);
+  const pending = useRef<Promise<unknown>>(Promise.resolve());
   const shownAt = useRef<number>(Date.now());
 
   const id = Number(deckId);
@@ -69,25 +74,29 @@ export default function Study() {
   }, [current?.id]);
 
   const grade = useCallback(
-    async (rating: Rating) => {
+    (rating: Rating) => {
       if (!current || busy) return;
-      setBusy(true);
-      try {
-        const updated = await answerCard(current.id, rating, Date.now() - shownAt.current);
-        setCanUndo(true);
-        setFlipped(false);
-        setQueue((q) => {
-          const rest = q.slice(1);
+      const card = current;
+      const elapsed = Date.now() - shownAt.current;
+      // Move on right away; the answer catches up in the background.
+      setFlipped(false);
+      setCanUndo(true);
+      setQueue((q) => q.filter((c) => c.id !== card.id));
+      setInFlight((n) => n + 1);
+      const job = pending.current
+        .then(() => answerCard(card.id, rating, elapsed))
+        .then((updated) => {
           if (updated.state === "learning" || updated.state === "relearning") {
-            return [...rest, updated];
+            setQueue((q) => [...q.filter((c) => c.id !== updated.id), updated]);
           }
-          return rest;
-        });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : t("common.error"));
-      } finally {
-        setBusy(false);
-      }
+        })
+        .catch((err) => {
+          // Not recorded — put the card back in front so it isn't lost.
+          setError(err instanceof Error ? err.message : t("common.error"));
+          setQueue((q) => [card, ...q.filter((c) => c.id !== card.id)]);
+        })
+        .finally(() => setInFlight((n) => n - 1));
+      pending.current = job;
     },
     [current, busy],
   );
@@ -96,6 +105,7 @@ export default function Study() {
     if (busy) return;
     setBusy(true);
     try {
+      await pending.current;
       const restored = await undoLastAnswer();
       setQueue((q) => [restored, ...q.filter((c) => c.id !== restored.id)]);
       setFlipped(false);
@@ -137,11 +147,31 @@ export default function Study() {
   useEffect(() => {
     if (!loading && queue.length === 0) {
       (async () => {
+        // Wait for outstanding answers, or the server hands back cards we
+        // already graded.
+        await pending.current;
         const q = await fetchStudyQueue(id).catch(() => [] as Card[]);
-        if (q.length) setQueue(q);
+        if (q.length) setQueue((prev) => (prev.length ? prev : q));
       })();
     }
   }, [queue.length, loading, id]);
+
+  // Warm the browser cache with the next card's photos so it appears at once.
+  const next = queue[1];
+  useEffect(() => {
+    next?.images?.forEach((im) => {
+      const img = new Image();
+      img.src = im.url;
+    });
+  }, [next?.id]);
+
+  const removeCurrent = useCallback(() => {
+    if (!current) return;
+    const goneId = current.id;
+    setFlipped(false);
+    // Deleting a forward card cascades to its reverse twin on the server.
+    setQueue((q) => q.filter((c) => c.id !== goneId && c.reverse_of !== goneId));
+  }, [current]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -195,7 +225,9 @@ export default function Study() {
 
       {error && <div className="panel panel--error">{error}</div>}
 
-      {!current ? (
+      {!current && inFlight > 0 ? (
+        <div className="panel">{t("study.loading")}</div>
+      ) : !current ? (
         <div className="study__done">
           <div className="study__done-emoji">🎉</div>
           <h2>{t("study.allDone")}</h2>
@@ -249,6 +281,7 @@ export default function Study() {
         <CardEditModal
           card={current}
           onClose={() => setEditing(false)}
+          onDeleted={removeCurrent}
           onSaved={(u) => patchCurrent({
             card_type: u.card_type, front: u.front, back: u.back, reading: u.reading,
             article: u.article, plural: u.plural, example: u.example, notes: u.notes,

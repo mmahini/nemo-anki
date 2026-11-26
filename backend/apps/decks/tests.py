@@ -157,3 +157,79 @@ class DeckImportViewTests(APITestCase):
         self.client.force_authenticate(stranger)
         res = self.client.post(self.url)
         self.assertEqual(res.status_code, 404)
+
+
+class DeckListPerformanceTests(APITestCase):
+    """The deck list is loaded by both the deck page and the card list. It used
+    to cost ~10 queries per deck; on a seeded account that was hundreds."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.cards.models import CardState, ReviewLog
+
+        self.user = User.objects.create_user(email="perf@example.com")
+        cfg = _config(self.user)
+        cfg.new_per_day = 3
+        cfg.save()
+        self.client.force_authenticate(self.user)
+
+        root = Deck.objects.create(user=self.user, name="Root", config=cfg)
+        mid = Deck.objects.create(user=self.user, name="Mid", parent=root, config=cfg)
+        leaf = Deck.objects.create(user=self.user, name="Leaf", parent=mid, config=cfg)
+        other = Deck.objects.create(user=self.user, name="Other", config=cfg)
+        self.decks = [root, mid, leaf, other]
+
+        now = timezone.now()
+        past = now - timedelta(hours=1)
+        future = now + timedelta(days=3)
+        for i, (deck, state, due) in enumerate(
+            [
+                (root, CardState.NEW, now),
+                (mid, CardState.NEW, now),
+                (leaf, CardState.NEW, now),
+                (leaf, CardState.NEW, now),
+                (leaf, CardState.LEARNING, past),
+                (leaf, CardState.REVIEW, past),
+                (leaf, CardState.REVIEW, future),
+                (mid, CardState.SUSPENDED, past),
+                (other, CardState.RELEARNING, past),
+            ]
+        ):
+            Card.objects.create(deck=deck, front=f"f{i}", back="b", state=state, due=due)
+        reviewed = Card.objects.create(deck=leaf, front="done", back="b", state=CardState.REVIEW, due=future)
+        ReviewLog.objects.create(
+            card=reviewed, user=self.user, rating=3,
+            state_before=CardState.NEW, state_after=CardState.LEARNING, prev_snapshot={},
+        )
+
+    def test_bulk_counts_match_per_deck_counts(self):
+        from django.utils import timezone
+
+        from apps.cards.queue import bulk_deck_counts, deck_counts
+
+        now = timezone.now()
+        decks = list(Deck.objects.filter(user=self.user).select_related("config"))
+        bulk = bulk_deck_counts(decks, now)
+        for d in decks:
+            expected = dict(deck_counts(d, now))
+            expected["card_count"] = Card.objects.filter(
+                deck_id__in=d.descendant_ids(), direction="forward"
+            ).count()
+            self.assertEqual(bulk[d.id], expected, d.name)
+
+    def test_list_is_constant_in_queries(self):
+        res = self.client.get(reverse("deck-list"))
+        self.assertEqual(res.status_code, 200)
+        names = {d["full_name"] for d in res.data}
+        self.assertIn("Root::Mid::Leaf", names)
+
+        cfg = _config(self.user)
+        for i in range(15):
+            Deck.objects.create(user=self.user, name=f"Extra {i}", parent=self.decks[2], config=cfg)
+        # decks + shares prefetch + card counts + review-log counts
+        with self.assertNumQueries(4):
+            res = self.client.get(reverse("deck-list"))
+        self.assertEqual(len(res.data), 19)

@@ -12,6 +12,7 @@ downloading ~60 videos and pushing them to R2 would blow straight past gunicorn'
 
     python manage.py poll_reels --dry-run     # what's due, and what it'd cost
     python manage.py poll_reels               # fetch, ingest, purge, snapshot
+    python manage.py poll_reels --purge-only  # just the retention purge, no spend
 """
 
 from django.conf import settings
@@ -34,8 +35,26 @@ class Command(BaseCommand):
         parser.add_argument(
             "--skip-purge", action="store_true", help="Don't run the retention purge."
         )
+        parser.add_argument(
+            "--purge-only",
+            action="store_true",
+            help="Run only the retention purge (and the storage snapshot). Spends nothing.",
+        )
 
     def handle(self, *args, **options):
+        if options["purge_only"]:
+            self.stdout.write(
+                f"Retention       : {settings.REELS_RETENTION_DAYS} day(s) since fetch"
+            )
+            if options["dry_run"] and settings.REELS_RETENTION_DAYS:
+                cutoff = timezone.now() - timezone.timedelta(days=settings.REELS_RETENTION_DAYS)
+                self.stdout.write(f"Would purge     : {tasks.purge_preview(cutoff)}")
+                self.stdout.write(self.style.WARNING("Dry run — nothing deleted."))
+                return
+            self.stdout.write(f"Purge           : {tasks.purge_expired_reel_media()}")
+            self.stdout.write(f"Snapshot        : {tasks.snapshot_reels_storage()}")
+            return
+
         budget = ReelsBudget.load()
         now = timezone.now()
         due = [s for s in ReelSource.objects.filter(kind=INSTAGRAM, is_active=True) if s.is_due(now)]

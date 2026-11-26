@@ -8,7 +8,7 @@ from .models import Card
 class CardSerializer(serializers.ModelSerializer):
     # Predicted next intervals per button, attached by the study view.
     intervals = serializers.SerializerMethodField()
-    deck_name = serializers.CharField(source="deck.full_name", read_only=True)
+    deck_name = serializers.SerializerMethodField()
     deck_language = serializers.CharField(source="deck.language", read_only=True)
     has_reverse = serializers.SerializerMethodField()
     images = serializers.SerializerMethodField()
@@ -22,6 +22,7 @@ class CardSerializer(serializers.ModelSerializer):
             "deck_language",
             "card_type",
             "direction",
+            "reverse_of",
             "has_reverse",
             "images",
             "language",
@@ -53,6 +54,7 @@ class CardSerializer(serializers.ModelSerializer):
             "deck_name",
             "deck_language",
             "direction",
+            "reverse_of",
             "has_reverse",
             "images",
             "state",
@@ -70,15 +72,28 @@ class CardSerializer(serializers.ModelSerializer):
     def get_intervals(self, obj):
         return getattr(obj, "_intervals", None)
 
+    def get_deck_name(self, obj) -> str:
+        # full_name walks the parent chain (a query per level). A study batch or
+        # card page is mostly one deck, so memoise per deck across the list —
+        # the context dict is shared by every child of a many=True serializer.
+        names = self.context.setdefault("_deck_full_names", {}) if self.context is not None else {}
+        if obj.deck_id not in names:
+            names[obj.deck_id] = obj.deck.full_name
+        return names[obj.deck_id]
+
     def get_has_reverse(self, obj) -> bool:
         # True for a forward vocab card that has a reverse companion.
         if obj.reverse_of_id is not None:
             return False
+        # .exists() always hits the DB; use the prefetch when the view did one.
+        prefetched = getattr(obj, "_prefetched_objects_cache", {})
+        if "reverses" in prefetched:
+            return bool(prefetched["reverses"])
         return obj.reverses.exists()
 
     def get_images(self, obj):
         # Images live on the primary (forward) card; a reverse shows the same set.
-        src = obj.reverse_of or obj
+        src = obj.reverse_of if obj.reverse_of_id else obj
         return [{"id": im.id, "url": im.image.url} for im in src.images.all()]
 
     def validate_deck(self, deck: Deck) -> Deck:

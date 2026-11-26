@@ -25,6 +25,10 @@ on:
         description: "Report what's due and the cost without spending anything"
         type: boolean
         default: false
+      purge_only:
+        description: "Only purge media past the retention window — no fetch, no spend"
+        type: boolean
+        default: false
 
 concurrency:
   # Two overlapping polls would each pay for the same reels.
@@ -52,7 +56,7 @@ jobs:
       REELS_RATE_PER_1000: ${{ vars.REELS_RATE_PER_1000 || '2.60' }}
       REELS_SCRAPING_ENABLED: ${{ vars.REELS_SCRAPING_ENABLED }}
       REELS_MONTHLY_BUDGET_USD: ${{ vars.REELS_MONTHLY_BUDGET_USD || '5.00' }}
-      REELS_RETENTION_DAYS: ${{ vars.REELS_RETENTION_DAYS || '0' }}
+      REELS_RETENTION_DAYS: ${{ vars.REELS_RETENTION_DAYS || '14' }}
 
       # Media goes straight to R2 — the runner is disposable, so anything left
       # on its filesystem is lost.
@@ -96,4 +100,5 @@ jobs:
           set -o pipefail
           python manage.py poll_reels \
             ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }} \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.purge_only) && '--purge-only' || '' }} \
             | tee "$GITHUB_STEP_SUMMARY"

@@ -264,9 +264,10 @@ REELS_RATE_PER_1000 = float(os.getenv("REELS_RATE_PER_1000", "2.60"))
 # "Fetch now" button. Arm this only after measuring real cost (plan, phase 3).
 REELS_SCRAPING_ENABLED = os.getenv("REELS_SCRAPING_ENABLED", "") == "True"
 REELS_MONTHLY_BUDGET_USD = os.getenv("REELS_MONTHLY_BUDGET_USD", "5.00")
-# Media TTL. Purges the stored video, never the row — deleting rows would let
-# the next poll re-scrape and re-bill the same reels. 0/unset = keep forever.
-REELS_RETENTION_DAYS = int(os.getenv("REELS_RETENTION_DAYS", "0") or 0)
+# Media TTL, counted from when a reel was fetched. Purges the stored video,
+# never the row — deleting rows would let the next poll re-scrape and re-bill
+# the same reels. Two weeks keeps R2 small; set 0 to keep media forever.
+REELS_RETENTION_DAYS = int(os.getenv("REELS_RETENTION_DAYS", "14") or 0)
 REELS_BUDGET_ALERT_PCT = [
     int(p) for p in os.getenv("REELS_BUDGET_ALERT_PCT", "50,80,100").split(",") if p.strip()
 ]

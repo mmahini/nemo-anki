@@ -691,7 +691,11 @@
     "noImageFound": "عکسی پیدا نشد.",
     "articleColumn": "حرف تعریف",
     "editTitle": "ویرایش کارت",
-    "errSave": "کارت ذخیره نشد."
+    "errSave": "کارت ذخیره نشد.",
+    "deleteCard": "🗑 حذف کارت",
+    "deleting": "در حال حذف…",
+    "confirmDeleteCard": "این کارت حذف شود؟ این عمل قابل بازگشت نیست.",
+    "errDelete": "حذف کارت انجام نشد."
   },
   "review": {
     "colourise": "رنگ‌کردن (حرف تعریف / جنسیت آلمانی)",
