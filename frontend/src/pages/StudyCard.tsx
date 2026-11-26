@@ -171,6 +171,7 @@ export default function StudyCard() {
         <CardEditModal
           card={card}
           onClose={() => setEditing(false)}
+          onDeleted={back}
           onSaved={(u) => setCard((c) => (c ? { ...u, intervals: c.intervals } : u))}
         />
       )}

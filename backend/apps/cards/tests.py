@@ -449,3 +449,49 @@ class CardTypeReverseTests(TestCase):
         reverse = Card.objects.filter(reverse_of=card).first()
         self.assertIsNotNone(reverse)
         self.assertEqual(reverse.card_type, "adjective")
+
+
+class StudyQueueQueryTests(APITestCase):
+    """The study batch serialises up to 50 cards. Per-card lookups (deck name,
+    reverse companion, images) used to fire several queries each, which is
+    what made the study screen hang between batches."""
+
+    def setUp(self):
+        from .models import CardImage, add_reverse_cards
+
+        self.user = User.objects.create_user(email="study@example.com")
+        self.client.force_authenticate(self.user)
+        cfg = DeckConfig.objects.create(user=self.user, name="Default")
+        parent = Deck.objects.create(user=self.user, name="Book", config=cfg)
+        self.deck = Deck.objects.create(user=self.user, name="Ch1", parent=parent, config=cfg)
+        self.CardImage = CardImage
+        self.add_reverse_cards = add_reverse_cards
+        self._add(3)
+
+    def _add(self, n):
+        cards = [
+            Card.objects.create(deck=self.deck, front=f"Haus{Card.objects.count()}-{i}", back="house", card_type="vocab")
+            for i in range(n)
+        ]
+        self.add_reverse_cards(cards)
+        for c in cards:
+            self.CardImage.objects.create(card=c, image="card_images/x.png")
+
+    def test_queries_do_not_grow_with_the_batch(self):
+        url = reverse("deck-study", args=[self.deck.id])
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as few:
+            res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        first_batch = len(res.data)
+        self.assertTrue(any(c["images"] for c in res.data))
+        self.assertTrue(any(c["has_reverse"] for c in res.data))
+        self.assertIn("Book::Ch1", {c["deck_name"] for c in res.data})
+
+        self._add(10)
+        with CaptureQueriesContext(connection) as many:
+            res = self.client.get(url)
+        self.assertGreater(len(res.data), first_batch)
+        self.assertEqual(len(many), len(few))

@@ -7,6 +7,7 @@ import {
   colourizeCard,
   colourizeDeck,
   deleteCard,
+  fetchCardForReview,
   findCardImage,
   fetchCards,
   fetchDecks,
@@ -95,14 +96,22 @@ export default function DeckCards() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [decks, res] = await Promise.all([
-      fetchDecks(),
-      fetchCards(id, { page, pageSize: PAGE_SIZE, q: search || undefined }),
-    ]);
+  // The deck list (names, counts, sub-decks) only changes when the deck does or
+  // cards are added/removed — not on every page turn, search or edit. It used
+  // to be refetched with every card page, which made the list feel sluggish.
+  const loadDecks = useCallback(async () => {
+    const decks = await fetchDecks();
     setDeck(decks.find((d) => d.id === id) ?? null);
     setAllDecks(decks);
+  }, [id]);
+
+  useEffect(() => {
+    loadDecks().catch(() => {});
+  }, [loadDecks]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await fetchCards(id, { page, pageSize: PAGE_SIZE, q: search || undefined });
     if (res.results.length === 0 && res.count > 0 && page > 1) {
       setPage((p) => Math.max(1, Math.min(p - 1, res.num_pages)));
       return;
@@ -124,15 +133,36 @@ export default function DeckCards() {
 
   async function saveEdit(cardId: number) {
     if (!draft) return;
-    await updateCard(cardId, draft);
+    const updated = await updateCard(cardId, draft);
+    // Patch the row in place rather than refetching the whole page.
+    setCards((cs) => cs.map((c) => (c.id === cardId ? { ...c, ...updated } : c)));
     setEditing(null);
     setDraft(null);
-    load();
   }
 
-  async function remove(cardId: number) {
-    await deleteCard(cardId);
+  async function remove(cardId: number, confirm = false) {
+    if (confirm && !window.confirm(t("cardEditor.confirmDeleteCard"))) return;
+    try {
+      await deleteCard(cardId);
+    } catch {
+      window.alert(t("cardEditor.errDelete"));
+      return;
+    }
+    if (editing === cardId) {
+      setEditing(null);
+      setDraft(null);
+    }
+    setCards((cs) => cs.filter((c) => c.id !== cardId));
+    setCount((n) => Math.max(0, n - 1));
+    // Refill the page and refresh the deck counts in the background.
     load();
+    loadDecks().catch(() => {});
+  }
+
+  /** Images changed: refresh just that card's photos. */
+  async function refreshCardImages(cardId: number) {
+    const fresh = await fetchCardForReview(cardId).catch(() => null);
+    if (fresh) setCards((cs) => cs.map((c) => (c.id === cardId ? { ...c, images: fresh.images } : c)));
   }
 
   async function colouriseOne(cardId: number) {
@@ -149,7 +179,7 @@ export default function DeckCards() {
     setFindCard(cardId);
     try {
       await findCardImage(cardId);
-      await load();
+      await refreshCardImages(cardId);
     } catch {
       window.alert(t("common.error"));
     } finally {
@@ -255,7 +285,14 @@ export default function DeckCards() {
       {allDecks.some((d) => d.parent === id) && (
         <div className="subdecks">
           <h2 className="subdecks__title">{t("deckCards.subdecks")}</h2>
-          <DeckTree decks={allDecks} rootId={id} onChanged={load} />
+          <DeckTree
+            decks={allDecks}
+            rootId={id}
+            onChanged={() => {
+              loadDecks().catch(() => {});
+              load();
+            }}
+          />
         </div>
       )}
 
@@ -329,10 +366,13 @@ export default function DeckCards() {
               {editing === c.id && draft ? (
                 <div className="cardrow__edit">
                   <CardEditor value={draft} onChange={setDraft} />
-                  <CardImages card={c} onChange={load} />
+                  <CardImages card={c} onChange={() => refreshCardImages(c.id)} />
                   <div className="cardrow__editactions">
                     <button className="btn btn--primary btn--sm" onClick={() => saveEdit(c.id)}>{t("deckCards.saveBtn")}</button>
                     <button className="btn btn--ghost btn--sm" onClick={() => setEditing(null)}>{t("deckCards.cancelBtn")}</button>
+                    <button className="btn btn--ghost btn--sm btn--danger cardrow__editdelete" onClick={() => remove(c.id, true)}>
+                      {t("cardEditor.deleteCard")}
+                    </button>
                   </div>
                 </div>
               ) : (

@@ -930,6 +930,10 @@ kbd {
 .cardrow__del:hover { color: var(--again); }
 .cardrow__edit { padding: 12px; }
 .cardrow__editactions { display: flex; gap: 8px; margin-top: 10px; }
+.cardrow__editdelete { margin-inline-start: auto; }
+.btn--danger { color: var(--again); }
+.btn--danger:hover:not(:disabled) { background: rgba(226, 59, 84, 0.1); border-color: var(--again); }
+.editmodal__delete { margin-inline-end: auto; }
 /* Type tag is intentionally neutral so it never clashes with the
    der/die/das gender colours on the word itself. */
 .badge { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; background: var(--line-soft); color: var(--ink-soft); }

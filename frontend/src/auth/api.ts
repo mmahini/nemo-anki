@@ -315,6 +315,8 @@ export type Card = {
   deck_language?: string;
   card_type: CardType;
   direction: "forward" | "reverse";
+  /** Set on a reverse card: the forward card it mirrors. */
+  reverse_of?: number | null;
   has_reverse?: boolean;
   images?: CardImage[];
   language: string;

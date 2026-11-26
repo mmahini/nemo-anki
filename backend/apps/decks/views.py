@@ -38,13 +38,32 @@ class DeckListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from apps.cards.queue import bulk_deck_counts
+
         now = timezone.now()
-        decks = list(Deck.objects.filter(user=request.user).select_related("parent", "config"))
+        decks = list(
+            Deck.objects.filter(user=request.user)
+            .select_related("parent", "config", "user")
+            .prefetch_related("shares__user")
+        )
         # New accounts start empty — the Menschen + Oxford starter trees are
         # seeded once the user finishes (or skips) the placement test, via
         # DeckSeedView below, rather than at signup.
+        #
+        # Counts, card totals and full names are computed for the whole tree
+        # at once: per-deck they cost ~10 queries each, and this endpoint is
+        # hit on every deck-list and card-list load.
+        counts = bulk_deck_counts(decks, now)
+        by_id = {d.id: d for d in decks}
         for d in decks:
-            _with_counts(d, now)
+            c = counts[d.id]
+            d._card_count = c.pop("card_count")
+            d._counts = c
+            parts, node = [], d
+            while node is not None:
+                parts.append(node.name)
+                node = by_id.get(node.parent_id) if node.parent_id else None
+            d._full_name = "::".join(reversed(parts))
         data = DeckSerializer(decks, many=True, context={"request": request}).data
         # Sort by full_name so the tree reads top-down.
         data.sort(key=lambda d: d["full_name"].lower())

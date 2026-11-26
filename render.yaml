@@ -94,7 +94,7 @@ services:
       - key: REELS_MONTHLY_BUDGET_USD
         value: "5.00"
       - key: REELS_RETENTION_DAYS
-        value: "0"
+        value: "14"
       - key: DJANGO_SUPERUSER_USERNAME
         sync: false
       - key: DJANGO_SUPERUSER_EMAIL

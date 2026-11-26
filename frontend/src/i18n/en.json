@@ -691,7 +691,11 @@
     "noImageFound": "No image found.",
     "articleColumn": "Article",
     "editTitle": "Edit card",
-    "errSave": "Couldn't save the card."
+    "errSave": "Couldn't save the card.",
+    "deleteCard": "🗑 Delete card",
+    "deleting": "Deleting…",
+    "confirmDeleteCard": "Delete this card? This can't be undone.",
+    "errDelete": "Couldn't delete the card."
   },
   "review": {
     "colourise": "Colourise (German article / genders)",

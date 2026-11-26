@@ -3,7 +3,8 @@
 Phase 1 arms none of these on a schedule — the only way to spend money is a
 staff member clicking "Fetch now" in the admin. `poll_reel_sources` and
 `purge_expired_reel_media` are wired into CELERY_BEAT_SCHEDULE but gated behind
-REELS_SCRAPING_ENABLED / REELS_RETENTION_DAYS, both unset by default.
+REELS_SCRAPING_ENABLED / REELS_RETENTION_DAYS (scraping is off by default;
+retention defaults to 14 days).
 
 Note the deployment can run with CELERY_TASK_ALWAYS_EAGER, so every task here
 must be safe to run inline in a web request.
@@ -199,6 +200,11 @@ def ingest_reel_media(self, reel_id: int, video_url: str, poster_url: str):
 def purge_queryset(cutoff, source=None):
     """Reels eligible for a media purge before `cutoff`.
 
+    Age is measured from `fetched_at` — when the media landed in R2 — not from
+    Instagram's `posted_at`. Retention is a storage TTL: a reel posted months
+    ago but fetched yesterday still gets its full window (we just paid for
+    it), and a reel Instagram gave no timestamp for still ages out.
+
     Three exclusions, in order of how badly getting them wrong would hurt:
       * our own reels — no re-upload path if we delete them, so this is enforced
         at the query, not via a flag someone can bulk-toggle;
@@ -206,7 +212,7 @@ def purge_queryset(cutoff, source=None):
       * saved by a user — purging out from under someone's saved list is a bad
         trade for a rounding error of storage.
     """
-    qs = Reel.objects.filter(media_status=MEDIA_STORED, posted_at__lt=cutoff)
+    qs = Reel.objects.filter(media_status=MEDIA_STORED, fetched_at__lt=cutoff)
     qs = qs.exclude(source__kind=OWN).exclude(is_evergreen=True).exclude(views__saved=True)
     if source is not None:
         qs = qs.filter(source=source)
@@ -220,7 +226,7 @@ def purge_preview(cutoff) -> dict:
     from django.db.models import Count, Sum
 
     agg = qs.aggregate(n=Count("id"), b=Sum("video_bytes"))
-    candidates = Reel.objects.filter(media_status=MEDIA_STORED, posted_at__lt=cutoff)
+    candidates = Reel.objects.filter(media_status=MEDIA_STORED, fetched_at__lt=cutoff)
     return {
         "count": agg["n"] or 0,
         "bytes": agg["b"] or 0,

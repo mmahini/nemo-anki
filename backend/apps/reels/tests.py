@@ -46,12 +46,18 @@ def make_source(**kwargs):
 
 
 def make_reel(source, key="abc", days_old=200, **kwargs):
+    """A stored reel fetched (and posted) `days_old` days ago."""
+    when = timezone.now() - timedelta(days=days_old)
     defaults = {
-        "posted_at": timezone.now() - timedelta(days=days_old),
+        "posted_at": when,
         "media_status": MEDIA_STORED,
         "video_bytes": 6 * 1024 * 1024,
     }
-    return Reel.objects.create(source=source, key=key, **{**defaults, **kwargs})
+    reel = Reel.objects.create(source=source, key=key, **{**defaults, **kwargs})
+    # fetched_at is auto_now_add, so backdate it after the insert.
+    Reel.objects.filter(pk=reel.pk).update(fetched_at=when)
+    reel.fetched_at = when
+    return reel
 
 
 class BudgetGuardTests(TestCase):
@@ -246,8 +252,28 @@ class PurgeTests(TestCase):
         result = tasks.purge_expired_reel_media(cutoff=self.cutoff, triggered_by="test")
         self.assertEqual(result["purged"], preview["count"])
 
+    def test_age_counts_from_fetch_not_from_instagram_post_date(self):
+        """An old post we fetched yesterday has just been paid for — it gets
+        its full window. A recent post stored long ago has had its run."""
+        reel = make_reel(self.ig, key="old-post-new-fetch", days_old=1)
+        Reel.objects.filter(pk=reel.pk).update(posted_at=timezone.now() - timedelta(days=400))
+        stale = make_reel(self.ig, key="no-timestamp", days_old=200, posted_at=None)
+
+        tasks.purge_expired_reel_media(cutoff=self.cutoff, triggered_by="test")
+        self.assertEqual(Reel.objects.get(key="old-post-new-fetch").media_status, MEDIA_STORED)
+        stale.refresh_from_db()
+        self.assertEqual(stale.media_status, MEDIA_PURGED)
+
+    @override_settings(REELS_RETENTION_DAYS=14)
+    def test_default_window_is_two_weeks(self):
+        make_reel(self.ig, key="13d", days_old=13)
+        make_reel(self.ig, key="15d", days_old=15)
+        self.assertEqual(tasks.purge_expired_reel_media()["purged"], 1)
+        self.assertEqual(Reel.objects.get(key="13d").media_status, MEDIA_STORED)
+        self.assertEqual(Reel.objects.get(key="15d").media_status, MEDIA_PURGED)
+
     @override_settings(REELS_RETENTION_DAYS=0)
-    def test_retention_is_opt_in(self):
+    def test_retention_can_be_switched_off(self):
         make_reel(self.ig, key="old", days_old=900)
         self.assertEqual(tasks.purge_expired_reel_media(), {"skipped": "retention disabled"})
 
